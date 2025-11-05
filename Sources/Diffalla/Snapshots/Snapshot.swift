@@ -140,6 +140,33 @@ public struct Snapshot {
     }
 }
 
+// MARK: - Querying
+
+extension Snapshot {
+    /// Load all items from this snapshot
+    /// - Returns: Array of all SnapshotItems ordered by path
+    public func loadAllItems() throws -> [SnapshotItem] {
+        let reader = SnapshotReader(database: database)
+        return try reader.loadAllItems()
+    }
+
+    /// Load a specific item by path
+    /// - Parameter path: The relative path to find
+    /// - Returns: SnapshotItem if found, nil otherwise
+    public func loadItem(path: String) throws -> SnapshotItem? {
+        let reader = SnapshotReader(database: database)
+        return try reader.loadItem(path: path)
+    }
+
+    /// Load all children of a given parent
+    /// - Parameter parentId: The parent's database row ID
+    /// - Returns: Array of child SnapshotItems ordered by name
+    public func loadChildren(of parentId: Int64) throws -> [SnapshotItem] {
+        let reader = SnapshotReader(database: database)
+        return try reader.loadChildren(of: parentId)
+    }
+}
+
 // MARK: - Errors
 
 enum SnapshotError: Error, CustomStringConvertible {

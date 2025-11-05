@@ -543,7 +543,7 @@ Use checkboxes to track progress:
 - [x] Step 3: Snapshot SQLite Schema (2 hours) ✅
 - [x] Step 4: Directory Scanning (4-5 hours) ✅
 - [x] Step 5: Insert Items into SQLite (3-4 hours) ✅
-- [ ] Step 6: Snapshot Loading & Querying (3 hours)
+- [x] Step 6: Snapshot Loading & Querying (3 hours) ✅
 - [ ] Step 7: Comparison Engine (4-5 hours)
 - [ ] Step 8: Integration Tests (3 hours)
 - [ ] Step 9: Error Handling & Edge Cases (2-3 hours)
