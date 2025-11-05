@@ -18,7 +18,10 @@ let package = Package(
             name: "Diffalla",
             dependencies: [],
             exclude: [
-                "Database/README.md"
+                "Database/README.md",
+                "Core/README.md",
+                "Snapshots/README.md",
+                "Comparison/README.md"
             ],
             linkerSettings: [
                 .linkedLibrary("sqlite3", .when(platforms: [.macOS, .iOS, .linux]))

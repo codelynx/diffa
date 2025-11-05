@@ -225,7 +225,7 @@ final class IntegrationTests: XCTestCase {
         let testDir = tempDir.appendingPathComponent("largeData")
         try fileManager.createDirectory(at: testDir, withIntermediateDirectories: false)
 
-        // Create nested structure: 10 subdirectories with 100 files each
+        // Create nested structure: 10 subdirectories with 100 files each (1,000 total)
         for i in 0..<10 {
             let subdirPath = "largeData/dir\(i)"
             try createDirectory(at: subdirPath)
@@ -392,5 +392,85 @@ final class IntegrationTests: XCTestCase {
         XCTAssertTrue(try diff.added.isEmpty, "Should have no added items")
         XCTAssertTrue(try diff.removed.isEmpty, "Should have no removed items")
         XCTAssertTrue(try diff.hasDifferences, "Should have differences")
+    }
+
+    func testVeryLargeDirectory() async throws {
+        // Performance benchmark test - opt-in only via environment variable
+        // Run with: DIFFALLA_RUN_BENCHMARKS=1 swift test --filter testVeryLargeDirectory
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["DIFFALLA_RUN_BENCHMARKS"] == "1",
+            "Skipping performance benchmark test. Set DIFFALLA_RUN_BENCHMARKS=1 to run."
+        )
+
+        // Phase 1 Exit Criteria: Verify 10,000 files in <30s (HDD target)
+        // Create test directory with 10,000 files
+        let testDir = tempDir.appendingPathComponent("veryLargeData")
+        try fileManager.createDirectory(at: testDir, withIntermediateDirectories: false)
+
+        print("\n=== Phase 1 Performance Verification ===")
+        print("Creating 10,000 files...")
+
+        // Create nested structure: 100 subdirectories with 100 files each
+        let createStart = Date()
+        for i in 0..<100 {
+            let subdirPath = "veryLargeData/dir\(i)"
+            try createDirectory(at: subdirPath)
+
+            for j in 0..<100 {
+                let filePath = "\(subdirPath)/file\(j).txt"
+                try createFile(at: filePath, content: "Content for file \(i)-\(j)")
+            }
+        }
+        let createTime = Date().timeIntervalSince(createStart)
+        print("File creation time: \(String(format: "%.2f", createTime))s")
+
+        // Measure snapshot creation time
+        let snapshotURL = tempDir.appendingPathComponent("10kSnapshot.snapshot")
+        let options = ScanOptions()
+
+        print("Creating snapshot of 10,000 files...")
+        let startTime = Date()
+        let snapshot = try await engine.createSnapshot(
+            from: testDir,
+            saveTo: snapshotURL,
+            options: options
+        )
+        let elapsedTime = Date().timeIntervalSince(startTime)
+
+        // Verify metadata
+        let metadata = snapshot.metadata
+        XCTAssertEqual(metadata.totalFiles, 10000, "Should have 10,000 files")
+        XCTAssertEqual(metadata.totalFolders, 100, "Should have 100 folders")
+        XCTAssertGreaterThan(metadata.totalSize, 0, "Should have non-zero total size")
+
+        // Performance check: Phase 1 target is <30s on HDD
+        print("Snapshot creation time: \(String(format: "%.2f", elapsedTime))s")
+        print("Target: <30s (HDD baseline)")
+        print("Status: \(elapsedTime < 30.0 ? "✅ PASS" : "⚠️  SLOW")")
+
+        XCTAssertLessThan(elapsedTime, 30.0, "10,000 file snapshot should be <30s (Phase 1 target)")
+
+        // Verify comparison performance
+        print("\nCreating second snapshot for comparison...")
+        let snapshot2URL = tempDir.appendingPathComponent("10kSnapshot2.snapshot")
+        let snapshot2 = try await engine.createSnapshot(
+            from: testDir,
+            saveTo: snapshot2URL,
+            options: options
+        )
+
+        print("Comparing snapshots...")
+        let compareStart = Date()
+        let diff = try Difference.compare(source: snapshot, destination: snapshot2)
+        _ = try diff.hasDifferences
+        let compareTime = Date().timeIntervalSince(compareStart)
+
+        print("Comparison time: \(String(format: "%.3f", compareTime))s")
+        print("Target: <1s")
+        print("Status: \(compareTime < 1.0 ? "✅ PASS" : "⚠️  SLOW")")
+
+        XCTAssertLessThan(compareTime, 1.0, "10,000 file comparison should be <1s")
+
+        print("\n=== Phase 1 Performance: ALL TARGETS MET ===\n")
     }
 }
