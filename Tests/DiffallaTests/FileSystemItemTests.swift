@@ -107,17 +107,48 @@ final class FileSystemItemTests: XCTestCase {
         let symlinkURL = tempDir.appendingPathComponent("link.txt")
         try fileManager.createSymbolicLink(at: symlinkURL, withDestinationURL: targetURL)
 
-        // FileSystemItem always follows symlinks (uses attributesOfItem)
-        let item = try FileSystemItem(at: symlinkURL, relativeTo: tempDir)
+        // FileSystemItem with followSymlinks=true reads target
+        let itemFollowing = try FileSystemItem(at: symlinkURL, relativeTo: tempDir, followSymlinks: true)
 
         // Should read the target file's content
-        XCTAssertEqual(item.path, "link.txt")
-        XCTAssertFalse(item.isFolder)
-        XCTAssertNotNil(item.sha256)
+        XCTAssertEqual(itemFollowing.path, "link.txt")
+        XCTAssertFalse(itemFollowing.isFolder)
+        XCTAssertNotNil(itemFollowing.sha256)
 
         // Hash should match target file
         let targetItem = try FileSystemItem(at: targetURL, relativeTo: tempDir)
-        XCTAssertEqual(item.sha256, targetItem.sha256)
+        XCTAssertEqual(itemFollowing.sha256, targetItem.sha256)
+    }
+
+    func testSymlinkNotFollowing() throws {
+        // Create a target file with known content
+        let targetURL = tempDir.appendingPathComponent("target.txt")
+        let targetContent = "This is the target file with substantial content"
+        try targetContent.write(to: targetURL, atomically: true, encoding: .utf8)
+
+        // Create symlink
+        let symlinkURL = tempDir.appendingPathComponent("link.txt")
+        try fileManager.createSymbolicLink(at: symlinkURL, withDestinationURL: targetURL)
+
+        // FileSystemItem with followSymlinks=false reads symlink itself
+        let symlinkItem = try FileSystemItem(at: symlinkURL, relativeTo: tempDir, followSymlinks: false)
+
+        // Should read the symlink itself, not target
+        XCTAssertEqual(symlinkItem.path, "link.txt")
+        XCTAssertFalse(symlinkItem.isFolder)
+
+        // CRITICAL: Should NOT have a hash (symlinks are not hashed)
+        XCTAssertNil(symlinkItem.sha256, "Symlink should not have SHA-256 hash when followSymlinks=false")
+
+        // Symlink size is the length of the path it points to (can be larger than small files)
+        // The key point is it's NOT the target's content size
+        let targetSize = Int64(targetContent.utf8.count)
+        XCTAssertNotEqual(symlinkItem.size, targetSize, "Symlink size should differ from target content size")
+
+        // For comparison, verify following the symlink gives different results
+        let targetItem = try FileSystemItem(at: targetURL, relativeTo: tempDir)
+        XCTAssertNotNil(targetItem.sha256, "Target file should have SHA-256 hash")
+        XCTAssertEqual(targetItem.size, targetSize, "Target file should have full content size")
     }
 
     // MARK: - Hidden File Tests
@@ -220,8 +251,9 @@ final class FileSystemItemTests: XCTestCase {
         let fileURL = tempDir.appendingPathComponent("file.txt")
         try "content".write(to: fileURL, atomically: true, encoding: .utf8)
 
-        // Try to read with a base path that doesn't contain the file
-        let otherBase = URL(fileURLWithPath: "/private/var")
+        // Try to read with a base path that definitely doesn't contain the file
+        // Use /usr which is never a parent of temp directories
+        let otherBase = URL(fileURLWithPath: "/usr")
 
         // Should throw an error
         XCTAssertThrowsError(try FileSystemItem(at: fileURL, relativeTo: otherBase))

@@ -4,7 +4,9 @@ import CommonCrypto
 /// A file or folder read from the file system
 ///
 /// **Behavior:**
-/// - Always follows symlinks (uses FileManager.attributesOfItem)
+/// - Symlink handling controlled by `followSymlinks` parameter:
+///   - `followSymlinks: true` - reads target's attributes and computes SHA-256 of target content
+///   - `followSymlinks: false` - reads symlink's own attributes, no SHA-256 hash
 /// - Does not filter hidden files (reads any file it's given)
 /// - Does not recursively scan directories
 ///
@@ -31,19 +33,38 @@ public struct FileSystemItem: ItemProtocol {
     ///   - url: Absolute URL to the file or folder
     ///   - baseURL: Base URL for computing relative path
     ///   - captureOwnership: Whether to capture file owner/group
-    public init(at url: URL, relativeTo baseURL: URL, captureOwnership: Bool = false) throws {
+    ///   - pathOverride: Optional URL to use for path computation (for symlinks)
+    ///   - followSymlinks: Whether to follow symlinks (true) or read symlink itself (false)
+    public init(at url: URL, relativeTo baseURL: URL, captureOwnership: Bool = false, pathOverride: URL? = nil, followSymlinks: Bool = true) throws {
         let fileManager = FileManager.default
 
+        // Check if this is a symlink
+        let resourceValues = try url.resourceValues(forKeys: [.isSymbolicLinkKey])
+        let isSymlink = resourceValues.isSymbolicLink ?? false
+
         // Get file attributes
-        let attributes = try fileManager.attributesOfItem(atPath: url.path)
+        // For symlinks when followSymlinks=false, we need special handling
+        let attributes: [FileAttributeKey: Any]
+        if isSymlink && !followSymlinks {
+            // Use lstat-equivalent to read symlink itself, not target
+            // FileManager doesn't have a direct lstat equivalent, so we use URL resource values
+            attributes = try Self.getSymlinkAttributes(at: url, fileManager: fileManager)
+        } else {
+            // Normal case: follows symlinks
+            attributes = try fileManager.attributesOfItem(atPath: url.path)
+        }
 
         // Determine if folder
         let fileType = attributes[.type] as? FileAttributeType
         let isDirectory = fileType == .typeDirectory
 
+        // Normalize URLs to handle symlinks like /var -> /private/var on macOS
+        let normalizedURL = (pathOverride ?? url).standardizedFileURL
+        let normalizedBaseURL = baseURL.standardizedFileURL
+
         // Compute relative path by removing base prefix
-        let basePath = baseURL.path
-        let fullPath = url.path
+        let basePath = normalizedBaseURL.path
+        let fullPath = normalizedURL.path
 
         // Ensure the file is actually under the base path (with proper path component boundaries)
         let isUnderBase: Bool
@@ -81,6 +102,15 @@ public struct FileSystemItem: ItemProtocol {
         } else {
             // Normal case: remove base path + separator
             let prefixLength = basePath.hasSuffix("/") ? basePath.count : basePath.count + 1
+
+            // Safety check: ensure prefix length doesn't exceed full path length
+            guard prefixLength <= fullPath.count else {
+                throw FileSystemError.fileNotUnderBasePath(
+                    filePath: fullPath,
+                    basePath: basePath
+                )
+            }
+
             relativePath = String(fullPath.dropFirst(prefixLength))
         }
 
@@ -114,8 +144,9 @@ public struct FileSystemItem: ItemProtocol {
         )
 
         // Compute hash for files only
+        // Skip hash computation for symlinks when not following them
         var hash: String?
-        if !isDirectory {
+        if !isDirectory && !(isSymlink && !followSymlinks) {
             hash = try Self.computeHash(at: url)
         }
 
@@ -125,6 +156,53 @@ public struct FileSystemItem: ItemProtocol {
         self.sha256 = hash
         self.size = fileSize
         self.metadata = metadata
+    }
+
+    /// Get attributes of a symlink itself (not its target)
+    /// - Parameters:
+    ///   - url: Symlink URL
+    ///   - fileManager: FileManager instance
+    /// - Returns: Dictionary of file attributes for the symlink itself
+    private static func getSymlinkAttributes(at url: URL, fileManager: FileManager) throws -> [FileAttributeKey: Any] {
+        // Get resource values that don't follow symlinks
+        let resourceKeys: Set<URLResourceKey> = [
+            .fileSizeKey,
+            .contentModificationDateKey,
+            .isSymbolicLinkKey
+        ]
+
+        let values = try url.resourceValues(forKeys: resourceKeys)
+
+        // Convert to FileAttributeKey format
+        var attributes: [FileAttributeKey: Any] = [:]
+
+        // Symlinks are always "files" (not directories) in our model
+        attributes[.type] = FileAttributeType.typeSymbolicLink
+
+        // Size of symlink itself (typically small, just the path string)
+        if let size = values.fileSize {
+            attributes[.size] = Int64(size)
+        } else {
+            attributes[.size] = Int64(0)
+        }
+
+        // Modification date
+        if let modDate = values.contentModificationDate {
+            attributes[.modificationDate] = modDate
+        } else {
+            throw FileSystemError.missingMetadata(path: url.path, field: "modificationDate")
+        }
+
+        // Get POSIX permissions using lstat via FileManager
+        // We need to use a lower-level API for this
+        var stat = Darwin.stat()
+        if lstat(url.path, &stat) == 0 {
+            attributes[.posixPermissions] = UInt16(stat.st_mode & 0o7777)
+        } else {
+            attributes[.posixPermissions] = UInt16(0o644) // Default
+        }
+
+        return attributes
     }
 
     /// Compute SHA-256 hash of file content
