@@ -453,19 +453,24 @@ class BenchmarkHarness {
 - Benchmark dataset generation time (mitigated by pre-generated datasets)
 - Cache invalidation bugs (mitigated by paranoid verification mode)
 
-### Phase 5: Polish (Future)
-**Goal:** Production-ready library
+### Phase 5: Polish & CLI Tool (Future)
+**Goal:** Production-ready library + command-line tool
 **Duration:** 4-6 weeks
 **Owner:** TBD
 **Prerequisites:** Phase 1-4 complete
 
 #### Deliverables
-1. **Error handling** improvements
-2. **Documentation** (API docs, guides)
-3. **Example projects** (CLI tool, GUI app)
-4. **Compression** for snapshots/patches
-5. **Advanced features** (block-level delta, deduplication)
-6. **Platform support** (iOS, macOS, Linux)
+1. **CLI Tool** (`diffalla` command) for macOS and Linux
+   - Complete command-line interface (snapshot, compare, patch, sync, export, verify)
+   - Argument parsing with `swift-argument-parser`
+   - Progress bars, colored output, exit codes
+   - Man pages and installation packages (Homebrew, APT)
+   - See `docs/cli-design.md` for full specification
+2. **Error handling** improvements
+3. **Documentation** (API docs, guides, CLI docs)
+4. **Example projects** (GUI app, Swift Package integration example)
+5. **Compression** for snapshots/patches (optional)
+6. **Platform support** (CLI: macOS + Linux, Library: iOS + macOS + Linux)
 
 #### Exit Criteria (Measurable Gates)
 ✅ **Production Quality:**
@@ -481,15 +486,21 @@ class BenchmarkHarness {
 - Migration guide (schema versions)
 - 3+ example projects
 
-✅ **Examples:**
-- CLI tool: `diffalla-cli` (like rsync)
-- GUI app: Simple backup utility
-- Swift Package: Integration example
+✅ **CLI Tool:**
+- All commands implemented: snapshot, compare, patch, sync, export, verify
+- Progress bars and colored output working
+- Man pages complete (diffalla.1, diffalla-snapshot.1, etc.)
+- Installation: Homebrew formula + binary releases
+- Cross-platform: macOS and Linux tested
+- Integration tests: All commands tested with various flags
+
+✅ **Example Projects:**
+- GUI app: Simple backup utility (macOS)
+- Swift Package: Integration example with sample code
 
 ✅ **Platform Support:**
-- macOS: Full support
-- iOS: Full support
-- Linux: Basic support (future)
+- CLI Tool: macOS + Linux ✅
+- Library: macOS + iOS + Linux ✅
 
 ✅ **Open Questions Resolved:**
 - Deferred questions from Phase 1-4

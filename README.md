@@ -1,6 +1,10 @@
 # Diffalla
 
-A Swift package for comparing file systems and file system-like structures.
+A Swift library and command-line tool for comparing file systems and file system-like structures.
+
+**Dual Interface:**
+- **Swift Library:** Embed in macOS/iOS applications
+- **CLI Tool:** `diffalla` command for macOS and Linux (coming in Phase 5)
 
 ## Objectives
 
@@ -44,7 +48,9 @@ Create lightweight snapshots capturing directory structure, hashes, and metadata
 
 **Initial focus:** Local file system on Apple platforms (macOS, iOS)
 
-**No UI:** Library/framework only - no user interface components
+**Dual interface:**
+- Library/framework for app integration (no UI components)
+- Command-line tool for standalone use (Phase 5)
 
 **Future expansion:** File system-like subjects (FTP, AWS S3, etc.)
 

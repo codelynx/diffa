@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Diffalla** is a Swift library for file system comparison, patching, and synchronization on Apple platforms (macOS, iOS). It provides snapshot-based directory comparison, patch creation/application, and folder synchronization with conflict resolution.
+**Diffalla** is a Swift library and command-line tool for file system comparison, patching, and synchronization on Apple platforms and Linux. It provides snapshot-based directory comparison, patch creation/application, and folder synchronization with conflict resolution.
+
+**Dual Interface:**
+- **Library:** Swift Package for embedding in macOS/iOS apps
+- **CLI Tool:** `diffalla` command for macOS and Linux (Phase 5)
 
 **Current Status:** Design phase complete. Custom SQLite wrapper implemented and production-ready (28 passing tests). Phase 1 implementation (Snapshots and Comparison) awaiting resolution of critical design questions.
 
@@ -13,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Optimize for large scale (100k+ files, GBs of data)
 - Accept minor overhead for small cases
 - SQLite-based storage for memory efficiency
-- No UI - library/framework only
+- Library + CLI tool from single codebase
 
 ## Build and Test Commands
 
@@ -138,9 +142,14 @@ Sources/Diffalla/
 **Depends on:** Phase 1 (can run parallel to 2/3)
 **Deliverables:** Hash caching, parallel hashing, benchmarking harness
 
-### Phase 5: Polish (Future)
+### Phase 5: Polish & CLI Tool (Future)
 **Depends on:** Phase 1-4 complete
-**Deliverables:** Documentation, examples, compression, platform support
+**Deliverables:**
+- **CLI Tool** (`diffalla` command) for macOS and Linux - PRIMARY GOAL
+- Complete documentation (API docs, man pages, guides)
+- Example projects (GUI app, integration examples)
+- Compression (optional)
+- Full platform support (macOS, iOS, Linux)
 
 ## Schema Versioning
 
@@ -196,6 +205,8 @@ CREATE TABLE schema_version (
 - `docs/architecture.md` - Core types and system architecture
 - `docs/implementation-readiness.md` - Phase plan, exit criteria, open questions
 - `docs/sqlite-wrapper-fixes.md` - SQLite wrapper implementation details
+- `docs/cli-design.md` - Command-line tool specification (Phase 5)
+- `docs/competitive-analysis.md` - Comparison to rsync, Git, Unison, etc.
 
 **Operation Reviews (Detailed Pseudocode):**
 - `docs/operation-review-snapshot.md` - Snapshot creation

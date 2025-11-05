@@ -9,11 +9,11 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 
 1. **Snapshot-based verification** (lightweight, no content storage)
 2. **Reversible patching** (like git, unlike rsync)
-3. **Programmatic API** (Swift library, not CLI)
+3. **Dual interface** (Swift library + CLI tool)
 4. **SQLite-powered queries** (efficient comparison at scale)
-5. **Local file system focus** (optimized for macOS/iOS, not network/cloud)
+5. **Local file system focus** (optimized for macOS/iOS/Linux, not network/cloud)
 
-**Key Differentiator:** Diffalla is a **library for embedding in applications**, not a standalone CLI tool. It provides snapshot verification, comparison, and patching as composable operations with full programmatic control.
+**Key Differentiator:** Diffalla provides **both a native Swift library and a command-line tool**. The library enables embedding in applications with full programmatic control, while the CLI tool (`diffalla`) provides standalone functionality similar to rsync/git for users who don't need app integration.
 
 ---
 
@@ -21,7 +21,7 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 
 | Feature | rsync | diff/patch | Git | Unison | rclone | **Diffalla** |
 |---------|-------|------------|-----|--------|--------|--------------|
-| **Type** | CLI tool | CLI tools | VCS | CLI tool | CLI tool | **Swift Library** |
+| **Type** | CLI tool | CLI tools | VCS | CLI tool | CLI tool | **Library + CLI** |
 | **Primary Use Case** | File sync | Code patches | Version control | Bidirectional sync | Cloud sync | **App integration** |
 | **Network Support** | ✅ SSH/remote | ❌ Local only | ✅ Remote repos | ✅ Remote sync | ✅ Cloud storage | **❌ Local first** |
 | **Block-Level Delta** | ✅ Rolling hash | ❌ Line-based | ✅ Binary delta | ✅ Via rsync | ❌ File-level | **❌ (Phase 5)** |
@@ -246,23 +246,27 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 
 ## Diffalla's Unique Value Propositions
 
-### 1. **Library, Not CLI Tool**
+### 1. **Library + CLI Tool (Best of Both Worlds)**
 
-**Unique:** All competitors are CLI tools requiring exec/parse to embed in apps.
+**Unique:** Provides both native library API and command-line tool from single codebase.
 
-**Value:**
+**Library Value:**
 - Native Swift API with type safety
 - Progress callbacks (no parsing stderr)
 - Error handling via exceptions
 - Composable operations
 - Testable in-process
 
+**CLI Tool Value:**
+- Standalone tool like rsync/git
+- No app integration required
+- Shell scripts and automation
+- Man pages and familiar interface
+- Cross-platform (macOS, Linux)
+
 **Use Cases:**
-- Backup applications
-- Deployment tools
-- Installer verification
-- Build system integration
-- iOS/macOS apps requiring file sync
+- Library: Backup apps, deployment tools, iOS/macOS apps
+- CLI: Shell scripts, system administration, CI/CD pipelines, manual operations
 
 ---
 
