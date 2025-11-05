@@ -17,32 +17,33 @@ A consolidated list of open questions and design decisions to be made.
 - Cache storage location and format
 - Cache size limits
 
-### Symlinks
+### Symlinks ✅ RESOLVED
 **Question:** How to handle symbolic links?
 
-**Options:**
-1. Follow symlinks (compare target)
-2. Compare symlink itself (path comparison)
-3. Ignore symlinks
-4. Configurable behavior
+**Decision (2025-11-05):** Follow symlinks by default, with `--no-follow-symlinks` flag to opt-out
 
-**Considerations:**
-- Circular symlink detection
-- Broken symlink handling
-- Cross-device symlinks
+**Rationale:**
+- Matches user expectation (compare actual content)
+- Consistent with common tools (rsync, cp -r)
+- Circular symlink detection: Track visited paths
+- Broken symlinks: Treat as missing file
+- Cross-device symlinks: Follow naturally
 
-### Hidden Files
+**See:** `docs/decisions.md` for full details
+
+### Hidden Files ✅ RESOLVED
 **Question:** Should we include hidden files by default?
 
-**Options:**
-1. Include all files
-2. Exclude hidden by default, with option to include
-3. Follow .gitignore patterns
+**Decision (2025-11-05):** Include all files by default, with `--no-hidden` flag to exclude
 
-**Considerations:**
-- Platform differences (. prefix on Unix, attributes on Windows)
-- User expectations
-- Performance impact
+**Rationale:**
+- Hidden files are legitimate data (configs, .git)
+- Backup/sync tools should see everything by default
+- Explicit exclusion is safer (no surprises)
+- Platform: Files starting with `.` on Unix/macOS
+- Ignore patterns (.diffallaignore) deferred to Phase 5
+
+**See:** `docs/decisions.md` for full details
 
 ### Ignore Patterns
 **Question:** Should we support .gitignore-style patterns?
@@ -70,18 +71,28 @@ A consolidated list of open questions and design decisions to be made.
 - Use cases for shallow comparison
 - API complexity
 
-### Metadata Comparison Level
+### Metadata Comparison Level ✅ RESOLVED
 **Question:** What metadata should be compared by default?
 
-**Options:**
-1. Content only (SHA-256)
-2. Content + modification time
-3. Content + all metadata (permissions, ownership, etc.)
-4. Configurable levels
+**Decision (2025-11-05):** Content + mtime + size + permissions (NO ownership by default)
 
-**Considerations:**
-- Performance impact
-- User needs
+**Default metadata:**
+- SHA-256 hash (content)
+- Modification time
+- File size
+- Permissions (chmod: 755, rwxr-xr-x)
+
+**Opt-in with `--with-ownership`:**
+- Owner (user)
+- Group (group)
+
+**Rationale:**
+- Permissions matter for most use cases (executable, readable)
+- Ownership useless for personal files across machines (different UIDs)
+- Ownership requires sudo to restore (chown)
+- System administrators can opt-in when needed
+
+**See:** `docs/decisions.md` for full details
 - Platform differences
 
 ## Patching Questions

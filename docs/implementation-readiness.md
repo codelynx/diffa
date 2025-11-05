@@ -180,12 +180,13 @@ All core operations have been reviewed in detail with implementation pseudocode:
 
 #### Phase 1 Open Questions to Resolve
 **Must resolve before starting Phase 1:**
-- [ ] open-questions.md:20-33: Symlink handling strategy (proposed: follow by default, configurable)
-- [ ] open-questions.md:34-46: Hidden files inclusion policy (proposed: include by default, filterable)
-- [ ] open-questions.md:73-85: Metadata comparison level (proposed: minimal - mod time + size + hash)
+- [x] open-questions.md:20-33: Symlink handling strategy → **RESOLVED: Follow by default, --no-follow-symlinks to opt-out**
+- [x] open-questions.md:34-46: Hidden files inclusion policy → **RESOLVED: Include by default, --no-hidden to exclude**
+- [x] open-questions.md:73-85: Metadata comparison level → **RESOLVED: Content + mtime + size + permissions, --with-ownership to add owner/group**
 
 **Decision deadline:** Before Phase 1 kickoff (pre-coding)
-**Status:** PENDING - Must be resolved in design meeting before Phase 1 starts
+**Status:** ✅ RESOLVED - All critical questions answered (2025-11-05)
+**Documentation:** See `docs/decisions.md` for full rationale
 
 #### Phase 1 Risks
 - SQLite performance on HDD (mitigated by indexing + benchmarking)
