@@ -64,7 +64,7 @@ public struct Snapshot {
             "INSERT INTO metadata (root_path, created_date, total_files, total_folders, total_size) VALUES (?, ?, ?, ?, ?)",
             [
                 .text(rootPath),
-                .text(ISO8601DateFormatter().string(from: now)),
+                .integer(DateFormatting.toUnixTimestamp(now)),
                 .integer(0),
                 .integer(0),
                 .integer(0)
@@ -106,17 +106,13 @@ public struct Snapshot {
         guard let rootPath = try row.string(at: 0) else {
             throw SnapshotError.invalidSnapshot(reason: "Missing root_path")
         }
-        guard let createdDateString = try row.string(at: 1) else {
-            throw SnapshotError.invalidSnapshot(reason: "Missing created_date")
-        }
+        let createdDateTimestamp = try row.int64(at: 1)
         let totalFiles = try Int(row.int64(at: 2))
         let totalFolders = try Int(row.int64(at: 3))
         let totalSize = try row.int64(at: 4)
 
-        // Parse date
-        guard let createdDate = ISO8601DateFormatter().date(from: createdDateString) else {
-            throw SnapshotError.invalidSnapshot(reason: "Invalid date format: \(createdDateString)")
-        }
+        // Convert Unix timestamp to Date
+        let createdDate = DateFormatting.fromUnixTimestamp(createdDateTimestamp)
 
         let metadata = SnapshotMetadata(
             totalFiles: totalFiles,

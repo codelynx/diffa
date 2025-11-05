@@ -127,13 +127,13 @@ final class SnapshotTests: XCTestCase {
         let row = rows[0]
 
         let rootPath = try row.string(at: 0)!
-        let createdDate = try row.string(at: 1)!
+        let createdDateTimestamp = try row.int64(at: 1)
         let totalFiles = try row.int64(at: 2)
         let totalFolders = try row.int64(at: 3)
         let totalSize = try row.int64(at: 4)
 
         XCTAssertEqual(rootPath, "/test/metadata")
-        XCTAssertFalse(createdDate.isEmpty)
+        XCTAssertGreaterThan(createdDateTimestamp, 0, "Created date timestamp should be positive")
         XCTAssertEqual(totalFiles, 0)
         XCTAssertEqual(totalFolders, 0)
         XCTAssertEqual(totalSize, 0)

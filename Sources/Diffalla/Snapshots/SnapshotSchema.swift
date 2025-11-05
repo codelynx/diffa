@@ -12,7 +12,7 @@ enum SnapshotSchema {
         try db.execute("""
             CREATE TABLE IF NOT EXISTS schema_version (
                 version INTEGER PRIMARY KEY,
-                created_date TEXT NOT NULL,
+                created_date INTEGER NOT NULL,
                 library_version TEXT NOT NULL
             )
             """)
@@ -21,7 +21,7 @@ enum SnapshotSchema {
         try db.execute("""
             CREATE TABLE IF NOT EXISTS metadata (
                 root_path TEXT PRIMARY KEY,
-                created_date TEXT NOT NULL,
+                created_date INTEGER NOT NULL,
                 total_files INTEGER NOT NULL,
                 total_folders INTEGER NOT NULL,
                 total_size INTEGER NOT NULL
@@ -37,7 +37,7 @@ enum SnapshotSchema {
                 name TEXT NOT NULL,
                 is_folder INTEGER NOT NULL,
                 size INTEGER NOT NULL,
-                modification_date TEXT NOT NULL,
+                modification_date INTEGER NOT NULL,
                 permissions INTEGER NOT NULL,
                 owner TEXT,
                 group_name TEXT,
@@ -55,7 +55,7 @@ enum SnapshotSchema {
             "INSERT OR REPLACE INTO schema_version (version, created_date, library_version) VALUES (?, ?, ?)",
             [
                 .integer(Int64(version)),
-                .text(ISO8601DateFormatter().string(from: Date())),
+                .integer(DateFormatting.toUnixTimestamp(Date())),
                 .text(libraryVersion)
             ]
         )

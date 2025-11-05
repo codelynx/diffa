@@ -45,11 +45,88 @@ public class SnapshotEngine {
         return state.items
     }
 
+    /// Create a snapshot from a directory
+    /// - Parameters:
+    ///   - directory: Root directory to snapshot
+    ///   - snapshotURL: URL where snapshot database should be saved
+    ///   - options: Scan options (hidden files, symlinks, ownership)
+    ///   - progress: Optional progress callback
+    /// - Returns: The created Snapshot
+    public func createSnapshot(
+        from directory: URL,
+        saveTo snapshotURL: URL,
+        options: ScanOptions,
+        progress: ((SnapshotProgress) -> Void)? = nil
+    ) async throws -> Snapshot {
+        // Create a new snapshot database
+        let snapshot = try Snapshot.create(at: snapshotURL, rootPath: directory.path)
+
+        // Stream items to database during scan (memory-efficient)
+        // Manual transaction management since scanDirectoryRecursive is async
+        try snapshot.database.execute("BEGIN TRANSACTION")
+
+        do {
+            let writer = SnapshotWriter(database: snapshot.database)
+            let state = ScanState()
+            state.writer = writer  // Enable streaming mode
+
+            // Scan directory - items are written to DB as discovered
+            try await scanDirectoryRecursive(
+                at: directory,
+                baseURL: directory,
+                options: options,
+                state: state,
+                progress: progress
+            )
+
+            // Update metadata with totals
+            try writer.updateMetadata(
+                totalFiles: state.totalFiles,
+                totalFolders: state.totalFolders,
+                totalSize: state.totalSize
+            )
+
+            try snapshot.database.execute("COMMIT")
+        } catch {
+            try? snapshot.database.execute("ROLLBACK")
+            throw error
+        }
+
+        // Re-open the snapshot to get updated metadata
+        // The Snapshot struct returned by create() has stale metadata (all zeros)
+        // so we must reload it from the database to get the actual counts
+        return try Snapshot.open(at: snapshotURL)
+    }
+
+    /// Compute parent path from a full path
+    /// - Parameter path: The full relative path (e.g., "dir/subdir/file.txt")
+    /// - Returns: Parent path (e.g., "dir/subdir"), or nil if root level
+    private func computeParentPath(from path: String) -> String? {
+        // If path has no slashes, it's a root-level item (no parent)
+        guard path.contains("/") else {
+            return nil
+        }
+
+        // Remove last component to get parent path
+        let components = path.split(separator: "/")
+        guard components.count > 1 else {
+            return nil
+        }
+
+        return components.dropLast().joined(separator: "/")
+    }
+
     /// Internal state for scanning (avoiding inout with async)
     private class ScanState {
         var items: [FileSystemItem] = []
         var filesProcessed: Int = 0
         var bytesProcessed: Int64 = 0
+        var totalFiles: Int = 0
+        var totalFolders: Int = 0
+        var totalSize: Int64 = 0
+
+        // Optional writer for streaming to database
+        weak var writer: SnapshotWriter?
     }
 
     /// Recursive helper for directory scanning
@@ -153,8 +230,31 @@ public class SnapshotEngine {
                 continue
             }
 
-            // Add item to results
-            state.items.append(item)
+            // If writer is present, stream to database immediately
+            // Otherwise, collect in memory
+            if let writer = state.writer {
+                // Compute parent path
+                let parentPath = computeParentPath(from: item.path)
+
+                // Insert into database
+                let itemId = try writer.insertItem(item, parentPath: parentPath)
+
+                // Update totals for final metadata update
+                if item.isFolder {
+                    state.totalFolders += 1
+                } else {
+                    state.totalFiles += 1
+                }
+                state.totalSize += item.size
+
+                // If this is a directory, push it onto stack before recursing
+                if item.isFolder && !(isSymlink && options.followSymlinks) {
+                    writer.pushDirectory(path: item.path, id: itemId)
+                }
+            } else {
+                // Collect items in memory for later processing
+                state.items.append(item)
+            }
 
             // Update progress
             if !item.isFolder {
@@ -183,6 +283,11 @@ public class SnapshotEngine {
                     state: state,
                     progress: progress
                 )
+
+                // Pop directory from stack after recursing
+                if let writer = state.writer {
+                    writer.popDirectory()
+                }
             }
         }
     }
