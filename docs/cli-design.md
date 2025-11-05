@@ -58,17 +58,22 @@ diffalla snapshot /path/to/dir -o snapshot.sqlite --progress
 # Exclude hidden files
 diffalla snapshot /path/to/dir -o snapshot.sqlite --no-hidden
 
-# Custom metadata level
-diffalla snapshot /path/to/dir -o snapshot.sqlite --metadata minimal
+# Store symlinks as-is (don't follow)
+diffalla snapshot /path/to/dir -o snapshot.sqlite --no-follow-symlinks
+
+# Use full metadata level instead of minimal
+diffalla snapshot /path/to/dir -o snapshot.sqlite --metadata full
 ```
 
 **Options:**
 - `-o, --output <file>` - Output SQLite database file (required)
 - `-p, --progress` - Show progress during snapshot creation
 - `--no-hidden` - Exclude hidden files (starting with .)
-- `--follow-symlinks` - Follow symbolic links (default: store as-is)
-- `--metadata <level>` - Metadata level: minimal, standard, full (default: standard)
+- `--no-follow-symlinks` - Store symlinks as-is (default: follow symlinks) **[TBD: Phase 1 question]**
+- `--metadata <level>` - Metadata level: minimal, standard, full (default: minimal) **[TBD: Phase 1 question]**
 - `-q, --quiet` - Suppress output except errors
+
+**Note:** Symlink and metadata defaults will be finalized when Phase 1 critical questions are resolved (see `docs/implementation-readiness.md:182-186`). Current flags reflect proposed defaults but may change.
 
 **Output:**
 ```
@@ -425,8 +430,8 @@ Optional configuration file: `~/.diffallarc` (JSON format)
 ```json
 {
   "snapshot": {
-    "metadata": "standard",
-    "followSymlinks": false,
+    "metadata": "minimal",
+    "followSymlinks": true,
     "includeHidden": true
   },
   "patch": {
@@ -440,6 +445,8 @@ Optional configuration file: `~/.diffallarc` (JSON format)
   }
 }
 ```
+
+**Note:** Default values for `metadata` and `followSymlinks` reflect proposed Phase 1 decisions and are subject to change when those critical questions are finalized.
 
 ---
 
