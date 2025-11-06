@@ -15,8 +15,8 @@ Phase 5 delivers the `diffalla` CLI tool for macOS and Linux. This is a **thin w
 - Cross-platform (macOS, Linux)
 
 **Versioning Strategy:**
-- Development: `0.1.0` (current - during Phase 5 implementation)
-- Release: `1.0.0` (when Phase 5 complete and ready for distribution)
+- Development: `0.9.0` (current - feature complete, seeking feedback)
+- Release: `1.0.0` (stable release after real-world testing)
 
 **Full design spec:** See `docs/cli-design.md`
 
@@ -95,7 +95,7 @@ struct DiffallaCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "diffalla",
         abstract: "Snapshot, compare, patch, and sync directories",
-        version: "0.1.0",  // Pre-release version, will bump to 1.0.0 at Phase 5 completion
+        version: "0.9.0",  // Feature complete, seeking feedback before 1.0.0
         subcommands: [
             SnapshotCommand.self,
             CompareCommand.self,
