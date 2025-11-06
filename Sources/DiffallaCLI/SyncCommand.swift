@@ -103,14 +103,18 @@ struct SyncCommand: ParsableCommand {
             }
             print()
 
+            print("\r\u{1B}[KSynchronizing files...")
             result = try await synchronizer.syncBidirectional(
                 a: sourceURL,
                 b: destURL,
                 conflictResolution: conflictStrategy,
                 options: options,
-                progress: progress ? { prog in
+                progress: { prog in
                     self.showProgress(prog)
-                } : nil
+                },
+                snapshotProgress: { snapProgress in
+                    self.showSnapshotProgress(snapProgress)
+                }
             )
         } else {
             print("Performing unidirectional sync...")
@@ -124,13 +128,17 @@ struct SyncCommand: ParsableCommand {
             }
             print()
 
+            print("\r\u{1B}[KSynchronizing files...")
             result = try await synchronizer.syncUnidirectional(
                 source: sourceURL,
                 destination: destURL,
                 options: options,
-                progress: progress ? { prog in
+                progress: { prog in
                     self.showProgress(prog)
-                } : nil
+                },
+                snapshotProgress: { snapProgress in
+                    self.showSnapshotProgress(snapProgress)
+                }
             )
         }
 
@@ -189,10 +197,16 @@ struct SyncCommand: ParsableCommand {
     func showProgress(_ progress: SyncProgress) {
         if let total = progress.totalFiles {
             let percent = (progress.filesProcessed * 100) / max(total, 1)
-            print("  Progress: \(progress.filesProcessed)/\(total) files (\(percent)%) - \(progress.currentOperation)", terminator: "\r")
+            print("\r\u{1B}[K  Progress: \(progress.filesProcessed)/\(total) files (\(percent)%) - \(progress.currentOperation)", terminator: "")
         } else {
-            print("  Progress: \(progress.filesProcessed) files - \(progress.currentOperation)", terminator: "\r")
+            print("\r\u{1B}[K  Progress: \(progress.filesProcessed) files - \(progress.currentOperation)", terminator: "")
         }
+        fflush(stdout)
+    }
+
+    func showSnapshotProgress(_ progress: SnapshotProgress) {
+        let fileName = (progress.currentPath as NSString).lastPathComponent
+        print("\r\u{1B}[K  Snapshotting: \(progress.filesProcessed) files - \(fileName)", terminator: "")
         fflush(stdout)
     }
 

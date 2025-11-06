@@ -17,13 +17,15 @@ public class Synchronizer {
     ///   - source: Source directory URL
     ///   - destination: Destination directory URL
     ///   - options: Synchronization options (dry run, verify, etc.)
-    ///   - progress: Optional progress callback
+    ///   - progress: Optional progress callback for sync operations
+    ///   - snapshotProgress: Optional progress callback for snapshot creation
     /// - Returns: SyncResult with statistics and errors
     public func syncUnidirectional(
         source: URL,
         destination: URL,
         options: SyncOptions = SyncOptions(),
-        progress: ((SyncProgress) -> Void)? = nil
+        progress: ((SyncProgress) -> Void)? = nil,
+        snapshotProgress: ((SnapshotProgress) -> Void)? = nil
     ) async throws -> SyncResult {
         // Step 1: Create snapshots of source and destination
         let tempDir = FileManager.default.temporaryDirectory
@@ -42,14 +44,14 @@ public class Synchronizer {
             from: source,
             saveTo: sourceSnapshotURL,
             options: scanOptions,
-            progress: nil
+            progress: snapshotProgress
         )
 
         let destSnapshot = try await engine.createSnapshot(
             from: destination,
             saveTo: destSnapshotURL,
             options: scanOptions,
-            progress: nil
+            progress: snapshotProgress
         )
 
         // Step 2: Compare snapshots
@@ -98,7 +100,8 @@ public class Synchronizer {
             result = try await executor.execute(
                 operations: operations,
                 totalBytes: totalBytes,
-                progress: progress
+                progress: progress,
+                baseDirectory: destination
             )
         }
 
@@ -166,14 +169,16 @@ public class Synchronizer {
     ///   - b: Second directory URL
     ///   - conflictResolution: Strategy for resolving conflicts (default: .newest)
     ///   - options: Synchronization options (dry run, verify, etc.)
-    ///   - progress: Optional progress callback
+    ///   - progress: Optional progress callback for sync operations
+    ///   - snapshotProgress: Optional progress callback for snapshot creation
     /// - Returns: SyncResult with statistics, errors, and resolved conflicts
     public func syncBidirectional(
         a: URL,
         b: URL,
         conflictResolution: ConflictResolution = .newest,
         options: SyncOptions = SyncOptions(),
-        progress: ((SyncProgress) -> Void)? = nil
+        progress: ((SyncProgress) -> Void)? = nil,
+        snapshotProgress: ((SnapshotProgress) -> Void)? = nil
     ) async throws -> SyncResult {
         // Step 1: Create snapshots of A and B
         let tempDir = FileManager.default.temporaryDirectory
@@ -192,14 +197,14 @@ public class Synchronizer {
             from: a,
             saveTo: snapshotAURL,
             options: scanOptions,
-            progress: nil
+            progress: snapshotProgress
         )
 
         let snapshotB = try await engine.createSnapshot(
             from: b,
             saveTo: snapshotBURL,
             options: scanOptions,
-            progress: nil
+            progress: snapshotProgress
         )
 
         // Step 2: Compare snapshots (A vs B)

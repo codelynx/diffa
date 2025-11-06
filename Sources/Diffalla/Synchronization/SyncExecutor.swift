@@ -10,11 +10,13 @@ class SyncExecutor {
     ///   - operations: Array of operations to execute
     ///   - totalBytes: Total bytes to transfer (for progress calculation)
     ///   - progress: Optional callback for progress updates
+    ///   - baseDirectory: Base directory for displaying relative paths in progress (optional)
     /// - Returns: SyncResult with statistics and errors
     func execute(
         operations: [SyncOperation],
         totalBytes: Int64,
-        progress: ((SyncProgress) -> Void)?
+        progress: ((SyncProgress) -> Void)?,
+        baseDirectory: URL? = nil
     ) async throws -> SyncResult {
         let startTime = Date()
 
@@ -29,7 +31,7 @@ class SyncExecutor {
 
         for operation in operations {
             var currentProgress = SyncProgress(
-                currentOperation: operationDescription(operation),
+                currentOperation: operationDescription(operation, baseDirectory: baseDirectory),
                 filesProcessed: filesProcessed,
                 totalFiles: totalFiles,
                 bytesTransferred: bytesTransferred,
@@ -66,7 +68,7 @@ class SyncExecutor {
 
                 // Update progress after successful operation
                 currentProgress = SyncProgress(
-                    currentOperation: operationDescription(operation),
+                    currentOperation: operationDescription(operation, baseDirectory: baseDirectory),
                     filesProcessed: filesProcessed,
                     totalFiles: totalFiles,
                     bytesTransferred: bytesTransferred,
@@ -84,7 +86,7 @@ class SyncExecutor {
             } catch {
                 // Wrap unknown errors
                 let diffallaError = DiffallaError.applyFailed(
-                    operation: operationDescription(operation),
+                    operation: operationDescription(operation, baseDirectory: baseDirectory),
                     reason: error.localizedDescription
                 )
                 errors.append(diffallaError)
@@ -204,12 +206,14 @@ class SyncExecutor {
 
     // MARK: - Helpers
 
-    private func operationDescription(_ operation: SyncOperation) -> String {
+    private func operationDescription(_ operation: SyncOperation, baseDirectory: URL?) -> String {
         switch operation {
         case .copyFile(let from, let to, _):
-            return "Copying \(from.lastPathComponent) to \(to.path)"
+            let toPath = relativePath(for: to, base: baseDirectory)
+            return "Copying \(from.lastPathComponent) to \(toPath)"
         case .moveFile(let from, let to, _):
-            return "Moving \(from.lastPathComponent) to \(to.path)"
+            let toPath = relativePath(for: to, base: baseDirectory)
+            return "Moving \(from.lastPathComponent) to \(toPath)"
         case .deleteFile(let at):
             return "Deleting \(at.lastPathComponent)"
         case .createDirectory(let at):
@@ -217,6 +221,28 @@ class SyncExecutor {
         case .deleteDirectory(let at):
             return "Deleting directory \(at.lastPathComponent)"
         }
+    }
+
+    private func relativePath(for url: URL, base: URL?) -> String {
+        guard let base = base else {
+            return url.path
+        }
+
+        let basePath = base.path
+        let fullPath = url.path
+
+        // Check if the path starts with the base
+        if fullPath.hasPrefix(basePath) {
+            let relativePath = String(fullPath.dropFirst(basePath.count))
+            // Remove leading slash if present
+            if relativePath.hasPrefix("/") {
+                return String(relativePath.dropFirst())
+            }
+            return relativePath
+        }
+
+        // If not under base, return full path
+        return fullPath
     }
 
     private func operationType(_ operation: SyncOperation) -> OperationType {

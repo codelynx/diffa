@@ -112,8 +112,23 @@ struct CompareCommand: ParsableCommand {
             print("Creating temporary snapshot for \(label)...")
             let engine = SnapshotEngine()
             let options = ScanOptions()
-            return try await engine.createSnapshot(from: url, saveTo: tempURL, options: options)
+            let snapshot = try await engine.createSnapshot(
+                from: url,
+                saveTo: tempURL,
+                options: options,
+                progress: { progress in
+                    self.showSnapshotProgress(progress)
+                }
+            )
+            print()  // Clear the progress line
+            return snapshot
         }
+    }
+
+    func showSnapshotProgress(_ progress: SnapshotProgress) {
+        let fileName = (progress.currentPath as NSString).lastPathComponent
+        print("\r\u{1B}[K  Processing: \(progress.filesProcessed) files - \(fileName)", terminator: "")
+        fflush(stdout)
     }
 
     func isSnapshotFile(_ path: String) -> Bool {
