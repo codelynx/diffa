@@ -302,4 +302,171 @@ final class ComparisonTests: XCTestCase {
 
         XCTAssertTrue(try diff.removed.isEmpty, "Should have no removed items")
     }
+
+    // MARK: - Difference API Extension Tests (Step 0)
+
+    func testSourceItemForExistingPath() async throws {
+        // Create source and destination directories
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Create file in source
+        let sourceFile = sourceDir.appendingPathComponent("file.txt")
+        try "source content".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Compare and get difference
+        let diff = try Difference.compare(source: snapshot1, destination: snapshot2)
+
+        // Load source item for existing path
+        let sourceItem = try diff.sourceItem(for: "file.txt")
+        XCTAssertNotNil(sourceItem, "Should return source item for existing path")
+        XCTAssertEqual(sourceItem?.path, "file.txt")
+        XCTAssertEqual(sourceItem?.isFolder, false)
+    }
+
+    func testSourceItemForNonexistentPath() async throws {
+        // Create source and destination directories
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Create file only in dest
+        let destFile = destDir.appendingPathComponent("file.txt")
+        try "dest content".write(to: destFile, atomically: true, encoding: .utf8)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Compare and get difference
+        let diff = try Difference.compare(source: snapshot1, destination: snapshot2)
+
+        // Load source item for nonexistent path
+        let sourceItem = try diff.sourceItem(for: "file.txt")
+        XCTAssertNil(sourceItem, "Should return nil for nonexistent path in source")
+    }
+
+    func testDestinationItemForExistingPath() async throws {
+        // Create source and destination directories
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Create file in destination
+        let destFile = destDir.appendingPathComponent("file.txt")
+        try "dest content".write(to: destFile, atomically: true, encoding: .utf8)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Compare and get difference
+        let diff = try Difference.compare(source: snapshot1, destination: snapshot2)
+
+        // Load destination item for existing path
+        let destItem = try diff.destinationItem(for: "file.txt")
+        XCTAssertNotNil(destItem, "Should return destination item for existing path")
+        XCTAssertEqual(destItem?.path, "file.txt")
+        XCTAssertEqual(destItem?.isFolder, false)
+    }
+
+    func testDestinationItemForNonexistentPath() async throws {
+        // Create source and destination directories
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Create file only in source
+        let sourceFile = sourceDir.appendingPathComponent("file.txt")
+        try "source content".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Compare and get difference
+        let diff = try Difference.compare(source: snapshot1, destination: snapshot2)
+
+        // Load destination item for nonexistent path
+        let destItem = try diff.destinationItem(for: "file.txt")
+        XCTAssertNil(destItem, "Should return nil for nonexistent path in destination")
+    }
+
+    func testSourceAndDestinationForModifiedPath() async throws {
+        // Create source and destination directories
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Create file in both with different content
+        let sourceFile = sourceDir.appendingPathComponent("file.txt")
+        try "source content".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let destFile = destDir.appendingPathComponent("file.txt")
+        try "destination content".write(to: destFile, atomically: true, encoding: .utf8)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Compare and get difference
+        let diff = try Difference.compare(source: snapshot1, destination: snapshot2)
+
+        // Should be detected as modified
+        let modified = try diff.modified
+        XCTAssertEqual(modified.count, 1, "Should detect 1 modified file")
+
+        // Load both versions
+        let sourceItem = try diff.sourceItem(for: "file.txt")
+        let destItem = try diff.destinationItem(for: "file.txt")
+
+        XCTAssertNotNil(sourceItem, "Should return source item")
+        XCTAssertNotNil(destItem, "Should return destination item")
+
+        XCTAssertEqual(sourceItem?.path, "file.txt")
+        XCTAssertEqual(destItem?.path, "file.txt")
+
+        // Verify they have different hashes (different content)
+        XCTAssertNotEqual(sourceItem?.sha256, destItem?.sha256, "Source and dest should have different hashes")
+    }
 }

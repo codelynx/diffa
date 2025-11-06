@@ -78,4 +78,18 @@ public class Difference {
             return try !added.isEmpty || !removed.isEmpty || !modified.isEmpty
         }
     }
+
+    /// Load source item for a given path
+    /// - Parameter path: The relative path to find
+    /// - Returns: SnapshotItem from source snapshot, or nil if path doesn't exist in source
+    public func sourceItem(for path: String) throws -> SnapshotItem? {
+        return try sourceSnapshot.loadItem(path: path)
+    }
+
+    /// Load destination item for a given path
+    /// - Parameter path: The relative path to find
+    /// - Returns: SnapshotItem from destination snapshot, or nil if path doesn't exist in destination
+    public func destinationItem(for path: String) throws -> SnapshotItem? {
+        return try destinationSnapshot.loadItem(path: path)
+    }
 }
