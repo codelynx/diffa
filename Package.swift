@@ -13,9 +13,16 @@ let package = Package(
             targets: ["Diffalla"]
         ),
         .executable(
+            name: "diffalla",
+            targets: ["DiffallaCLI"]
+        ),
+        .executable(
             name: "diffalla-benchmark",
             targets: ["DiffallaBenchmark"]
         ),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0")
     ],
     targets: [
         .target(
@@ -30,6 +37,14 @@ let package = Package(
             linkerSettings: [
                 .linkedLibrary("sqlite3", .when(platforms: [.macOS, .iOS, .linux]))
             ]
+        ),
+        .executableTarget(
+            name: "DiffallaCLI",
+            dependencies: [
+                "Diffalla",
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ],
+            path: "Sources/DiffallaCLI"
         ),
         .executableTarget(
             name: "DiffallaBenchmark",
