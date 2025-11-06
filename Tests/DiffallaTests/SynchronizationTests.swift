@@ -344,4 +344,197 @@ final class SynchronizationTests: XCTestCase {
         // Should sum only copyFile sizes: 100 + 200 + 50 = 350
         XCTAssertEqual(totalBytes, 350)
     }
+
+    // MARK: - Step 3: Sync Executor Tests
+
+    func testExecuteCopyOperation() async throws {
+        // Create temp directories
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceFile = tempDir.appendingPathComponent("source.txt")
+        let destFile = tempDir.appendingPathComponent("dest.txt")
+
+        // Create source file
+        let content = "test content"
+        try content.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        // Create and execute copy operation
+        let operation = SyncOperation.copyFile(
+            from: sourceFile,
+            to: destFile,
+            size: Int64(content.utf8.count)
+        )
+
+        let executor = SyncExecutor()
+        let result = try await executor.execute(
+            operations: [operation],
+            totalBytes: Int64(content.utf8.count),
+            progress: nil
+        )
+
+        // Verify file was copied
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destFile.path))
+        let copiedContent = try String(contentsOf: destFile, encoding: .utf8)
+        XCTAssertEqual(copiedContent, content)
+
+        // Verify result
+        XCTAssertEqual(result.filesCopied, 1)
+        XCTAssertEqual(result.bytesTransferred, Int64(content.utf8.count))
+        XCTAssertEqual(result.errors.count, 0)
+    }
+
+    func testExecuteDeleteOperation() async throws {
+        // Create temp directory
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fileToDelete = tempDir.appendingPathComponent("delete_me.txt")
+
+        // Create file
+        try "content".write(to: fileToDelete, atomically: true, encoding: .utf8)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileToDelete.path))
+
+        // Create and execute delete operation
+        let operation = SyncOperation.deleteFile(at: fileToDelete)
+
+        let executor = SyncExecutor()
+        let result = try await executor.execute(
+            operations: [operation],
+            totalBytes: 0,
+            progress: nil
+        )
+
+        // Verify file was deleted
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileToDelete.path))
+
+        // Verify result
+        XCTAssertEqual(result.filesDeleted, 1)
+        XCTAssertEqual(result.errors.count, 0)
+    }
+
+    func testExecuteMultipleOperations() async throws {
+        // Create temp directories
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        // Setup: create source files and files to delete
+        let sourceFile1 = tempDir.appendingPathComponent("source1.txt")
+        let sourceFile2 = tempDir.appendingPathComponent("source2.txt")
+        let destFile1 = tempDir.appendingPathComponent("dest1.txt")
+        let destFile2 = tempDir.appendingPathComponent("dest2.txt")
+        let fileToDelete = tempDir.appendingPathComponent("delete.txt")
+        let newDir = tempDir.appendingPathComponent("newdir")
+
+        try "content1".write(to: sourceFile1, atomically: true, encoding: .utf8)
+        try "content2".write(to: sourceFile2, atomically: true, encoding: .utf8)
+        try "old".write(to: fileToDelete, atomically: true, encoding: .utf8)
+
+        // Create mixed operations
+        let operations: [SyncOperation] = [
+            .copyFile(from: sourceFile1, to: destFile1, size: 8),
+            .copyFile(from: sourceFile2, to: destFile2, size: 8),
+            .deleteFile(at: fileToDelete),
+            .createDirectory(at: newDir)
+        ]
+
+        let executor = SyncExecutor()
+        let result = try await executor.execute(
+            operations: operations,
+            totalBytes: 16,
+            progress: nil
+        )
+
+        // Verify all operations executed
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destFile1.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destFile2.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileToDelete.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: newDir.path))
+
+        // Verify result
+        XCTAssertEqual(result.filesCopied, 2)
+        XCTAssertEqual(result.filesDeleted, 1)
+        XCTAssertEqual(result.bytesTransferred, 16)
+        XCTAssertEqual(result.errors.count, 0)
+    }
+
+    func testExecuteReportsProgress() async throws {
+        // Create temp directory
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceFile = tempDir.appendingPathComponent("source.txt")
+        let destFile = tempDir.appendingPathComponent("dest.txt")
+
+        try "content".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let operation = SyncOperation.copyFile(from: sourceFile, to: destFile, size: 7)
+
+        // Track progress callbacks
+        var progressReports: [SyncProgress] = []
+
+        let executor = SyncExecutor()
+        _ = try await executor.execute(
+            operations: [operation],
+            totalBytes: 7,
+            progress: { progress in
+                progressReports.append(progress)
+            }
+        )
+
+        // Verify progress was reported
+        XCTAssertGreaterThan(progressReports.count, 0)
+
+        if let lastProgress = progressReports.last {
+            XCTAssertEqual(lastProgress.filesProcessed, 1)
+            XCTAssertEqual(lastProgress.totalFiles, 1)
+            XCTAssertEqual(lastProgress.bytesTransferred, 7)
+            XCTAssertEqual(lastProgress.totalBytes, 7)
+            XCTAssertEqual(lastProgress.operationType, .copying)
+        }
+    }
+
+    func testExecuteCollectsStatistics() async throws {
+        // Create temp directory
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        // Create files
+        let source1 = tempDir.appendingPathComponent("s1.txt")
+        let source2 = tempDir.appendingPathComponent("s2.txt")
+        let dest1 = tempDir.appendingPathComponent("d1.txt")
+        let dest2 = tempDir.appendingPathComponent("d2.txt")
+        let toDelete = tempDir.appendingPathComponent("del.txt")
+
+        try "12345".write(to: source1, atomically: true, encoding: .utf8)
+        try "1234567890".write(to: source2, atomically: true, encoding: .utf8)
+        try "old".write(to: toDelete, atomically: true, encoding: .utf8)
+
+        let operations: [SyncOperation] = [
+            .copyFile(from: source1, to: dest1, size: 5),
+            .copyFile(from: source2, to: dest2, size: 10),
+            .deleteFile(at: toDelete)
+        ]
+
+        let executor = SyncExecutor()
+        let result = try await executor.execute(
+            operations: operations,
+            totalBytes: 15,
+            progress: nil
+        )
+
+        // Verify statistics
+        XCTAssertEqual(result.filesCopied, 2, "Should have copied 2 files")
+        XCTAssertEqual(result.filesDeleted, 1, "Should have deleted 1 file")
+        XCTAssertEqual(result.filesMoved, 0, "No files moved")
+        XCTAssertEqual(result.bytesTransferred, 15, "Should have transferred 15 bytes")
+        XCTAssertEqual(result.conflicts.count, 0, "No conflicts in Step 3")
+        XCTAssertEqual(result.errors.count, 0, "No errors")
+        XCTAssertGreaterThan(result.duration, 0, "Duration should be positive")
+    }
 }
