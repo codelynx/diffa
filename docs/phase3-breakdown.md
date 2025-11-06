@@ -587,7 +587,7 @@ enum DiffallaError: Error {
 Use checkboxes to track progress:
 
 - [x] Step 0: Extend Difference API (1-2 hours)
-- [ ] Step 1: Sync Core Types (2-3 hours)
+- [x] Step 1: Sync Core Types (2-3 hours)
 - [ ] Step 2: Sync Plan & Operations (3-4 hours)
 - [ ] Step 3: Sync Executor (4-5 hours)
 - [ ] Step 4: Unidirectional Sync (3-4 hours)
