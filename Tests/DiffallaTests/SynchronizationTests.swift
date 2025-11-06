@@ -951,4 +951,293 @@ final class SynchronizationTests: XCTestCase {
         XCTAssertTrue(hasOnlyInSource, "Should detect onlyInSource conflict")
         XCTAssertTrue(hasOnlyInDestination, "Should detect onlyInDestination conflict")
     }
+
+    // MARK: - Step 6: Conflict Resolution Tests
+
+    func testResolveNewestUsesNewerFile() async throws {
+        // Create diverged conflict with different modification dates
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Create older file in source
+        let sourceFile = sourceDir.appendingPathComponent("file.txt")
+        try "source content".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        // Wait a bit to ensure different modification times
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        // Create newer file in destination
+        let destFile = destDir.appendingPathComponent("file.txt")
+        try "dest content".write(to: destFile, atomically: true, encoding: .utf8)
+
+        // Create snapshots and detect conflict
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let detector = ConflictDetector()
+        let conflicts = try detector.detectConflicts(difference: difference)
+
+        XCTAssertEqual(conflicts.count, 1)
+        let conflict = conflicts[0]
+
+        // Resolve with newest strategy
+        let resolver = ConflictResolver()
+        let resolution = try resolver.resolve(
+            conflict: conflict,
+            strategy: .newest,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir
+        )
+
+        // Should choose destination (newer)
+        XCTAssertEqual(resolution.resolution, .newest)
+        XCTAssertTrue(resolution.action.contains("destination"))
+    }
+
+    func testResolveSourceWins() throws {
+        // Create a diverged conflict manually
+        let sourceItem = SnapshotItem(
+            id: 1,
+            parentId: nil,
+            path: "file.txt",
+            name: "file.txt",
+            isFolder: false,
+            size: 100,
+            modificationDate: Date(),
+            permissions: FilePermissions(posix: 0o644),
+            owner: nil,
+            group: nil,
+            sha256: "source-hash"
+        )
+
+        let destItem = SnapshotItem(
+            id: 2,
+            parentId: nil,
+            path: "file.txt",
+            name: "file.txt",
+            isFolder: false,
+            size: 200,
+            modificationDate: Date(),
+            permissions: FilePermissions(posix: 0o644),
+            owner: nil,
+            group: nil,
+            sha256: "dest-hash"
+        )
+
+        let conflict = Conflict(
+            path: "file.txt",
+            type: .diverged,
+            sourceItem: sourceItem,
+            destinationItem: destItem
+        )
+
+        // Resolve with sourceWins strategy
+        let resolver = ConflictResolver()
+        let resolution = try resolver.resolve(
+            conflict: conflict,
+            strategy: .sourceWins,
+            sourceDirectory: URL(fileURLWithPath: "/source"),
+            destinationDirectory: URL(fileURLWithPath: "/dest")
+        )
+
+        // Should choose source
+        XCTAssertEqual(resolution.resolution, .sourceWins)
+        XCTAssertTrue(resolution.action.contains("source"))
+    }
+
+    func testResolveDestinationWins() throws {
+        // Create a diverged conflict manually
+        let sourceItem = SnapshotItem(
+            id: 1,
+            parentId: nil,
+            path: "file.txt",
+            name: "file.txt",
+            isFolder: false,
+            size: 100,
+            modificationDate: Date(),
+            permissions: FilePermissions(posix: 0o644),
+            owner: nil,
+            group: nil,
+            sha256: "source-hash"
+        )
+
+        let destItem = SnapshotItem(
+            id: 2,
+            parentId: nil,
+            path: "file.txt",
+            name: "file.txt",
+            isFolder: false,
+            size: 200,
+            modificationDate: Date(),
+            permissions: FilePermissions(posix: 0o644),
+            owner: nil,
+            group: nil,
+            sha256: "dest-hash"
+        )
+
+        let conflict = Conflict(
+            path: "file.txt",
+            type: .diverged,
+            sourceItem: sourceItem,
+            destinationItem: destItem
+        )
+
+        // Resolve with destinationWins strategy
+        let resolver = ConflictResolver()
+        let resolution = try resolver.resolve(
+            conflict: conflict,
+            strategy: .destinationWins,
+            sourceDirectory: URL(fileURLWithPath: "/source"),
+            destinationDirectory: URL(fileURLWithPath: "/dest")
+        )
+
+        // Should choose destination
+        XCTAssertEqual(resolution.resolution, .destinationWins)
+        XCTAssertTrue(resolution.action.contains("destination"))
+    }
+
+    func testResolveErrorThrows() throws {
+        // Create a conflict
+        let conflict = Conflict(
+            path: "file.txt",
+            type: .diverged,
+            sourceItem: SnapshotItem(
+                id: 1,
+                parentId: nil,
+                path: "file.txt",
+                name: "file.txt",
+                isFolder: false,
+                size: 100,
+                modificationDate: Date(),
+                permissions: FilePermissions(posix: 0o644),
+                owner: nil,
+                group: nil,
+                sha256: "hash"
+            ),
+            destinationItem: SnapshotItem(
+                id: 2,
+                parentId: nil,
+                path: "file.txt",
+                name: "file.txt",
+                isFolder: false,
+                size: 200,
+                modificationDate: Date(),
+                permissions: FilePermissions(posix: 0o644),
+                owner: nil,
+                group: nil,
+                sha256: "different-hash"
+            )
+        )
+
+        // Resolve with error strategy - should throw
+        let resolver = ConflictResolver()
+
+        XCTAssertThrowsError(try resolver.resolve(
+            conflict: conflict,
+            strategy: .error,
+            sourceDirectory: URL(fileURLWithPath: "/source"),
+            destinationDirectory: URL(fileURLWithPath: "/dest")
+        )) { error in
+            // Verify it's the right kind of error
+            if case DiffallaError.comparisonFailed(let reason) = error {
+                XCTAssertTrue(reason.contains("Conflict detected"))
+                XCTAssertTrue(reason.contains("file.txt"))
+            } else {
+                XCTFail("Expected DiffallaError.comparisonFailed, got \(error)")
+            }
+        }
+    }
+
+    func testResolveModifiedVsDeleted() throws {
+        // Test onlyInSource conflict (exists in source, not in destination)
+        let sourceOnlyConflict = Conflict(
+            path: "source_only.txt",
+            type: .onlyInSource,
+            sourceItem: SnapshotItem(
+                id: 1,
+                parentId: nil,
+                path: "source_only.txt",
+                name: "source_only.txt",
+                isFolder: false,
+                size: 100,
+                modificationDate: Date(),
+                permissions: FilePermissions(posix: 0o644),
+                owner: nil,
+                group: nil,
+                sha256: "hash"
+            ),
+            destinationItem: nil
+        )
+
+        let resolver = ConflictResolver()
+
+        // Resolve with sourceWins - should keep file
+        let sourceWinsResolution = try resolver.resolve(
+            conflict: sourceOnlyConflict,
+            strategy: .sourceWins,
+            sourceDirectory: URL(fileURLWithPath: "/source"),
+            destinationDirectory: URL(fileURLWithPath: "/dest")
+        )
+        XCTAssertTrue(sourceWinsResolution.action.contains("source"))
+
+        // Resolve with destinationWins - should delete from source
+        let destWinsResolution = try resolver.resolve(
+            conflict: sourceOnlyConflict,
+            strategy: .destinationWins,
+            sourceDirectory: URL(fileURLWithPath: "/source"),
+            destinationDirectory: URL(fileURLWithPath: "/dest")
+        )
+        XCTAssertTrue(destWinsResolution.action.contains("Delete"))
+
+        // Test onlyInDestination conflict (exists in destination, not in source)
+        let destOnlyConflict = Conflict(
+            path: "dest_only.txt",
+            type: .onlyInDestination,
+            sourceItem: nil,
+            destinationItem: SnapshotItem(
+                id: 2,
+                parentId: nil,
+                path: "dest_only.txt",
+                name: "dest_only.txt",
+                isFolder: false,
+                size: 200,
+                modificationDate: Date(),
+                permissions: FilePermissions(posix: 0o644),
+                owner: nil,
+                group: nil,
+                sha256: "hash2"
+            )
+        )
+
+        // Resolve with sourceWins - should delete from destination
+        let sourceWinsResolution2 = try resolver.resolve(
+            conflict: destOnlyConflict,
+            strategy: .sourceWins,
+            sourceDirectory: URL(fileURLWithPath: "/source"),
+            destinationDirectory: URL(fileURLWithPath: "/dest")
+        )
+        XCTAssertTrue(sourceWinsResolution2.action.contains("Delete"))
+
+        // Resolve with destinationWins - should keep file
+        let destWinsResolution2 = try resolver.resolve(
+            conflict: destOnlyConflict,
+            strategy: .destinationWins,
+            sourceDirectory: URL(fileURLWithPath: "/source"),
+            destinationDirectory: URL(fileURLWithPath: "/dest")
+        )
+        XCTAssertTrue(destWinsResolution2.action.contains("destination"))
+    }
 }
