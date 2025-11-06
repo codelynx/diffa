@@ -55,5 +55,9 @@ let package = Package(
             name: "DiffallaTests",
             dependencies: ["Diffalla"]
         ),
+        .testTarget(
+            name: "CLIIntegrationTests",
+            dependencies: ["Diffalla"]
+        ),
     ]
 )
