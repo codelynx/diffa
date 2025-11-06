@@ -44,6 +44,18 @@ public enum DiffallaError: Error, CustomStringConvertible {
     /// Database operation failed
     case databaseError(reason: String, underlying: Error?)
 
+    /// Insufficient disk space for operation
+    case insufficientSpace(required: Int64, available: Int64)
+
+    /// Synchronization operation failed
+    case syncFailed(reason: String)
+
+    /// Conflicts detected during bidirectional sync
+    case conflictDetected(conflicts: [Conflict])
+
+    /// Synchronization was cancelled
+    case syncCancelled
+
     public var description: String {
         switch self {
         case .fileNotFound(let path):
@@ -78,6 +90,16 @@ public enum DiffallaError: Error, CustomStringConvertible {
             } else {
                 return "Database error: \(reason)"
             }
+        case .insufficientSpace(let required, let available):
+            let requiredMB = Double(required) / 1_048_576
+            let availableMB = Double(available) / 1_048_576
+            return String(format: "Insufficient disk space: %.2f MB required, %.2f MB available", requiredMB, availableMB)
+        case .syncFailed(let reason):
+            return "Synchronization failed: \(reason)"
+        case .conflictDetected(let conflicts):
+            return "Conflicts detected during sync: \(conflicts.count) conflict(s)"
+        case .syncCancelled:
+            return "Synchronization was cancelled"
         }
     }
 }
