@@ -2,6 +2,7 @@ import Foundation
 import ArgumentParser
 import Diffalla
 
+@available(macOS 13.0, *)
 struct PatchCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "patch",
@@ -16,6 +17,7 @@ struct PatchCommand: ParsableCommand {
 
 // MARK: - Patch Create
 
+@available(macOS 13.0, *)
 struct CreatePatch: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "create",
@@ -35,16 +37,118 @@ struct CreatePatch: ParsableCommand {
     var reversible: Bool = false
 
     func run() throws {
-        print("Patch create command - Not yet implemented")
-        print("  Source: \(source)")
-        print("  Destination: \(destination)")
+        try runAsync()
+    }
+
+    func runAsync() throws {
+        let semaphore = DispatchSemaphore(value: 0)
+        var thrownError: Error?
+
+        Task {
+            do {
+                try await createPatch()
+            } catch {
+                thrownError = error
+            }
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        if let error = thrownError {
+            throw error
+        }
+    }
+
+    func createPatch() async throws {
+        // Get URLs for source and destination
+        let sourceURL = URL(fileURLWithPath: source)
+        let destURL = URL(fileURLWithPath: destination)
+
+        // Load or create snapshots
+        print("Creating patch from \(source) to \(destination)...")
+        let sourceSnapshot = try await loadOrCreateSnapshot(path: source, label: "source")
+        let destSnapshot = try await loadOrCreateSnapshot(path: destination, label: "destination")
+
+        // Clean up temporary snapshots
+        defer {
+            if !isSnapshotFile(source) {
+                try? FileManager.default.removeItem(at: sourceSnapshot.databaseURL)
+            }
+            if !isSnapshotFile(destination) {
+                try? FileManager.default.removeItem(at: destSnapshot.databaseURL)
+            }
+        }
+
+        // Perform comparison
+        let difference = try Difference.compare(source: sourceSnapshot, destination: destSnapshot)
+
+        // Check if there are any changes
+        let addedCount = try difference.added.count
+        let removedCount = try difference.removed.count
+        let modifiedCount = try difference.modified.count
+
+        if addedCount == 0 && removedCount == 0 && modifiedCount == 0 {
+            print("No differences found - patch not created")
+            return
+        }
+
+        // Create patch
+        let outputURL = URL(fileURLWithPath: output)
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceURL,
+            destinationDirectory: destURL,
+            saveTo: outputURL,
+            includeRevertData: reversible
+        )
+
+        // Print summary
+        print("\n✓ Patch created successfully")
         print("  Output: \(output)")
-        print("  Reversible: \(reversible)")
+        print("  Operations: \(patch.metadata.operationCount)")
+        print("    Added: \(addedCount)")
+        print("    Removed: \(removedCount)")
+        print("    Modified: \(modifiedCount)")
+        if reversible {
+            print("  Reversible: Yes")
+        }
+    }
+
+    func loadOrCreateSnapshot(path: String, label: String) async throws -> Snapshot {
+        if isSnapshotFile(path) {
+            // Load existing snapshot
+            let url = URL(fileURLWithPath: path)
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                throw CLIError.snapshotNotFound(path)
+            }
+            return try Snapshot.open(at: url)
+        } else {
+            // Create temporary snapshot from directory
+            let url = URL(fileURLWithPath: path)
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else {
+                throw CLIError.invalidDirectory(path)
+            }
+
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("diffalla-\(label)-\(UUID().uuidString).db")
+
+            print("Creating temporary snapshot for \(label)...")
+            let engine = SnapshotEngine()
+            let options = ScanOptions()
+            return try await engine.createSnapshot(from: url, saveTo: tempURL, options: options)
+        }
+    }
+
+    func isSnapshotFile(_ path: String) -> Bool {
+        return path.hasSuffix(".db") || path.hasSuffix(".sqlite")
     }
 }
 
 // MARK: - Patch Apply
 
+@available(macOS 13.0, *)
 struct ApplyPatch: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "apply",
@@ -64,16 +168,95 @@ struct ApplyPatch: ParsableCommand {
     var force: Bool = false
 
     func run() throws {
-        print("Patch apply command - Not yet implemented")
-        print("  Patch: \(patch)")
-        print("  Directory: \(directory)")
-        print("  Dry run: \(dryRun)")
-        print("  Force: \(force)")
+        try runAsync()
+    }
+
+    func runAsync() throws {
+        let semaphore = DispatchSemaphore(value: 0)
+        var thrownError: Error?
+
+        Task {
+            do {
+                try await applyPatch()
+            } catch {
+                thrownError = error
+            }
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        if let error = thrownError {
+            throw error
+        }
+    }
+
+    func applyPatch() async throws {
+        // Validate patch file exists
+        let patchURL = URL(fileURLWithPath: patch)
+        guard FileManager.default.fileExists(atPath: patchURL.path) else {
+            throw CLIError.patchNotFound(patch)
+        }
+
+        // Validate target directory exists
+        let directoryURL = URL(fileURLWithPath: directory)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            throw CLIError.invalidDirectory(directory)
+        }
+
+        // Load patch
+        print("Loading patch from \(patch)...")
+        let patchObj = try Patch.open(at: patchURL)
+
+        // Get operation counts
+        let operations = try patchObj.loadOperations()
+        print("Patch contains \(operations.count) operations")
+
+        if dryRun {
+            // Dry run: show what would be done
+            print("\n--- Dry Run Mode (no changes will be made) ---\n")
+            var addCount = 0, removeCount = 0, modifyCount = 0, moveCount = 0
+
+            for operation in operations {
+                switch operation {
+                case .add(let path, _):
+                    print("  [ADD]    \(path)")
+                    addCount += 1
+                case .remove(let path, _):
+                    print("  [REMOVE] \(path)")
+                    removeCount += 1
+                case .modify(let path, _):
+                    print("  [MODIFY] \(path)")
+                    modifyCount += 1
+                case .move(let from, let to, _):
+                    print("  [MOVE]   \(from) -> \(to)")
+                    moveCount += 1
+                }
+            }
+
+            print("\nSummary:")
+            print("  Add:    \(addCount)")
+            print("  Remove: \(removeCount)")
+            print("  Modify: \(modifyCount)")
+            print("  Move:   \(moveCount)")
+            print("\nUse without --dry-run to apply these changes")
+        } else {
+            // Actually apply the patch
+            print("Applying patch to \(directory)...")
+            print("  Processing \(operations.count) operations...")
+
+            try await patchObj.apply(to: directoryURL)
+
+            print("\n✓ Patch applied successfully")
+            print("  Operations applied: \(operations.count)")
+        }
     }
 }
 
 // MARK: - Patch Revert
 
+@available(macOS 13.0, *)
 struct RevertPatch: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "revert",
@@ -90,9 +273,100 @@ struct RevertPatch: ParsableCommand {
     var dryRun: Bool = false
 
     func run() throws {
-        print("Patch revert command - Not yet implemented")
-        print("  Patch: \(patch)")
-        print("  Directory: \(directory)")
-        print("  Dry run: \(dryRun)")
+        try runAsync()
+    }
+
+    func runAsync() throws {
+        let semaphore = DispatchSemaphore(value: 0)
+        var thrownError: Error?
+
+        Task {
+            do {
+                try await revertPatch()
+            } catch {
+                thrownError = error
+            }
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        if let error = thrownError {
+            throw error
+        }
+    }
+
+    func revertPatch() async throws {
+        // Validate patch file exists
+        let patchURL = URL(fileURLWithPath: patch)
+        guard FileManager.default.fileExists(atPath: patchURL.path) else {
+            throw CLIError.patchNotFound(patch)
+        }
+
+        // Validate target directory exists
+        let directoryURL = URL(fileURLWithPath: directory)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            throw CLIError.invalidDirectory(directory)
+        }
+
+        // Load patch
+        print("Loading patch from \(patch)...")
+        let patchObj = try Patch.open(at: patchURL)
+
+        // Check if patch is reversible
+        let hasRevert = try patchObj.hasRevertData()
+        if !hasRevert {
+            print("Error: This patch is not reversible (no revert data stored)")
+            print("Patches must be created with --reversible flag to be revertable")
+            throw ExitCode(1)
+        }
+
+        // Get operation counts
+        let operations = try patchObj.loadOperations()
+        print("Patch contains \(operations.count) operations")
+
+        if dryRun {
+            // Dry run: show what would be done
+            print("\n--- Dry Run Mode (no changes will be made) ---\n")
+            var addCount = 0, removeCount = 0, modifyCount = 0, moveCount = 0
+
+            for operation in operations {
+                switch operation {
+                case .add(let path, _):
+                    // Reverting add = remove
+                    print("  [REMOVE] \(path)")
+                    removeCount += 1
+                case .remove(let path, _):
+                    // Reverting remove = restore
+                    print("  [RESTORE] \(path)")
+                    addCount += 1
+                case .modify(let path, _):
+                    // Reverting modify = restore old content
+                    print("  [RESTORE] \(path)")
+                    modifyCount += 1
+                case .move(let from, let to, _):
+                    // Reverting move = move back
+                    print("  [MOVE]   \(to) -> \(from)")
+                    moveCount += 1
+                }
+            }
+
+            print("\nSummary:")
+            print("  Restore: \(addCount)")
+            print("  Remove:  \(removeCount)")
+            print("  Revert:  \(modifyCount)")
+            print("  Move:    \(moveCount)")
+            print("\nUse without --dry-run to revert these changes")
+        } else {
+            // Actually revert the patch
+            print("Reverting patch on \(directory)...")
+            print("  Processing \(operations.count) operations...")
+
+            try await patchObj.revert(on: directoryURL)
+
+            print("\n✓ Patch reverted successfully")
+            print("  Operations reverted: \(operations.count)")
+        }
     }
 }
