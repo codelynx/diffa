@@ -6,7 +6,7 @@ class Diffalla < Formula
   desc "Snapshot, compare, patch, and sync directories"
   homepage "https://github.com/codelynx/Diffalla"
   url "https://github.com/codelynx/Diffalla/archive/refs/tags/v0.10.0.tar.gz"
-  sha256 "REPLACE_WITH_ACTUAL_SHA256"
+  sha256 "cc492a176bc1e00e83b3f6171fb0ebff6117c56c55d9ef9c19dbdaa44fdd4627"
   license "MIT"
   head "https://github.com/codelynx/Diffalla.git", branch: "main"
 
