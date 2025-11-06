@@ -40,6 +40,9 @@ public struct Patch {
         // Create writer
         let writer = PatchWriter(database: database)
 
+        // Create revert data writer if needed
+        let revertWriter: RevertDataWriter? = includeRevertData ? RevertDataWriter(database: database) : nil
+
         // Convert difference to operations and read file content
         var sequenceOrder = 0
         var totalOperations = 0
@@ -75,6 +78,12 @@ public struct Patch {
         for item in removed.reversed() {
             let operation = PatchOperation.remove(path: item.path, isFolder: item.isFolder)
             let metadata = convertToMetadata(item)
+
+            // Capture revert data if requested (original file before removal)
+            if let revertWriter = revertWriter {
+                try revertWriter.captureOriginalFile(path: item.path, from: sourceDirectory, isFolder: item.isFolder)
+            }
+
             try writer.writeOperation(operation, metadata: metadata, sequenceOrder: sequenceOrder, content: nil)
             sequenceOrder += 1
             totalOperations += 1
@@ -85,6 +94,11 @@ public struct Patch {
         for item in modified {
             let operation = PatchOperation.modify(path: item.path, isFolder: item.isFolder)
             let metadata = convertToMetadata(item)
+
+            // Capture revert data if requested (original file before modification)
+            if let revertWriter = revertWriter {
+                try revertWriter.captureOriginalFile(path: item.path, from: sourceDirectory, isFolder: item.isFolder)
+            }
 
             // Read content for files (not folders)
             let content: Data?
@@ -231,6 +245,46 @@ public struct Patch {
                 try applicator.applyMove(from: from, to: to, in: targetDirectory)
             }
         }
+    }
+
+    /// Load revert data for a specific path
+    /// - Parameter path: The path to load revert data for
+    /// - Returns: Tuple of (content, metadata, cacheReference), or nil if not found
+    func loadRevertData(for path: String) throws -> (content: Data?, metadata: Metadata, cacheReference: String?)? {
+        let rows = try database.query(
+            "SELECT original_content_blob, original_metadata_json, cache_reference FROM revert_data WHERE path = ? LIMIT 1",
+            [.text(path)]
+        )
+
+        guard let row = rows.first else {
+            return nil
+        }
+
+        let content = try row.data(at: 0)
+        guard let metadataJson = try row.string(at: 1) else {
+            throw DiffallaError.invalidPatch(reason: "Missing metadata for revert data '\(path)'")
+        }
+        let cacheReference = try row.string(at: 2)
+
+        // Deserialize metadata
+        let decoder = JSONDecoder()
+        guard let metadataData = metadataJson.data(using: .utf8) else {
+            throw DiffallaError.invalidPatch(reason: "Invalid metadata JSON for revert data '\(path)'")
+        }
+        let metadata = try decoder.decode(Metadata.self, from: metadataData)
+
+        return (content: content, metadata: metadata, cacheReference: cacheReference)
+    }
+
+    /// Check if patch has revert data
+    /// - Returns: True if patch contains revert data
+    public func hasRevertData() throws -> Bool {
+        let rows = try database.query("SELECT COUNT(*) FROM revert_data")
+        guard let row = rows.first else {
+            return false
+        }
+        let count = try row.int64(at: 0)
+        return count > 0
     }
 
     /// Convert SnapshotItem to Metadata

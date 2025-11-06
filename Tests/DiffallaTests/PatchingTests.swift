@@ -1039,4 +1039,222 @@ final class PatchingTests: XCTestCase {
         let permissions = attributes[.posixPermissions] as? NSNumber
         XCTAssertEqual(permissions?.uint16Value, 0o600)
     }
+
+    // MARK: - Step 6: Revert Data Capture Tests
+
+    func testCaptureRevertDataForRemoved() async throws {
+        // Create source with files, destination empty (files removed)
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "source/removed.txt", content: "original content")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch with revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Verify revert data was captured for removed file
+        XCTAssertTrue(try patch.hasRevertData())
+
+        let revertData = try patch.loadRevertData(for: "removed.txt")
+        XCTAssertNotNil(revertData, "Revert data should exist for removed file")
+        XCTAssertNotNil(revertData?.content, "Original content should be captured")
+
+        let originalContent = String(data: revertData!.content!, encoding: .utf8)
+        XCTAssertEqual(originalContent, "original content")
+    }
+
+    func testCaptureRevertDataForModified() async throws {
+        // Create source and destination with modified file
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "source/modified.txt", content: "original version")
+        try createFile(at: "dest/modified.txt", content: "new version")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch with revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Verify revert data was captured for modified file
+        XCTAssertTrue(try patch.hasRevertData())
+
+        let revertData = try patch.loadRevertData(for: "modified.txt")
+        XCTAssertNotNil(revertData, "Revert data should exist for modified file")
+        XCTAssertNotNil(revertData?.content, "Original content should be captured")
+
+        let originalContent = String(data: revertData!.content!, encoding: .utf8)
+        XCTAssertEqual(originalContent, "original version")
+    }
+
+    func testInlineThreshold() async throws {
+        // Create source with small and large files
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+
+        // Small file (< 1MB)
+        let smallContent = String(repeating: "A", count: 500_000)
+        try createFile(at: "source/small.txt", content: smallContent)
+
+        // Large file (> 1MB)
+        let largeContent = String(repeating: "B", count: 1_500_000)
+        try createFile(at: "source/large.txt", content: largeContent)
+
+        // Create snapshots (source has files, dest is empty - both removed)
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch with revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Small file should be stored inline
+        let smallRevertData = try patch.loadRevertData(for: "small.txt")
+        XCTAssertNotNil(smallRevertData?.content, "Small file content should be stored inline")
+        XCTAssertEqual(smallRevertData?.content?.count, smallContent.utf8.count)
+
+        // Large file should NOT be stored inline (Phase 4 will add external cache)
+        let largeRevertData = try patch.loadRevertData(for: "large.txt")
+        XCTAssertNotNil(largeRevertData, "Revert data entry should exist for large file")
+        XCTAssertNil(largeRevertData?.content, "Large file content should not be stored inline")
+    }
+
+    func testRevertDataStored() async throws {
+        // Create source and destination with multiple changes
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "source/file1.txt", content: "file1 original")
+        try createFile(at: "source/file2.txt", content: "file2 original")
+        try createFile(at: "dest/file2.txt", content: "file2 modified")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch with revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Verify revert data is in database
+        XCTAssertTrue(try patch.hasRevertData())
+
+        // Verify both files have revert data
+        let file1RevertData = try patch.loadRevertData(for: "file1.txt")
+        XCTAssertNotNil(file1RevertData, "file1.txt should have revert data (removed)")
+
+        let file2RevertData = try patch.loadRevertData(for: "file2.txt")
+        XCTAssertNotNil(file2RevertData, "file2.txt should have revert data (modified)")
+
+        // Verify metadata is stored
+        XCTAssertNotNil(file1RevertData?.metadata)
+        XCTAssertNotNil(file2RevertData?.metadata)
+    }
+
+    func testCaptureRevertDataForSymlink() async throws {
+        // Create source with symlink, destination empty (symlink removed)
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+
+        // Create a target file and a symlink pointing to it
+        try createFile(at: "source/target.txt", content: "target content")
+        let targetURL = sourceDir.appendingPathComponent("target.txt")
+        let symlinkURL = sourceDir.appendingPathComponent("link.txt")
+        try fileManager.createSymbolicLink(at: symlinkURL, withDestinationURL: targetURL)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch with revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Verify revert data was captured for symlink
+        let symlinkRevertData = try patch.loadRevertData(for: "link.txt")
+        XCTAssertNotNil(symlinkRevertData, "Revert data should exist for symlink")
+
+        // Symlinks have no content (content should be nil)
+        XCTAssertNil(symlinkRevertData?.content, "Symlinks should not have content stored")
+
+        // Symlink target should be stored in cache_reference
+        XCTAssertNotNil(symlinkRevertData?.cacheReference, "Symlink target should be stored")
+
+        // Verify metadata is for the symlink itself (not target)
+        XCTAssertNotNil(symlinkRevertData?.metadata)
+        // Symlink size should be small (just the path string), not the target file size
+        let symlinkSize = symlinkRevertData!.metadata.size
+        let targetSize = Int64("target content".utf8.count)
+        XCTAssertNotEqual(symlinkSize, targetSize, "Symlink metadata should be for link itself, not target")
+    }
 }

@@ -205,6 +205,70 @@ public struct FileSystemItem: ItemProtocol {
         return attributes
     }
 
+    /// Read file metadata without computing hash or path
+    /// - Parameters:
+    ///   - url: Absolute URL to the file or folder
+    ///   - captureOwnership: Whether to capture file owner/group (default: false)
+    ///   - followSymlinks: Whether to follow symlinks (true) or read symlink itself (false)
+    /// - Returns: File metadata
+    static func readMetadata(at url: URL, captureOwnership: Bool = false, followSymlinks: Bool = true) throws -> Metadata {
+        let fileManager = FileManager.default
+
+        // Check if this is a symlink
+        let resourceValues = try url.resourceValues(forKeys: [.isSymbolicLinkKey])
+        let isSymlink = resourceValues.isSymbolicLink ?? false
+
+        // Get file attributes (symlink-aware if needed)
+        let attributes: [FileAttributeKey: Any]
+        if isSymlink && !followSymlinks {
+            // Read symlink itself, not target
+            attributes = try Self.getSymlinkAttributes(at: url, fileManager: fileManager)
+        } else {
+            // Normal case: follows symlinks
+            attributes = try fileManager.attributesOfItem(atPath: url.path)
+        }
+
+        // Get file type
+        let fileType = attributes[.type] as? FileAttributeType
+        let isDirectory = fileType == .typeDirectory
+
+        // Get size (0 for directories)
+        let fileSize = isDirectory ? 0 : (attributes[.size] as? Int64 ?? 0)
+
+        // Get modification date
+        guard let modDate = attributes[.modificationDate] as? Date else {
+            throw FileSystemError.missingMetadata(path: url.path, field: "modificationDate")
+        }
+
+        // Get permissions
+        let posixPerms = attributes[.posixPermissions] as? UInt16 ?? 0o644
+        let permissions = FilePermissions(posix: posixPerms)
+
+        // Get ownership if requested
+        var owner: String?
+        var group: String?
+        if captureOwnership {
+            owner = attributes[.ownerAccountName] as? String
+            group = attributes[.groupOwnerAccountName] as? String
+        }
+
+        return Metadata(
+            modificationDate: modDate,
+            size: fileSize,
+            permissions: permissions,
+            owner: owner,
+            group: group
+        )
+    }
+
+    /// Read symlink target path
+    /// - Parameter url: URL of the symlink
+    /// - Returns: Target path that the symlink points to
+    static func readSymlinkTarget(at url: URL) throws -> String {
+        let fileManager = FileManager.default
+        return try fileManager.destinationOfSymbolicLink(atPath: url.path)
+    }
+
     /// Compute SHA-256 hash of file content
     /// - Parameter url: File URL to hash
     /// - Returns: Hex-encoded SHA-256 hash

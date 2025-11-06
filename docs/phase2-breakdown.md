@@ -483,7 +483,7 @@ Use checkboxes to track progress:
 - [x] Step 3: Basic Patch Creation (3-4 hours)
 - [x] Step 4: Content Storage in Patches (3-4 hours)
 - [x] Step 5: Apply Patch Operation (4-5 hours)
-- [ ] Step 6: Revert Data Capture (3-4 hours)
+- [x] Step 6: Revert Data Capture (3-4 hours)
 - [ ] Step 7: Revert Patch Operation (3-4 hours)
 - [ ] Step 8: Patch Export Functions (3-4 hours)
 - [ ] Step 9: Integration Tests (3 hours)
