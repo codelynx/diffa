@@ -87,12 +87,12 @@ struct VerifyCommand: ParsableCommand {
 
         if addedCount == 0 && removedCount == 0 && modifiedCount == 0 {
             // Perfect match
-            print("\n✓ Verification successful")
+            print("\n" + Colors.success("✓ Verification successful"))
             print("  Directory matches snapshot perfectly")
             // Exit 0
         } else {
             // Differences found
-            print("\n✗ Verification failed")
+            print("\n" + Colors.error("✗ Verification failed"))
             print("\nDifferences:")
             print("  Added:    \(addedCount) files")
             print("  Removed:  \(removedCount) files")
@@ -102,21 +102,21 @@ struct VerifyCommand: ParsableCommand {
                 if addedCount > 0 {
                     print("\nAdded files:")
                     for item in try difference.added {
-                        print("  + \(item.path)")
+                        print(Colors.success("  + \(item.path)"))
                     }
                 }
 
                 if removedCount > 0 {
                     print("\nRemoved files:")
                     for item in try difference.removed {
-                        print("  - \(item.path)")
+                        print(Colors.error("  - \(item.path)"))
                     }
                 }
 
                 if modifiedCount > 0 {
                     print("\nModified files:")
                     for item in try difference.modified {
-                        print("  * \(item.path)")
+                        print(Colors.warning("  * \(item.path)"))
                     }
                 }
             } else {

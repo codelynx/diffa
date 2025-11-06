@@ -103,7 +103,7 @@ struct CreatePatch: ParsableCommand {
         )
 
         // Print summary
-        print("\n✓ Patch created successfully")
+        print("\n" + Colors.success("✓ Patch created successfully"))
         print("  Output: \(output)")
         print("  Operations: \(patch.metadata.operationCount)")
         print("    Added: \(addedCount)")
@@ -248,7 +248,7 @@ struct ApplyPatch: ParsableCommand {
 
             try await patchObj.apply(to: directoryURL)
 
-            print("\n✓ Patch applied successfully")
+            print("\n" + Colors.success("✓ Patch applied successfully"))
             print("  Operations applied: \(operations.count)")
         }
     }
@@ -317,7 +317,7 @@ struct RevertPatch: ParsableCommand {
         // Check if patch is reversible
         let hasRevert = try patchObj.hasRevertData()
         if !hasRevert {
-            print("Error: This patch is not reversible (no revert data stored)")
+            print(Colors.error("Error: This patch is not reversible (no revert data stored)"))
             print("Patches must be created with --reversible flag to be revertable")
             throw ExitCode(1)
         }
@@ -365,7 +365,7 @@ struct RevertPatch: ParsableCommand {
 
             try await patchObj.revert(on: directoryURL)
 
-            print("\n✓ Patch reverted successfully")
+            print("\n" + Colors.success("✓ Patch reverted successfully"))
             print("  Operations reverted: \(operations.count)")
         }
     }

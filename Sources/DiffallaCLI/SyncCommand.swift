@@ -56,7 +56,7 @@ struct SyncCommand: ParsableCommand {
     func performSync() async throws {
         // Validate that --delete is not used with --bidirectional
         if bidirectional && delete {
-            print("Error: --delete cannot be used with --bidirectional")
+            print(Colors.error("Error: --delete cannot be used with --bidirectional"))
             print("Bidirectional sync merges changes from both sides and should not delete files.")
             throw ExitCode(2)
         }
@@ -135,7 +135,7 @@ struct SyncCommand: ParsableCommand {
         }
 
         // Show results
-        print("\n✓ Sync completed successfully")
+        print("\n" + Colors.success("✓ Sync completed successfully"))
         print("\nSummary:")
         print("  Files copied:  \(result.filesCopied)")
         print("  Files deleted: \(result.filesDeleted)")
@@ -144,14 +144,14 @@ struct SyncCommand: ParsableCommand {
         print("  Duration: \(String(format: "%.2f", result.duration))s")
 
         if !result.conflicts.isEmpty {
-            print("\nConflicts resolved: \(result.conflicts.count)")
+            print("\n" + Colors.warning("Conflicts resolved: \(result.conflicts.count)"))
             for resolved in result.conflicts {
                 print("  \(resolved.conflict.path): \(resolved.action)")
             }
         }
 
         if !result.errors.isEmpty {
-            print("\nWarnings: \(result.errors.count)")
+            print("\n" + Colors.warning("Warnings: \(result.errors.count)"))
             for error in result.errors.prefix(5) {
                 print("  \(error.localizedDescription)")
             }

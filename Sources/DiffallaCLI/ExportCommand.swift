@@ -53,7 +53,7 @@ struct ExportCommand: ParsableCommand {
         if let outputPath = output {
             let outputURL = URL(fileURLWithPath: outputPath)
             try exportedContent.write(to: outputURL, atomically: true, encoding: .utf8)
-            print("✓ Exported to \(outputPath)")
+            print(Colors.success("✓ Exported to \(outputPath)"))
         } else {
             // Write to stdout
             print(exportedContent)

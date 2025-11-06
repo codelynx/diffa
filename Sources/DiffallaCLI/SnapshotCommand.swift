@@ -108,7 +108,7 @@ struct SnapshotCommand: ParsableCommand {
 
         // Clear progress line and show summary
         print("\n")
-        print("✓ Snapshot created successfully")
+        print(Colors.success("✓ Snapshot created successfully"))
         print("  Output: \(outputPath)")
         print("  Files: \(snapshot.metadata.totalFiles)")
         print("  Directories: \(snapshot.metadata.totalFolders)")

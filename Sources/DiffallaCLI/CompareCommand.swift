@@ -131,7 +131,7 @@ struct CompareCommand: ParsableCommand {
             if addedCount > 0 {
                 print("\nAdded Files:")
                 for item in try difference.added {
-                    print("  + \(item.path)")
+                    print(Colors.success("  + \(item.path)"))
                     if detailed {
                         print("      Size: \(formatBytes(item.size))")
                     }
@@ -141,7 +141,7 @@ struct CompareCommand: ParsableCommand {
             if removedCount > 0 {
                 print("\nRemoved Files:")
                 for item in try difference.removed {
-                    print("  - \(item.path)")
+                    print(Colors.error("  - \(item.path)"))
                     if detailed {
                         print("      Size: \(formatBytes(item.size))")
                     }
@@ -151,7 +151,7 @@ struct CompareCommand: ParsableCommand {
             if modifiedCount > 0 {
                 print("\nModified Files:")
                 for item in try difference.modified {
-                    print("  * \(item.path)")
+                    print(Colors.warning("  * \(item.path)"))
                     if detailed {
                         print("      Size: \(formatBytes(item.size))")
                     }
@@ -160,7 +160,7 @@ struct CompareCommand: ParsableCommand {
         }
 
         if addedCount == 0 && removedCount == 0 && modifiedCount == 0 {
-            print("\n✓ Directories are identical")
+            print("\n" + Colors.success("✓ Directories are identical"))
         }
     }
 
