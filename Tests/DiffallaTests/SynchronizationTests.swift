@@ -731,4 +731,224 @@ final class SynchronizationTests: XCTestCase {
         // Verify file exists
         XCTAssertTrue(FileManager.default.fileExists(atPath: destDir.appendingPathComponent("file.txt").path))
     }
+
+    // MARK: - Step 5: Conflict Detection Tests
+
+    func testDetectDivergedConflict() async throws {
+        // Path exists in both with different content (diverged)
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Same file, different content
+        try "source content".write(to: sourceDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+        try "dest content".write(to: destDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        // Create snapshots and compare
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+
+        // Detect conflicts
+        let detector = ConflictDetector()
+        let conflicts = try detector.detectConflicts(difference: difference)
+
+        // Should have 1 diverged conflict
+        XCTAssertEqual(conflicts.count, 1)
+        XCTAssertEqual(conflicts[0].type, .diverged)
+        XCTAssertEqual(conflicts[0].path, "file.txt")
+        XCTAssertNotNil(conflicts[0].sourceItem)
+        XCTAssertNotNil(conflicts[0].destinationItem)
+    }
+
+    func testDetectOnlyInSourceConflict() async throws {
+        // Path only in source
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // File only in source
+        try "source only".write(to: sourceDir.appendingPathComponent("source_only.txt"), atomically: true, encoding: .utf8)
+
+        // Create snapshots and compare
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+
+        // Detect conflicts
+        let detector = ConflictDetector()
+        let conflicts = try detector.detectConflicts(difference: difference)
+
+        // Should have 1 onlyInSource conflict
+        XCTAssertEqual(conflicts.count, 1)
+        XCTAssertEqual(conflicts[0].type, .onlyInSource)
+        XCTAssertEqual(conflicts[0].path, "source_only.txt")
+        XCTAssertNotNil(conflicts[0].sourceItem)
+        XCTAssertNil(conflicts[0].destinationItem)
+    }
+
+    func testDetectOnlyInDestinationConflict() async throws {
+        // Path only in destination
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // File only in destination
+        try "dest only".write(to: destDir.appendingPathComponent("dest_only.txt"), atomically: true, encoding: .utf8)
+
+        // Create snapshots and compare
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+
+        // Detect conflicts
+        let detector = ConflictDetector()
+        let conflicts = try detector.detectConflicts(difference: difference)
+
+        // Should have 1 onlyInDestination conflict
+        XCTAssertEqual(conflicts.count, 1)
+        XCTAssertEqual(conflicts[0].type, .onlyInDestination)
+        XCTAssertEqual(conflicts[0].path, "dest_only.txt")
+        XCTAssertNil(conflicts[0].sourceItem)
+        XCTAssertNotNil(conflicts[0].destinationItem)
+    }
+
+    func testDetectNoConflictForIdentical() async throws {
+        // Identical files should not be flagged as conflicts
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Same file, identical content
+        let content = "identical content"
+        try content.write(to: sourceDir.appendingPathComponent("identical.txt"), atomically: true, encoding: .utf8)
+        try content.write(to: destDir.appendingPathComponent("identical.txt"), atomically: true, encoding: .utf8)
+
+        // Create snapshots and compare
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+
+        // Detect conflicts
+        let detector = ConflictDetector()
+        let conflicts = try detector.detectConflicts(difference: difference)
+
+        // Should have NO conflicts (files are identical)
+        XCTAssertEqual(conflicts.count, 0)
+    }
+
+    func testDetectMultipleConflictTypes() async throws {
+        // Test all conflict types together
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Diverged: same file, different content
+        try "source version".write(to: sourceDir.appendingPathComponent("diverged.txt"), atomically: true, encoding: .utf8)
+        try "dest version".write(to: destDir.appendingPathComponent("diverged.txt"), atomically: true, encoding: .utf8)
+
+        // Only in source
+        try "source only".write(to: sourceDir.appendingPathComponent("source_only.txt"), atomically: true, encoding: .utf8)
+
+        // Only in destination
+        try "dest only".write(to: destDir.appendingPathComponent("dest_only.txt"), atomically: true, encoding: .utf8)
+
+        // Identical (not a conflict)
+        try "same".write(to: sourceDir.appendingPathComponent("identical.txt"), atomically: true, encoding: .utf8)
+        try "same".write(to: destDir.appendingPathComponent("identical.txt"), atomically: true, encoding: .utf8)
+
+        // Create snapshots and compare
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+
+        let engine = SnapshotEngine()
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+
+        // Detect conflicts
+        let detector = ConflictDetector()
+        let conflicts = try detector.detectConflicts(difference: difference)
+
+        // Should have 3 conflicts (diverged, onlyInSource, onlyInDestination)
+        XCTAssertEqual(conflicts.count, 3)
+
+        var hasDiverged = false
+        var hasOnlyInSource = false
+        var hasOnlyInDestination = false
+
+        for conflict in conflicts {
+            switch conflict.type {
+            case .diverged:
+                hasDiverged = true
+                XCTAssertEqual(conflict.path, "diverged.txt")
+            case .onlyInSource:
+                hasOnlyInSource = true
+                XCTAssertEqual(conflict.path, "source_only.txt")
+            case .onlyInDestination:
+                hasOnlyInDestination = true
+                XCTAssertEqual(conflict.path, "dest_only.txt")
+            }
+        }
+
+        XCTAssertTrue(hasDiverged, "Should detect diverged conflict")
+        XCTAssertTrue(hasOnlyInSource, "Should detect onlyInSource conflict")
+        XCTAssertTrue(hasOnlyInDestination, "Should detect onlyInDestination conflict")
+    }
 }
