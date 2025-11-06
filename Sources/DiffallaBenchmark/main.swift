@@ -1,10 +1,6 @@
 import Foundation
 import Diffalla
-#if canImport(CommonCrypto)
-import CommonCrypto
-#elseif canImport(Crypto)
 import Crypto
-#endif
 
 // MARK: - Main Entry Point
 
@@ -228,18 +224,8 @@ struct BenchmarkRunner {
     }
 
     static func sha256Hex(data: Data) -> String {
-        #if canImport(CommonCrypto)
-        var digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
-        data.withUnsafeBytes { bufferPointer in
-            _ = CC_SHA256(bufferPointer.baseAddress, CC_LONG(data.count), &digest)
-        }
-        return digest.map { String(format: "%02x", $0) }.joined()
-        #elseif canImport(Crypto)
         let hash = SHA256.hash(data: data)
-        return hash.compactMap { String(format: "%02x", $0) }.joined()
-        #else
-        return String(data.hashValue, radix: 16)
-        #endif
+        return hash.map { String(format: "%02x", $0) }.joined()
     }
 }
 

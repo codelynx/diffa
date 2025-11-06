@@ -1,5 +1,5 @@
 import Foundation
-import CommonCrypto
+import Crypto
 
 /// A file or folder read from the file system
 ///
@@ -231,7 +231,11 @@ public struct FileSystemItem: ItemProtocol {
 
         // Get POSIX permissions using lstat via FileManager
         // We need to use a lower-level API for this
+        #if os(Linux)
+        var stat = stat()
+        #else
         var stat = Darwin.stat()
+        #endif
         if lstat(url.path, &stat) == 0 {
             attributes[.posixPermissions] = UInt16(stat.st_mode & 0o7777)
         } else {
@@ -315,9 +319,8 @@ public struct FileSystemItem: ItemProtocol {
         }
         defer { try? fileHandle.close() }
 
-        // Initialize SHA-256 context
-        var context = CC_SHA256_CTX()
-        CC_SHA256_Init(&context)
+        // Initialize SHA-256 hasher
+        var hasher = SHA256()
 
         // Read file in chunks
         let bufferSize = 64 * 1024 // 64 KB chunks
@@ -326,15 +329,12 @@ public struct FileSystemItem: ItemProtocol {
             if data.isEmpty {
                 return false // EOF
             }
-            data.withUnsafeBytes { bufferPointer in
-                _ = CC_SHA256_Update(&context, bufferPointer.baseAddress, CC_LONG(data.count))
-            }
+            hasher.update(data: data)
             return true // Continue
         }) {}
 
         // Finalize hash
-        var digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
-        CC_SHA256_Final(&digest, &context)
+        let digest = hasher.finalize()
 
         // Convert to hex string
         return digest.map { String(format: "%02x", $0) }.joined()

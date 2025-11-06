@@ -1,8 +1,6 @@
 import XCTest
 @testable import Diffalla
-#if canImport(CommonCrypto)
-import CommonCrypto
-#endif
+import Crypto
 
 final class HashCacheIntegrationTests: XCTestCase {
 
@@ -254,14 +252,7 @@ final class HashCacheIntegrationTests: XCTestCase {
 // Extension to compute SHA256 for testing
 extension Data {
     func sha256Hex() -> String {
-        #if canImport(CommonCrypto)
-        var digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
-        self.withUnsafeBytes { bufferPointer in
-            _ = CC_SHA256(bufferPointer.baseAddress, CC_LONG(self.count), &digest)
-        }
-        return digest.map { String(format: "%02x", $0) }.joined()
-        #else
-        return String(self.hashValue, radix: 16)
-        #endif
+        let hash = SHA256.hash(data: self)
+        return hash.map { String(format: "%02x", $0) }.joined()
     }
 }
