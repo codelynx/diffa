@@ -63,6 +63,44 @@ Create lightweight snapshots capturing directory structure, hashes, and metadata
 
 ## Installation
 
+### Homebrew (macOS)
+
+```bash
+# Add the tap
+brew tap codelynx/tap
+
+# Install diffalla
+brew install diffalla
+```
+
+Or install directly without tap:
+```bash
+brew install codelynx/tap/diffalla
+```
+
+### Pre-built Binaries
+
+Download the latest release for your platform:
+
+**macOS (Universal: arm64 + x86_64):**
+```bash
+curl -fsSL https://github.com/codelynx/Diffalla/releases/latest/download/diffalla-0.10.0-macos.tar.gz | tar -xz
+cd diffalla-0.10.0-macos
+sudo ./install.sh
+```
+
+**Linux (x86_64):**
+```bash
+curl -fsSL https://github.com/codelynx/Diffalla/releases/latest/download/diffalla-0.10.0-linux.tar.gz | tar -xz
+cd diffalla-0.10.0-linux
+sudo ./install.sh
+```
+
+**Ubuntu Snap:**
+```bash
+snap install diffalla
+```
+
 ### From Source
 
 Build the CLI tool:
@@ -79,13 +117,13 @@ The binary will be at `.build/release/diffalla`. Copy to your PATH:
 cp .build/release/diffalla /usr/local/bin/
 ```
 
-### Using Swift Package Manager
+### Swift Package Manager (Library)
 
-Add to your `Package.swift`:
+To use Diffalla as a library in your Swift project, add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/codelynx/Diffalla.git", from: "1.0.0")
+    .package(url: "https://github.com/codelynx/Diffalla.git", from: "0.10.0")
 ]
 ```
 
