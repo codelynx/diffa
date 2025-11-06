@@ -20,7 +20,7 @@ class SyncExecutor {
 
         var filesCopied = 0
         var filesDeleted = 0
-        let filesMoved = 0  // Not used in Step 3 (reserved for future move detection)
+        var filesMoved = 0
         var bytesTransferred: Int64 = 0
         var errors: [DiffallaError] = []
 
@@ -42,6 +42,11 @@ class SyncExecutor {
                 case .copyFile(let from, let to, let size):
                     try executeCopyFile(from: from, to: to, size: size)
                     filesCopied += 1
+                    bytesTransferred += size
+
+                case .moveFile(let from, let to, let size):
+                    try executeMoveFile(from: from, to: to, size: size)
+                    filesMoved += 1
                     bytesTransferred += size
 
                 case .deleteFile(let at):
@@ -173,12 +178,38 @@ class SyncExecutor {
         }
     }
 
+    private func executeMoveFile(from source: URL, to destination: URL, size: Int64) throws {
+        // Ensure parent directory exists
+        let parentDir = destination.deletingLastPathComponent()
+        if !fileManager.fileExists(atPath: parentDir.path) {
+            try fileManager.createDirectory(at: parentDir, withIntermediateDirectories: true)
+        }
+
+        // Remove existing file at destination if present
+        if fileManager.fileExists(atPath: destination.path) {
+            try fileManager.removeItem(at: destination)
+        }
+
+        // Attempt atomic move using FileManager.moveItem
+        // This is atomic on same filesystem, falls back to copy+delete on different filesystems
+        do {
+            try fileManager.moveItem(at: source, to: destination)
+        } catch {
+            throw DiffallaError.applyFailed(
+                operation: "move \(source.path) to \(destination.path)",
+                reason: error.localizedDescription
+            )
+        }
+    }
+
     // MARK: - Helpers
 
     private func operationDescription(_ operation: SyncOperation) -> String {
         switch operation {
         case .copyFile(let from, let to, _):
             return "Copying \(from.lastPathComponent) to \(to.path)"
+        case .moveFile(let from, let to, _):
+            return "Moving \(from.lastPathComponent) to \(to.path)"
         case .deleteFile(let at):
             return "Deleting \(at.lastPathComponent)"
         case .createDirectory(let at):
@@ -192,6 +223,8 @@ class SyncExecutor {
         switch operation {
         case .copyFile:
             return .copying
+        case .moveFile:
+            return .moving
         case .deleteFile, .deleteDirectory:
             return .deleting
         case .createDirectory:

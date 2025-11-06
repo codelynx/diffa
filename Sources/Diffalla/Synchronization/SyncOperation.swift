@@ -5,6 +5,9 @@ enum SyncOperation {
     /// Copy a file from source to destination
     case copyFile(from: URL, to: URL, size: Int64)
 
+    /// Move/rename a file (no copy needed)
+    case moveFile(from: URL, to: URL, size: Int64)
+
     /// Delete a file at the given location
     case deleteFile(at: URL)
 

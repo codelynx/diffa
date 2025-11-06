@@ -70,7 +70,7 @@ class SyncPlanner {
     /// Calculate total bytes for progress tracking
     ///
     /// Sums up all bytes that will be transferred during sync.
-    /// Only counts copyFile operations (deletes/creates don't transfer data).
+    /// Counts copyFile and moveFile operations (deletes/creates don't transfer data).
     ///
     /// - Parameter operations: Array of sync operations
     /// - Returns: Total bytes to be transferred
@@ -78,8 +78,11 @@ class SyncPlanner {
         var totalBytes: Int64 = 0
 
         for operation in operations {
-            if case .copyFile(_, _, let size) = operation {
+            switch operation {
+            case .copyFile(_, _, let size), .moveFile(_, _, let size):
                 totalBytes += size
+            case .deleteFile, .deleteDirectory, .createDirectory:
+                break
             }
         }
 

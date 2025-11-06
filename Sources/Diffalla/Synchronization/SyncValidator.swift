@@ -64,6 +64,7 @@ class SyncValidator {
     ///
     /// Calculates the net disk space change:
     /// - Copy operations: Add file size
+    /// - Move operations: Add file size (for cross-filesystem fallback safety)
     /// - Delete operations: Subtract file size (frees space)
     ///
     /// - Parameter operations: Planned sync operations
@@ -75,6 +76,12 @@ class SyncValidator {
             switch operation {
             case .copyFile(_, _, let size):
                 // Copying requires space
+                totalBytes += size
+
+            case .moveFile(_, _, let size):
+                // Move on same filesystem is atomic (no extra space)
+                // But cross-filesystem move does copy+delete (needs temporary space)
+                // For conservative estimation, treat as requiring space
                 totalBytes += size
 
             case .deleteFile, .deleteDirectory:
