@@ -1,7 +1,7 @@
 # Phase 3 Implementation Breakdown
 
 **Goal:** Working folder synchronization with conflict resolution
-**Duration:** 3-4 weeks (broken into 8-10 incremental steps)
+**Duration:** 3-4 weeks (broken into 11 incremental steps)
 
 ---
 
@@ -16,11 +16,67 @@ Snapshot → Difference → Sync Plan → Execute → SyncResult
                    Conflict Detection → Resolution
 ```
 
+**Key Design Constraint:**
+Phase 3 uses a **two-snapshot model** (current source and destination only). Without a common ancestor snapshot, we cannot distinguish "source added" from "destination deleted" or determine which side made changes. Conflicts are detected as "paths that diverge between the two trees" rather than tracking change causality.
+
 **Breakdown Strategy:**
 - Small, testable increments
 - Each step builds on previous
 - Test as we go
 - Can pause/resume at any step
+
+---
+
+## Step 0: Extend Difference API (1-2 hours)
+
+**Goal:** Add API to query both source and destination items for any path
+
+**Problem:** Current `Difference` only exposes one `SnapshotItem` per path:
+- `added` gives destination items only
+- `removed` gives source items only
+- `modified` gives destination items only
+
+For conflict detection (Step 6), we need access to **both** source and destination versions.
+
+**Deliverables:**
+```swift
+// Sources/Diffalla/Comparison/Difference.swift
+extension Difference {
+    /// Load source item for a given path
+    /// - Returns: SnapshotItem from source snapshot, or nil if path doesn't exist in source
+    public func sourceItem(for path: String) throws -> SnapshotItem?
+
+    /// Load destination item for a given path
+    /// - Returns: SnapshotItem from destination snapshot, or nil if path doesn't exist in destination
+    public func destinationItem(for path: String) throws -> SnapshotItem?
+}
+```
+
+**Implementation:**
+```swift
+public func sourceItem(for path: String) throws -> SnapshotItem? {
+    let reader = SnapshotReader(snapshot: source)
+    return try reader.loadItem(at: path)
+}
+
+public func destinationItem(for path: String) throws -> SnapshotItem? {
+    let reader = SnapshotReader(snapshot: destination)
+    return try reader.loadItem(at: path)
+}
+```
+
+**Tests:**
+- `testSourceItemForExistingPath()` (returns source item)
+- `testSourceItemForNonexistentPath()` (returns nil)
+- `testDestinationItemForExistingPath()` (returns destination item)
+- `testDestinationItemForNonexistentPath()` (returns nil)
+- `testSourceAndDestinationForModifiedPath()` (returns both versions)
+
+**Exit Criteria:**
+- ✅ Methods added to Difference extension
+- ✅ Tests pass (5 tests)
+- ✅ No warnings
+- ✅ Both versions retrievable for any path
 
 ---
 
@@ -74,9 +130,15 @@ public struct Conflict {
 }
 
 public enum ConflictType {
-    case bothModified        // Modified in both locations
-    case modifiedVsDeleted   // Modified on one side, deleted on other
+    case diverged           // Path exists in both with different hash/metadata
+    case onlyInSource       // Path exists only in source (added or dest deleted? unknown without ancestor)
+    case onlyInDestination  // Path exists only in destination (added or source deleted? unknown without ancestor)
 }
+
+// Note: Without a common ancestor snapshot, we cannot distinguish causality.
+// "onlyInSource" could mean "source added" OR "destination deleted"
+// "onlyInDestination" could mean "destination added" OR "source deleted"
+// "diverged" means the path differs but we don't know which side changed
 
 public struct ResolvedConflict {
     public let conflict: Conflict
@@ -260,19 +322,21 @@ public struct SyncOptions {
 
 **Goal:** Detect conflicts in bidirectional sync
 
+**Note:** With only two snapshots (no common ancestor), we detect **divergence** rather than **causality**. We can't determine if a path difference is due to source changes or destination changes.
+
 **Deliverables:**
 ```swift
 // Sources/Diffalla/Synchronization/ConflictDetector.swift
 class ConflictDetector {
     /// Detect conflicts when syncing bidirectionally
+    /// Uses Difference.sourceItem(for:) and destinationItem(for:) to get both versions
     func detectConflicts(
-        difference: Difference,
-        sourceDirectory: URL,
-        destinationDirectory: URL
-    ) async throws -> [Conflict]
+        difference: Difference
+    ) throws -> [Conflict]
 
-    /// Check if two items are in conflict
-    private func isConflict(
+    /// Classify conflict type for a path
+    private func classifyConflict(
+        path: String,
         sourceItem: SnapshotItem?,
         destItem: SnapshotItem?
     ) -> ConflictType?
@@ -280,22 +344,31 @@ class ConflictDetector {
 ```
 
 **Conflict Detection Logic:**
-- **Both modified**: File exists in both snapshots with different hashes/dates
-- **Modified vs deleted**: File modified in one, doesn't exist in other (was deleted)
-- **Not a conflict**: File only exists in one location (just copy it)
+
+Given a path that appears in `added`, `removed`, or `modified` from Difference:
+
+1. **Load both versions** using `difference.sourceItem(for: path)` and `difference.destinationItem(for: path)`
+
+2. **Classify the conflict:**
+   - Both exist but differ (hash or metadata) → `diverged`
+   - Only in source (dest is nil) → `onlyInSource`
+   - Only in destination (source is nil) → `onlyInDestination`
+   - Both exist and identical → **Not a conflict** (skip)
+
+3. **For bidirectional sync:** Most paths will be conflicts because we can't know which side is "correct" without an ancestor.
 
 **Tests:**
-- `testDetectBothModifiedConflict()` (file modified in both)
-- `testDetectModifiedVsDeletedConflict()` (modified vs deleted)
-- `testDetectNoConflictForAdded()` (file only in one location)
-- `testDetectNoConflictForIdentical()` (identical files)
-- `testDetectMultipleConflicts()` (multiple conflict types)
+- `testDetectDivergedConflict()` (path exists in both with different hash)
+- `testDetectOnlyInSourceConflict()` (path only in source)
+- `testDetectOnlyInDestinationConflict()` (path only in destination)
+- `testDetectNoConflictForIdentical()` (identical files not flagged)
+- `testDetectMultipleConflictTypes()` (mixed conflict types)
 
 **Exit Criteria:**
 - ✅ Conflicts detected accurately
-- ✅ Non-conflicts not flagged
+- ✅ Identical files not flagged as conflicts
 - ✅ Tests pass (5 tests)
-- ✅ Conflict types correct
+- ✅ All paths from Difference classified correctly
 
 ---
 
@@ -513,6 +586,7 @@ enum DiffallaError: Error {
 
 Use checkboxes to track progress:
 
+- [ ] Step 0: Extend Difference API (1-2 hours)
 - [ ] Step 1: Sync Core Types (2-3 hours)
 - [ ] Step 2: Sync Plan & Operations (3-4 hours)
 - [ ] Step 3: Sync Executor (4-5 hours)
@@ -524,7 +598,7 @@ Use checkboxes to track progress:
 - [ ] Step 9: Integration Tests (3 hours)
 - [ ] Step 10: Error Handling & Edge Cases (2-3 hours)
 
-**Estimated Total:** 31-43 hours (4-5 days of focused work)
+**Estimated Total:** 32-45 hours (4-6 days of focused work)
 
 ---
 
