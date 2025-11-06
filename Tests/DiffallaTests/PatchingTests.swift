@@ -607,4 +607,198 @@ final class PatchingTests: XCTestCase {
         XCTAssertEqual(operations[0].operationType, "add")
         XCTAssertEqual(operations[0].path, "file.txt")
     }
+
+    // MARK: - Content Storage Tests (Step 4)
+
+    func testStoreSmallFileContent() async throws {
+        // Create test directories with small file
+        let dir1 = tempDir.appendingPathComponent("dir1")
+        let dir2 = tempDir.appendingPathComponent("dir2")
+        try createDirectory(at: "dir1")
+        try createDirectory(at: "dir2")
+
+        let smallContent = "Hello, World!"
+        try createFile(at: "dir2/small.txt", content: smallContent)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: dir1, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: dir2, saveTo: snapshot2URL, options: options)
+
+        // Compare and create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: dir1,
+            destinationDirectory: dir2,
+            saveTo: patchURL
+        )
+
+        // Load content
+        let loadedContent = try patch.loadContent(for: "small.txt")
+        XCTAssertNotNil(loadedContent)
+        let loadedString = String(data: loadedContent!, encoding: .utf8)
+        XCTAssertEqual(loadedString, smallContent)
+    }
+
+    func testStoreLargeFileContent() async throws {
+        // Create test directories with large file (> 1 MB)
+        let dir1 = tempDir.appendingPathComponent("dir1")
+        let dir2 = tempDir.appendingPathComponent("dir2")
+        try createDirectory(at: "dir1")
+        try createDirectory(at: "dir2")
+
+        // Generate 1.5 MB of content (above 1MB threshold)
+        let largeContent = String(repeating: "A", count: 1_500_000)
+        try createFile(at: "dir2/large.txt", content: largeContent)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: dir1, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: dir2, saveTo: snapshot2URL, options: options)
+
+        // Compare and create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: dir1,
+            destinationDirectory: dir2,
+            saveTo: patchURL
+        )
+
+        // Large files (>= 1MB) are NOT stored inline (content should be NULL)
+        // This prevents patch databases from ballooning
+        // External cache support will be added in Phase 4
+        let loadedContent = try patch.loadContent(for: "large.txt")
+        XCTAssertNil(loadedContent, "Files >= 1MB should not be stored inline")
+    }
+
+    func testStoreBinaryContent() async throws {
+        // Create test directories with binary file
+        let dir1 = tempDir.appendingPathComponent("dir1")
+        let dir2 = tempDir.appendingPathComponent("dir2")
+        try createDirectory(at: "dir1")
+        try createDirectory(at: "dir2")
+
+        // Create binary data (not valid UTF-8)
+        let binaryData = Data([0x00, 0x01, 0x02, 0xFF, 0xFE, 0xFD, 0x42, 0x13, 0x37])
+        let binaryFileURL = tempDir.appendingPathComponent("dir2/binary.dat")
+        try binaryData.write(to: binaryFileURL)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: dir1, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: dir2, saveTo: snapshot2URL, options: options)
+
+        // Compare and create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: dir1,
+            destinationDirectory: dir2,
+            saveTo: patchURL
+        )
+
+        // Load content
+        let loadedContent = try patch.loadContent(for: "binary.dat")
+        XCTAssertNotNil(loadedContent)
+        XCTAssertEqual(loadedContent, binaryData)
+    }
+
+    func testLoadContent() async throws {
+        // Create test directories
+        let dir1 = tempDir.appendingPathComponent("dir1")
+        let dir2 = tempDir.appendingPathComponent("dir2")
+        try createDirectory(at: "dir1")
+        try createDirectory(at: "dir2")
+        try createFile(at: "dir2/file1.txt", content: "content1")
+        try createFile(at: "dir2/file2.txt", content: "content2")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: dir1, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: dir2, saveTo: snapshot2URL, options: options)
+
+        // Compare and create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: dir1,
+            destinationDirectory: dir2,
+            saveTo: patchURL
+        )
+
+        // Load specific content
+        let content1 = try patch.loadContent(for: "file1.txt")
+        XCTAssertNotNil(content1)
+        XCTAssertEqual(String(data: content1!, encoding: .utf8), "content1")
+
+        let content2 = try patch.loadContent(for: "file2.txt")
+        XCTAssertNotNil(content2)
+        XCTAssertEqual(String(data: content2!, encoding: .utf8), "content2")
+
+        // Try to load non-existent file
+        let noContent = try patch.loadContent(for: "nonexistent.txt")
+        XCTAssertNil(noContent)
+    }
+
+    func testContentRoundTrip() async throws {
+        // Create test directories
+        let dir1 = tempDir.appendingPathComponent("dir1")
+        let dir2 = tempDir.appendingPathComponent("dir2")
+        try createDirectory(at: "dir1")
+        try createDirectory(at: "dir2")
+
+        let originalContent = "Round trip test content with special chars: \n\t 🚀 ✨ 你好"
+        try createFile(at: "dir2/roundtrip.txt", content: originalContent)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: dir1, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: dir2, saveTo: snapshot2URL, options: options)
+
+        // Compare and create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        _ = try Patch.create(
+            from: difference,
+            sourceDirectory: dir1,
+            destinationDirectory: dir2,
+            saveTo: patchURL
+        )
+
+        // Open patch and load operations with content
+        let loadedPatch = try Patch.open(at: patchURL)
+        let operationsWithContent = try loadedPatch.loadOperationsWithContent()
+
+        // Find the add operation for our file
+        let addOp = operationsWithContent.first { op in
+            op.0.path == "roundtrip.txt" && op.0.operationType == "add"
+        }
+
+        XCTAssertNotNil(addOp)
+        XCTAssertNotNil(addOp!.2) // Content should exist
+
+        let loadedContent = String(data: addOp!.2!, encoding: .utf8)
+        XCTAssertEqual(loadedContent, originalContent)
+    }
 }

@@ -40,38 +40,70 @@ public struct Patch {
         // Create writer
         let writer = PatchWriter(database: database)
 
-        // Convert difference to operations
-        var operations: [(PatchOperation, Metadata)] = []
+        // Convert difference to operations and read file content
         var sequenceOrder = 0
+        var totalOperations = 0
 
-        // Process added items
+        // Process added items (read content from destination)
         let added = try difference.added
         for item in added {
             let operation = PatchOperation.add(path: item.path, isFolder: item.isFolder)
             let metadata = convertToMetadata(item)
-            operations.append((operation, metadata))
+
+            // Read content for files (not folders)
+            let content: Data?
+            if !item.isFolder {
+                let fileURL = destinationDirectory.appendingPathComponent(item.path)
+                do {
+                    content = try Data(contentsOf: fileURL)
+                } catch {
+                    throw DiffallaError.snapshotCreationFailed(
+                        reason: "Failed to read file content for '\(item.path)': \(error.localizedDescription)"
+                    )
+                }
+            } else {
+                content = nil
+            }
+
+            try writer.writeOperation(operation, metadata: metadata, sequenceOrder: sequenceOrder, content: content)
+            sequenceOrder += 1
+            totalOperations += 1
         }
 
-        // Process removed items (reverse order: children before parents)
+        // Process removed items (reverse order: children before parents, no content needed)
         let removed = try difference.removed
         for item in removed.reversed() {
             let operation = PatchOperation.remove(path: item.path, isFolder: item.isFolder)
             let metadata = convertToMetadata(item)
-            operations.append((operation, metadata))
+            try writer.writeOperation(operation, metadata: metadata, sequenceOrder: sequenceOrder, content: nil)
+            sequenceOrder += 1
+            totalOperations += 1
         }
 
-        // Process modified items
+        // Process modified items (read new content from destination)
         let modified = try difference.modified
         for item in modified {
             let operation = PatchOperation.modify(path: item.path, isFolder: item.isFolder)
             let metadata = convertToMetadata(item)
-            operations.append((operation, metadata))
-        }
 
-        // Write operations to database
-        for (operation, metadata) in operations {
-            try writer.writeOperation(operation, metadata: metadata, sequenceOrder: sequenceOrder)
+            // Read content for files (not folders)
+            let content: Data?
+            if !item.isFolder {
+                let fileURL = destinationDirectory.appendingPathComponent(item.path)
+                do {
+                    content = try Data(contentsOf: fileURL)
+                } catch {
+                    throw DiffallaError.snapshotCreationFailed(
+                        reason: "Failed to read file content for '\(item.path)': \(error.localizedDescription)"
+                    )
+                }
+            } else {
+                content = nil
+            }
+
+            try writer.writeOperation(operation, metadata: metadata, sequenceOrder: sequenceOrder, content: content)
             sequenceOrder += 1
+            totalOperations += 1
         }
 
         // Create and write patch metadata
@@ -80,7 +112,7 @@ public struct Patch {
             createdDate: Date(),
             sourceChecksum: nil,  // TODO: Calculate checksums in future
             targetChecksum: nil,
-            operationCount: operations.count
+            operationCount: totalOperations
         )
         try writer.writeMetadata(patchMetadata)
 
@@ -158,6 +190,21 @@ public struct Patch {
         }
 
         return operations
+    }
+
+    /// Load all operations with metadata and content
+    /// - Returns: Array of tuples containing operation, metadata, and optional content
+    func loadOperationsWithContent() throws -> [(PatchOperation, Metadata, Data?)] {
+        let reader = PatchReader(database: database)
+        return try reader.loadOperations()
+    }
+
+    /// Load content for a specific path
+    /// - Parameter path: The path to load content for
+    /// - Returns: File content, or nil if not found or no content stored
+    func loadContent(for path: String) throws -> Data? {
+        let reader = PatchReader(database: database)
+        return try reader.loadContent(for: path)
     }
 
     /// Convert SnapshotItem to Metadata
