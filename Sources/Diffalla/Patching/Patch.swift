@@ -247,6 +247,71 @@ public struct Patch {
         }
     }
 
+    /// Revert this patch to restore the original directory state
+    /// - Parameter targetDirectory: Directory to revert the patch in
+    /// - Throws: Error if patch doesn't have required revert data or revert fails
+    /// - Note: Add operations don't require revert data (just delete the file), but remove/modify operations do
+    public func revert(on targetDirectory: URL) async throws {
+        let reverter = PatchReverter()
+
+        // Load all operations
+        let operations = try loadOperations()
+
+        // Execute operations in REVERSE order to undo changes
+        for operation in operations.reversed() {
+            switch operation {
+            case .add(let path, _):
+                // Revert add: delete the added file/folder (no revert data needed)
+                try reverter.revertAdd(path: path, from: targetDirectory)
+
+            case .remove(let path, _):
+                // Revert remove: restore the original file/folder from revert_data
+                guard let revertData = try loadRevertData(for: path) else {
+                    throw DiffallaError.invalidPatch(
+                        reason: "Cannot revert remove operation for '\(path)': revert data missing"
+                    )
+                }
+                try reverter.revertRemove(
+                    path: path,
+                    content: revertData.content,
+                    metadata: revertData.metadata,
+                    cacheReference: revertData.cacheReference,
+                    to: targetDirectory
+                )
+
+            case .modify(let path, _):
+                // Revert modify: restore the original file content/metadata from revert_data
+                guard let revertData = try loadRevertData(for: path) else {
+                    throw DiffallaError.invalidPatch(
+                        reason: "Cannot revert modify operation for '\(path)': revert data missing"
+                    )
+                }
+                try reverter.revertModify(
+                    path: path,
+                    originalContent: revertData.content,
+                    metadata: revertData.metadata,
+                    to: targetDirectory
+                )
+
+            case .move(_, let to, _):
+                // Revert move: move back from 'to' to original source (stored in revert_data)
+                // Load revert data to get the original source path (stored in cache_reference)
+                guard let revertData = try loadRevertData(for: to) else {
+                    throw DiffallaError.invalidPatch(
+                        reason: "Cannot revert move operation for '\(to)': revert data missing"
+                    )
+                }
+                // cache_reference contains the original source path
+                guard let originalPath = revertData.cacheReference else {
+                    throw DiffallaError.invalidPatch(
+                        reason: "Cannot revert move operation for '\(to)': missing original path"
+                    )
+                }
+                try reverter.revertMove(from: to, to: originalPath, in: targetDirectory)
+            }
+        }
+    }
+
     /// Load revert data for a specific path
     /// - Parameter path: The path to load revert data for
     /// - Returns: Tuple of (content, metadata, cacheReference), or nil if not found

@@ -1257,4 +1257,269 @@ final class PatchingTests: XCTestCase {
         let targetSize = Int64("target content".utf8.count)
         XCTAssertNotEqual(symlinkSize, targetSize, "Symlink metadata should be for link itself, not target")
     }
+
+    // MARK: - Step 7: Revert Patch Operation Tests
+
+    func testRevertAddOperation() async throws {
+        // Create source empty, destination with added file
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "dest/added.txt", content: "new content")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch with revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Apply patch
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+        try await patch.apply(to: targetDir)
+
+        // Verify file was added
+        let addedFile = targetDir.appendingPathComponent("added.txt")
+        XCTAssertTrue(fileManager.fileExists(atPath: addedFile.path))
+
+        // Revert patch
+        try await patch.revert(on: targetDir)
+
+        // Verify file was deleted
+        XCTAssertFalse(fileManager.fileExists(atPath: addedFile.path))
+    }
+
+    func testRevertRemoveOperation() async throws {
+        // Create source with file, destination empty (file removed)
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "source/removed.txt", content: "original content")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch with revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Apply patch (removes file)
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+        try createFile(at: "target/removed.txt", content: "original content")
+        try await patch.apply(to: targetDir)
+
+        // Verify file was removed
+        let removedFile = targetDir.appendingPathComponent("removed.txt")
+        XCTAssertFalse(fileManager.fileExists(atPath: removedFile.path))
+
+        // Revert patch (restores file)
+        try await patch.revert(on: targetDir)
+
+        // Verify file was restored
+        XCTAssertTrue(fileManager.fileExists(atPath: removedFile.path))
+        let restoredContent = try String(contentsOf: removedFile, encoding: .utf8)
+        XCTAssertEqual(restoredContent, "original content")
+    }
+
+    func testRevertModifyOperation() async throws {
+        // Create source and destination with modified file
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "source/modified.txt", content: "original version")
+        try createFile(at: "dest/modified.txt", content: "new version")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch with revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Apply patch (modifies file)
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+        try createFile(at: "target/modified.txt", content: "original version")
+        try await patch.apply(to: targetDir)
+
+        // Verify file was modified
+        let modifiedFile = targetDir.appendingPathComponent("modified.txt")
+        let newContent = try String(contentsOf: modifiedFile, encoding: .utf8)
+        XCTAssertEqual(newContent, "new version")
+
+        // Revert patch (restores original)
+        try await patch.revert(on: targetDir)
+
+        // Verify original content was restored
+        let restoredContent = try String(contentsOf: modifiedFile, encoding: .utf8)
+        XCTAssertEqual(restoredContent, "original version")
+    }
+
+    func testRevertMoveOperation() async throws {
+        // Skip this test - move operations deferred to Phase 4
+        // This is a placeholder for when move detection is implemented
+    }
+
+    func testApplyAndRevert() async throws {
+        // Create source and destination with multiple changes
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+
+        // Source has file1 and file2
+        try createFile(at: "source/file1.txt", content: "file1 original")
+        try createFile(at: "source/file2.txt", content: "file2 original")
+
+        // Destination has file2 modified and file3 added
+        try createFile(at: "dest/file2.txt", content: "file2 modified")
+        try createFile(at: "dest/file3.txt", content: "file3 added")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch with revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Apply patch to target (starting with source state)
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+        try createFile(at: "target/file1.txt", content: "file1 original")
+        try createFile(at: "target/file2.txt", content: "file2 original")
+        try await patch.apply(to: targetDir)
+
+        // Verify target is now in destination state
+        XCTAssertFalse(fileManager.fileExists(atPath: targetDir.appendingPathComponent("file1.txt").path))
+        XCTAssertTrue(fileManager.fileExists(atPath: targetDir.appendingPathComponent("file2.txt").path))
+        XCTAssertTrue(fileManager.fileExists(atPath: targetDir.appendingPathComponent("file3.txt").path))
+
+        let file2Content = try String(contentsOf: targetDir.appendingPathComponent("file2.txt"), encoding: .utf8)
+        XCTAssertEqual(file2Content, "file2 modified")
+
+        // Revert patch to restore source state
+        try await patch.revert(on: targetDir)
+
+        // Verify target is back to source state
+        XCTAssertTrue(fileManager.fileExists(atPath: targetDir.appendingPathComponent("file1.txt").path))
+        XCTAssertTrue(fileManager.fileExists(atPath: targetDir.appendingPathComponent("file2.txt").path))
+        XCTAssertFalse(fileManager.fileExists(atPath: targetDir.appendingPathComponent("file3.txt").path))
+
+        let file1Content = try String(contentsOf: targetDir.appendingPathComponent("file1.txt"), encoding: .utf8)
+        let file2OriginalContent = try String(contentsOf: targetDir.appendingPathComponent("file2.txt"), encoding: .utf8)
+        XCTAssertEqual(file1Content, "file1 original")
+        XCTAssertEqual(file2OriginalContent, "file2 original")
+    }
+
+    func testRevertRestoresMetadata() async throws {
+        // Create source and destination with different permissions
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "source/file.txt", content: "content")
+        try createFile(at: "dest/file.txt", content: "new content")
+
+        // Set specific permissions on source file
+        let sourceFile = sourceDir.appendingPathComponent("file.txt")
+        try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: sourceFile.path)
+
+        // Set different permissions on destination file
+        let destFile = destDir.appendingPathComponent("file.txt")
+        try fileManager.setAttributes([.posixPermissions: 0o644], ofItemAtPath: destFile.path)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch with revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Apply to target
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+        try createFile(at: "target/file.txt", content: "content")
+        try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: targetDir.appendingPathComponent("file.txt").path)
+
+        try await patch.apply(to: targetDir)
+
+        // Verify permissions changed to destination (0o644)
+        let targetFile = targetDir.appendingPathComponent("file.txt")
+        var attributes = try fileManager.attributesOfItem(atPath: targetFile.path)
+        var permissions = attributes[.posixPermissions] as? NSNumber
+        XCTAssertEqual(permissions?.uint16Value, 0o644)
+
+        // Revert patch
+        try await patch.revert(on: targetDir)
+
+        // Verify permissions restored to source (0o600)
+        attributes = try fileManager.attributesOfItem(atPath: targetFile.path)
+        permissions = attributes[.posixPermissions] as? NSNumber
+        XCTAssertEqual(permissions?.uint16Value, 0o600)
+    }
 }
