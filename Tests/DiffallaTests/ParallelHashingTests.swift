@@ -3,7 +3,7 @@ import XCTest
 
 final class ParallelHashingTests: XCTestCase {
 
-    func testParallelHasherComputesExpectedHash() throws {
+    func testParallelHasherComputesExpectedHash() async throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
@@ -12,7 +12,7 @@ final class ParallelHashingTests: XCTestCase {
         try "parallel hashing data".write(to: fileURL, atomically: true, encoding: .utf8)
 
         let hasher = ParallelHasher(maxConcurrentHashes: 4)
-        let parallelHash = try hasher.hashFile(at: fileURL)
+        let parallelHash = try await hasher.hashFile(at: fileURL)
         let directHash = try FileSystemItem.computeHash(at: fileURL)
 
         XCTAssertEqual(parallelHash, directHash, "Parallel hasher should match direct hash computation")

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Operations that can be performed to transform a directory
-public enum PatchOperation: Codable, Equatable {
+public enum PatchOperation: Codable, Equatable, Sendable {
     /// Add a new file or folder
     /// - path: Relative path from root
     /// - isFolder: True for directories, false for files

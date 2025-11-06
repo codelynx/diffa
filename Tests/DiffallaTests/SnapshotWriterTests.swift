@@ -26,7 +26,7 @@ final class SnapshotWriterTests: XCTestCase {
 
     // MARK: - Insert Tests
 
-    func testInsertSingleItem() throws {
+    func testInsertSingleItem() async throws {
         // Create a snapshot database
         let snapshotURL = tempDir.appendingPathComponent("test.snapshot")
         let snapshot = try Snapshot.create(at: snapshotURL, rootPath: tempDir.path)
@@ -36,7 +36,7 @@ final class SnapshotWriterTests: XCTestCase {
         try "content".write(to: fileURL, atomically: true, encoding: .utf8)
 
         // Create FileSystemItem
-        let item = try FileSystemItem(at: fileURL, relativeTo: tempDir)
+        let item = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
 
         // Insert using SnapshotWriter
         let writer = SnapshotWriter(database: snapshot.database)
@@ -55,7 +55,7 @@ final class SnapshotWriterTests: XCTestCase {
         XCTAssertEqual(try row.int64(at: 2), 0) // not a folder
     }
 
-    func testInsertWithParentRelationship() throws {
+    func testInsertWithParentRelationship() async throws {
         // Create a snapshot database
         let snapshotURL = tempDir.appendingPathComponent("test.snapshot")
         let snapshot = try Snapshot.create(at: snapshotURL, rootPath: tempDir.path)
@@ -67,8 +67,8 @@ final class SnapshotWriterTests: XCTestCase {
         try "content".write(to: fileURL, atomically: true, encoding: .utf8)
 
         // Create FileSystemItems
-        let dirItem = try FileSystemItem(at: dir, relativeTo: tempDir)
-        let fileItem = try FileSystemItem(at: fileURL, relativeTo: tempDir)
+        let dirItem = try await FileSystemItem(at: dir, relativeTo: tempDir)
+        let fileItem = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
 
         // Insert using SnapshotWriter
         let writer = SnapshotWriter(database: snapshot.database)
@@ -92,7 +92,7 @@ final class SnapshotWriterTests: XCTestCase {
         XCTAssertEqual(try row.string(at: 1), "dir/file.txt")
     }
 
-    func testInsertMultipleItems() throws {
+    func testInsertMultipleItems() async throws {
         // Create a snapshot database
         let snapshotURL = tempDir.appendingPathComponent("test.snapshot")
         let snapshot = try Snapshot.create(at: snapshotURL, rootPath: tempDir.path)
@@ -104,13 +104,19 @@ final class SnapshotWriterTests: XCTestCase {
             try "content".write(to: fileURL, atomically: true, encoding: .utf8)
         }
 
-        // Insert all in a transaction
+        // Create FileSystemItems before transaction (async calls)
+        var items: [FileSystemItem] = []
+        for fileName in files {
+            let fileURL = tempDir.appendingPathComponent(fileName)
+            let item = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
+            items.append(item)
+        }
+
+        // Insert all in a transaction (sync calls only)
         try snapshot.database.transaction {
             let writer = SnapshotWriter(database: snapshot.database)
 
-            for fileName in files {
-                let fileURL = tempDir.appendingPathComponent(fileName)
-                let item = try FileSystemItem(at: fileURL, relativeTo: tempDir)
+            for item in items {
                 _ = try writer.insertItem(item, parentPath: nil)
             }
         }
@@ -121,7 +127,7 @@ final class SnapshotWriterTests: XCTestCase {
         XCTAssertEqual(count, 3, "Should have 3 items in database")
     }
 
-    func testInsertUpdateMetadata() throws {
+    func testInsertUpdateMetadata() async throws {
         // Create a snapshot database
         let snapshotURL = tempDir.appendingPathComponent("test.snapshot")
         let snapshot = try Snapshot.create(at: snapshotURL, rootPath: tempDir.path)
@@ -139,12 +145,16 @@ final class SnapshotWriterTests: XCTestCase {
         var totalFolders = 0
         var totalSize: Int64 = 0
 
-        // Insert items
+        // Create FileSystemItems before transaction (async calls)
+        let dirItem = try await FileSystemItem(at: dir, relativeTo: tempDir)
+        let file1Item = try await FileSystemItem(at: file1, relativeTo: tempDir)
+        let file2Item = try await FileSystemItem(at: file2, relativeTo: tempDir)
+
+        // Insert items in transaction (sync calls only)
         try snapshot.database.transaction {
             let writer = SnapshotWriter(database: snapshot.database)
 
             // Insert dir
-            let dirItem = try FileSystemItem(at: dir, relativeTo: tempDir)
             let dirId = try writer.insertItem(dirItem, parentPath: nil)
             totalFolders += 1
 
@@ -152,13 +162,11 @@ final class SnapshotWriterTests: XCTestCase {
             writer.pushDirectory(path: "dir", id: dirId)
 
             // Insert file1
-            let file1Item = try FileSystemItem(at: file1, relativeTo: tempDir)
             _ = try writer.insertItem(file1Item, parentPath: nil)
             totalFiles += 1
             totalSize += file1Item.size
 
             // Insert file2
-            let file2Item = try FileSystemItem(at: file2, relativeTo: tempDir)
             _ = try writer.insertItem(file2Item, parentPath: "dir")
             totalFiles += 1
             totalSize += file2Item.size

@@ -2,6 +2,32 @@ import Foundation
 import ArgumentParser
 import Diffalla
 
+fileprivate func formatPatchOperation(_ operation: PatchOperation, isRevert: Bool) -> String {
+    if isRevert {
+        switch operation {
+        case .add(let path, _):
+            return "[REMOVE] \(path)"
+        case .remove(let path, _):
+            return "[RESTORE] \(path)"
+        case .modify(let path, _):
+            return "[RESTORE] \(path)"
+        case .move(let from, let to, _):
+            return "[MOVE] \(to) -> \(from)"
+        }
+    } else {
+        switch operation {
+        case .add(let path, _):
+            return "[ADD] \(path)"
+        case .remove(let path, _):
+            return "[REMOVE] \(path)"
+        case .modify(let path, _):
+            return "[MODIFY] \(path)"
+        case .move(let from, let to, _):
+            return "[MOVE] \(from) -> \(to)"
+        }
+    }
+}
+
 @available(macOS 13.0, *)
 struct PatchCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -246,7 +272,10 @@ struct ApplyPatch: ParsableCommand {
             print("Applying patch to \(directory)...")
             print("  Processing \(operations.count) operations...")
 
-            try await patchObj.apply(to: directoryURL)
+            try await patchObj.apply(to: directoryURL, progress: { progress in
+                let text = formatPatchOperation(progress.operation, isRevert: progress.isRevert)
+                print("  \(progress.current)/\(progress.total) - \(text)", terminator: "\r")
+            })
 
             print("\n" + Colors.success("✓ Patch applied successfully"))
             print("  Operations applied: \(operations.count)")
@@ -363,7 +392,10 @@ struct RevertPatch: ParsableCommand {
             print("Reverting patch on \(directory)...")
             print("  Processing \(operations.count) operations...")
 
-            try await patchObj.revert(on: directoryURL)
+            try await patchObj.revert(on: directoryURL, progress: { progress in
+                let text = formatPatchOperation(progress.operation, isRevert: progress.isRevert)
+                print("  \(progress.current)/\(progress.total) - \(text)", terminator: "\r")
+            })
 
             print("\n" + Colors.success("✓ Patch reverted successfully"))
             print("  Operations reverted: \(operations.count)")

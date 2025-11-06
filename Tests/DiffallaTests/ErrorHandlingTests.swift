@@ -103,13 +103,14 @@ final class ErrorHandlingTests: XCTestCase {
         // Try to create a FileSystemItem for a nonexistent file
         let nonexistentFile = testDir.appendingPathComponent("nonexistent.txt")
 
-        XCTAssertThrowsError(
-            try FileSystemItem(
+        do {
+            _ = try await FileSystemItem(
                 at: nonexistentFile,
                 relativeTo: testDir,
                 captureOwnership: false
             )
-        ) { error in
+            XCTFail("Should have thrown an error")
+        } catch {
             // Should throw an error, not crash
             XCTAssertNotNil(error)
         }

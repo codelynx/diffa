@@ -25,7 +25,7 @@ final class FileSystemItemTests: XCTestCase {
 
     // MARK: - Regular File Tests
 
-    func testReadRegularFile() throws {
+    func testReadRegularFile() async throws {
         // Create a test file
         let fileURL = tempDir.appendingPathComponent("test.txt")
         let content = "Hello, Diffalla!"
@@ -35,7 +35,7 @@ final class FileSystemItemTests: XCTestCase {
         try fileManager.setAttributes([.posixPermissions: 0o644], ofItemAtPath: fileURL.path)
 
         // Read with FileSystemItem
-        let item = try FileSystemItem(at: fileURL, relativeTo: tempDir)
+        let item = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
 
         // Verify
         XCTAssertEqual(item.path, "test.txt")
@@ -47,13 +47,13 @@ final class FileSystemItemTests: XCTestCase {
         XCTAssertNil(item.metadata.group)
     }
 
-    func testReadDirectory() throws {
+    func testReadDirectory() async throws {
         // Create a test directory
         let dirURL = tempDir.appendingPathComponent("testdir")
         try fileManager.createDirectory(at: dirURL, withIntermediateDirectories: false)
 
         // Read with FileSystemItem
-        let item = try FileSystemItem(at: dirURL, relativeTo: tempDir)
+        let item = try await FileSystemItem(at: dirURL, relativeTo: tempDir)
 
         // Verify
         XCTAssertEqual(item.path, "testdir")
@@ -64,7 +64,7 @@ final class FileSystemItemTests: XCTestCase {
 
     // MARK: - SHA-256 Hash Tests
 
-    func testComputeSHA256() throws {
+    func testComputeSHA256() async throws {
         // Create file with known content
         let fileURL = tempDir.appendingPathComponent("hashtest.txt")
         let content = "The quick brown fox jumps over the lazy dog"
@@ -74,20 +74,20 @@ final class FileSystemItemTests: XCTestCase {
         let expectedHash = "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592"
 
         // Read with FileSystemItem
-        let item = try FileSystemItem(at: fileURL, relativeTo: tempDir)
+        let item = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
 
         // Verify hash
         XCTAssertEqual(item.sha256, expectedHash)
     }
 
-    func testComputeSHA256ForLargeFile() throws {
+    func testComputeSHA256ForLargeFile() async throws {
         // Create a larger file (>64KB to test chunked reading)
         let fileURL = tempDir.appendingPathComponent("largefile.bin")
         let data = Data(repeating: 0x42, count: 128 * 1024) // 128 KB
         try data.write(to: fileURL)
 
         // Read with FileSystemItem
-        let item = try FileSystemItem(at: fileURL, relativeTo: tempDir)
+        let item = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
 
         // Verify hash exists and has correct format (64 hex chars)
         XCTAssertNotNil(item.sha256)
@@ -97,7 +97,7 @@ final class FileSystemItemTests: XCTestCase {
 
     // MARK: - Symlink Tests
 
-    func testSymlinkFollowing() throws {
+    func testSymlinkFollowing() async throws {
         // Create a target file
         let targetURL = tempDir.appendingPathComponent("target.txt")
         let content = "Target content"
@@ -108,7 +108,7 @@ final class FileSystemItemTests: XCTestCase {
         try fileManager.createSymbolicLink(at: symlinkURL, withDestinationURL: targetURL)
 
         // FileSystemItem with followSymlinks=true reads target
-        let itemFollowing = try FileSystemItem(at: symlinkURL, relativeTo: tempDir, followSymlinks: true)
+        let itemFollowing = try await FileSystemItem(at: symlinkURL, relativeTo: tempDir, followSymlinks: true)
 
         // Should read the target file's content
         XCTAssertEqual(itemFollowing.path, "link.txt")
@@ -116,11 +116,11 @@ final class FileSystemItemTests: XCTestCase {
         XCTAssertNotNil(itemFollowing.sha256)
 
         // Hash should match target file
-        let targetItem = try FileSystemItem(at: targetURL, relativeTo: tempDir)
+        let targetItem = try await FileSystemItem(at: targetURL, relativeTo: tempDir)
         XCTAssertEqual(itemFollowing.sha256, targetItem.sha256)
     }
 
-    func testSymlinkNotFollowing() throws {
+    func testSymlinkNotFollowing() async throws {
         // Create a target file with known content
         let targetURL = tempDir.appendingPathComponent("target.txt")
         let targetContent = "This is the target file with substantial content"
@@ -131,7 +131,7 @@ final class FileSystemItemTests: XCTestCase {
         try fileManager.createSymbolicLink(at: symlinkURL, withDestinationURL: targetURL)
 
         // FileSystemItem with followSymlinks=false reads symlink itself
-        let symlinkItem = try FileSystemItem(at: symlinkURL, relativeTo: tempDir, followSymlinks: false)
+        let symlinkItem = try await FileSystemItem(at: symlinkURL, relativeTo: tempDir, followSymlinks: false)
 
         // Should read the symlink itself, not target
         XCTAssertEqual(symlinkItem.path, "link.txt")
@@ -146,14 +146,14 @@ final class FileSystemItemTests: XCTestCase {
         XCTAssertNotEqual(symlinkItem.size, targetSize, "Symlink size should differ from target content size")
 
         // For comparison, verify following the symlink gives different results
-        let targetItem = try FileSystemItem(at: targetURL, relativeTo: tempDir)
+        let targetItem = try await FileSystemItem(at: targetURL, relativeTo: tempDir)
         XCTAssertNotNil(targetItem.sha256, "Target file should have SHA-256 hash")
         XCTAssertEqual(targetItem.size, targetSize, "Target file should have full content size")
     }
 
     // MARK: - Hidden File Tests
 
-    func testHiddenFileDetection() throws {
+    func testHiddenFileDetection() async throws {
         // Create a hidden file (starts with '.')
         let hiddenURL = tempDir.appendingPathComponent(".hidden")
         let content = "Hidden content"
@@ -161,7 +161,7 @@ final class FileSystemItemTests: XCTestCase {
 
         // FileSystemItem can read hidden files
         // (Filtering will be done by the scanner in Step 4)
-        let item = try FileSystemItem(at: hiddenURL, relativeTo: tempDir)
+        let item = try await FileSystemItem(at: hiddenURL, relativeTo: tempDir)
 
         // Verify we can read hidden files
         XCTAssertEqual(item.path, ".hidden")
@@ -174,19 +174,19 @@ final class FileSystemItemTests: XCTestCase {
 
     // MARK: - Ownership Tests
 
-    func testOwnershipCapture() throws {
+    func testOwnershipCapture() async throws {
         // Create a test file
         let fileURL = tempDir.appendingPathComponent("owned.txt")
         try "content".write(to: fileURL, atomically: true, encoding: .utf8)
 
         // Read WITHOUT ownership capture (default)
-        let itemNoOwnership = try FileSystemItem(at: fileURL, relativeTo: tempDir, captureOwnership: false)
+        let itemNoOwnership = try await FileSystemItem(at: fileURL, relativeTo: tempDir, captureOwnership: false)
 
         XCTAssertNil(itemNoOwnership.metadata.owner)
         XCTAssertNil(itemNoOwnership.metadata.group)
 
         // Read WITH ownership capture
-        let itemWithOwnership = try FileSystemItem(at: fileURL, relativeTo: tempDir, captureOwnership: true)
+        let itemWithOwnership = try await FileSystemItem(at: fileURL, relativeTo: tempDir, captureOwnership: true)
 
         // Owner and group should be captured (may be nil if not available)
         // On macOS, owner should typically be available for files we create
@@ -195,7 +195,7 @@ final class FileSystemItemTests: XCTestCase {
 
     // MARK: - Relative Path Tests
 
-    func testRelativePathComputation() throws {
+    func testRelativePathComputation() async throws {
         // Create nested structure: tempDir/subdir/file.txt
         let subdir = tempDir.appendingPathComponent("subdir")
         try fileManager.createDirectory(at: subdir, withIntermediateDirectories: false)
@@ -204,13 +204,13 @@ final class FileSystemItemTests: XCTestCase {
         try "content".write(to: fileURL, atomically: true, encoding: .utf8)
 
         // Read relative to tempDir
-        let item = try FileSystemItem(at: fileURL, relativeTo: tempDir)
+        let item = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
 
         // Should have correct relative path
         XCTAssertEqual(item.path, "subdir/file.txt")
     }
 
-    func testRelativePathWithRootBase() throws {
+    func testRelativePathWithRootBase() async throws {
         // This tests the critical fix for root snapshots
         // Create a file anywhere in the filesystem
         let fileURL = tempDir.appendingPathComponent("test.txt")
@@ -218,7 +218,7 @@ final class FileSystemItemTests: XCTestCase {
 
         // Read relative to root "/"
         let rootURL = URL(fileURLWithPath: "/")
-        let item = try FileSystemItem(at: fileURL, relativeTo: rootURL)
+        let item = try await FileSystemItem(at: fileURL, relativeTo: rootURL)
 
         // Should have correct relative path (no leading slash, all separators intact)
         let expectedPath = String(fileURL.path.dropFirst()) // Remove leading "/"
@@ -229,7 +229,7 @@ final class FileSystemItemTests: XCTestCase {
         XCTAssertFalse(item.path.hasPrefix("/"), "Root-relative paths should not start with /")
     }
 
-    func testRelativePathWithRepeatedComponents() throws {
+    func testRelativePathWithRepeatedComponents() async throws {
         // Test that repeated path components don't cause issues
         // Create: tempDir/test/test/file.txt
         let test1 = tempDir.appendingPathComponent("test")
@@ -240,13 +240,13 @@ final class FileSystemItemTests: XCTestCase {
         try "content".write(to: fileURL, atomically: true, encoding: .utf8)
 
         // Read relative to tempDir/test
-        let item = try FileSystemItem(at: fileURL, relativeTo: test1)
+        let item = try await FileSystemItem(at: fileURL, relativeTo: test1)
 
         // Should only remove the first "test", not all occurrences
         XCTAssertEqual(item.path, "test/file.txt")
     }
 
-    func testRelativePathOutsideBase() throws {
+    func testRelativePathOutsideBase() async throws {
         // Test that files outside the base path throw an error
         let fileURL = tempDir.appendingPathComponent("file.txt")
         try "content".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -256,10 +256,15 @@ final class FileSystemItemTests: XCTestCase {
         let otherBase = URL(fileURLWithPath: "/usr")
 
         // Should throw an error
-        XCTAssertThrowsError(try FileSystemItem(at: fileURL, relativeTo: otherBase))
+        do {
+            _ = try await FileSystemItem(at: fileURL, relativeTo: otherBase)
+            XCTFail("Should have thrown an error")
+        } catch {
+            // Expected
+        }
     }
 
-    func testRelativePathSiblingDirectory() throws {
+    func testRelativePathSiblingDirectory() async throws {
         // CRITICAL TEST: Sibling directories with common prefix should NOT be accepted
         // Example: /tmp/base and /tmp/baseball are siblings, not parent/child
 
@@ -276,15 +281,15 @@ final class FileSystemItemTests: XCTestCase {
         try "in baseball".write(to: fileInBaseball, atomically: true, encoding: .utf8)
 
         // Reading fileInBase with base=baseDir should work
-        let validItem = try FileSystemItem(at: fileInBase, relativeTo: baseDir)
+        let validItem = try await FileSystemItem(at: fileInBase, relativeTo: baseDir)
         XCTAssertEqual(validItem.path, "file.txt")
 
         // Reading fileInBaseball with base=baseDir should FAIL (sibling, not child)
         // This is the critical test - string prefix check would wrongly accept this
-        XCTAssertThrowsError(
-            try FileSystemItem(at: fileInBaseball, relativeTo: baseDir),
-            "File in sibling directory should be rejected"
-        ) { error in
+        do {
+            _ = try await FileSystemItem(at: fileInBaseball, relativeTo: baseDir)
+            XCTFail("File in sibling directory should be rejected")
+        } catch {
             // Verify it's the correct error type
             if case FileSystemError.fileNotUnderBasePath = error {
                 // Expected
@@ -296,7 +301,7 @@ final class FileSystemItemTests: XCTestCase {
 
     // MARK: - Metadata Tests
 
-    func testMetadataCapture() throws {
+    func testMetadataCapture() async throws {
         // Create a file
         let fileURL = tempDir.appendingPathComponent("metadata.txt")
         try "content".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -305,7 +310,7 @@ final class FileSystemItemTests: XCTestCase {
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fileURL.path)
 
         // Read metadata
-        let item = try FileSystemItem(at: fileURL, relativeTo: tempDir)
+        let item = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
 
         // Verify metadata
         XCTAssertEqual(item.metadata.permissions.posix, 0o755)
@@ -320,14 +325,14 @@ final class FileSystemItemTests: XCTestCase {
 
     // MARK: - Equality Tests
 
-    func testFileSystemItemEquality() throws {
+    func testFileSystemItemEquality() async throws {
         // Create a file
         let fileURL = tempDir.appendingPathComponent("equal.txt")
         try "content".write(to: fileURL, atomically: true, encoding: .utf8)
 
         // Read twice
-        let item1 = try FileSystemItem(at: fileURL, relativeTo: tempDir)
-        let item2 = try FileSystemItem(at: fileURL, relativeTo: tempDir)
+        let item1 = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
+        let item2 = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
 
         // Should be equal
         XCTAssertEqual(item1, item2)

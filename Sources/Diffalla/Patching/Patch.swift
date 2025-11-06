@@ -1,5 +1,13 @@
 import Foundation
 
+/// Progress information emitted while applying or reverting a patch
+public struct PatchProgress: Sendable {
+    public let current: Int
+    public let total: Int
+    public let operation: PatchOperation
+    public let isRevert: Bool
+}
+
 /// A patch that describes transformations between two directory states
 public struct Patch {
     /// Path to the SQLite database file
@@ -222,15 +230,27 @@ public struct Patch {
     }
 
     /// Apply this patch to a target directory
-    /// - Parameter targetDirectory: Directory to apply the patch to
-    public func apply(to targetDirectory: URL) async throws {
+    /// - Parameters:
+    ///   - targetDirectory: Directory to apply the patch to
+    ///   - progress: Optional callback invoked before each operation executes
+    public func apply(
+        to targetDirectory: URL,
+        progress: (@Sendable (PatchProgress) -> Void)? = nil
+    ) async throws {
         let applicator = PatchApplicator()
 
         // Load all operations with content and metadata
         let operations = try loadOperationsWithContent()
 
         // Apply operations in sequence order
-        for (operation, metadata, content) in operations {
+        for (index, (operation, metadata, content)) in operations.enumerated() {
+            progress?(PatchProgress(
+                current: index + 1,
+                total: operations.count,
+                operation: operation,
+                isRevert: false
+            ))
+
             switch operation {
             case .add(let path, let isFolder):
                 try applicator.applyAdd(path: path, isFolder: isFolder, content: content, metadata: metadata, to: targetDirectory)
@@ -248,17 +268,30 @@ public struct Patch {
     }
 
     /// Revert this patch to restore the original directory state
-    /// - Parameter targetDirectory: Directory to revert the patch in
+    /// - Parameters:
+    ///   - targetDirectory: Directory to revert the patch in
+    ///   - progress: Optional callback invoked before each operation executes
     /// - Throws: Error if patch doesn't have required revert data or revert fails
     /// - Note: Add operations don't require revert data (just delete the file), but remove/modify operations do
-    public func revert(on targetDirectory: URL) async throws {
+    public func revert(
+        on targetDirectory: URL,
+        progress: (@Sendable (PatchProgress) -> Void)? = nil
+    ) async throws {
         let reverter = PatchReverter()
 
         // Load all operations
         let operations = try loadOperations()
+        let total = operations.count
 
         // Execute operations in REVERSE order to undo changes
-        for operation in operations.reversed() {
+        for (index, operation) in operations.reversed().enumerated() {
+            progress?(PatchProgress(
+                current: index + 1,
+                total: total,
+                operation: operation,
+                isRevert: true
+            ))
+
             switch operation {
             case .add(let path, _):
                 // Revert add: delete the added file/folder (no revert data needed)
