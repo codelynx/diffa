@@ -77,7 +77,9 @@ class ComparisonEngine {
         }
 
         // Query: items in both snapshots but with differences
-        // Compare sha256 (for files), size, modification_date, permissions
+        // Compare sha256 (for files), size, modification_date (files only), permissions
+        // Note: Directory modification times are excluded because they change whenever
+        // files inside them are added/removed, making them unreliable for comparison
         let sql = """
             SELECT d.id, d.parent_id, d.path, d.name, d.is_folder, d.size,
                    d.modification_date, d.permissions, d.owner, d.group_name, d.sha256
@@ -85,7 +87,7 @@ class ComparisonEngine {
             INNER JOIN main.items s ON d.path = s.path
             WHERE (d.sha256 IS NOT NULL AND s.sha256 IS NOT NULL AND d.sha256 != s.sha256)
                OR d.size != s.size
-               OR d.modification_date != s.modification_date
+               OR (d.is_folder = 0 AND d.modification_date != s.modification_date)
                OR d.permissions != s.permissions
             ORDER BY d.path
             """
