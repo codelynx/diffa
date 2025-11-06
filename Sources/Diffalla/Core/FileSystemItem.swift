@@ -35,7 +35,19 @@ public struct FileSystemItem: ItemProtocol {
     ///   - captureOwnership: Whether to capture file owner/group
     ///   - pathOverride: Optional URL to use for path computation (for symlinks)
     ///   - followSymlinks: Whether to follow symlinks (true) or read symlink itself (false)
-    public init(at url: URL, relativeTo baseURL: URL, captureOwnership: Bool = false, pathOverride: URL? = nil, followSymlinks: Bool = true) throws {
+    ///   - hashCache: Optional hash cache for faster hash lookups
+    ///   - cacheStatsCallback: Optional callback to report cache hits/misses (hit: Bool) -> Void
+    ///   - parallelHasher: Optional helper that runs hash computations on a parallel queue
+    public init(
+        at url: URL,
+        relativeTo baseURL: URL,
+        captureOwnership: Bool = false,
+        pathOverride: URL? = nil,
+        followSymlinks: Bool = true,
+        hashCache: HashCache? = nil,
+        cacheStatsCallback: ((Bool) -> Void)? = nil,
+        parallelHasher: ParallelHasher? = nil
+    ) throws {
         let fileManager = FileManager.default
 
         // Check if this is a symlink
@@ -147,7 +159,31 @@ public struct FileSystemItem: ItemProtocol {
         // Skip hash computation for symlinks when not following them
         var hash: String?
         if !isDirectory && !(isSymlink && !followSymlinks) {
-            hash = try Self.computeHash(at: url)
+            // Try cache lookup first if cache is available
+            if let cache = hashCache {
+                // Try to get cached hash
+                if let cachedHash = try cache.lookup(path: relativePath, size: fileSize, modificationDate: modDate) {
+                    // Cache hit!
+                    hash = cachedHash
+                    cacheStatsCallback?(true) // Report cache hit
+                } else {
+                    // Cache miss - compute hash and store
+                    if let hasher = parallelHasher {
+                        hash = try hasher.hashFile(at: url)
+                    } else {
+                        hash = try Self.computeHash(at: url)
+                    }
+                    try cache.store(path: relativePath, size: fileSize, modificationDate: modDate, hash: hash!)
+                    cacheStatsCallback?(false) // Report cache miss
+                }
+            } else {
+                // No cache - compute hash normally
+                if let hasher = parallelHasher {
+                    hash = try hasher.hashFile(at: url)
+                } else {
+                    hash = try Self.computeHash(at: url)
+                }
+            }
         }
 
         // Initialize
@@ -272,7 +308,7 @@ public struct FileSystemItem: ItemProtocol {
     /// Compute SHA-256 hash of file content
     /// - Parameter url: File URL to hash
     /// - Returns: Hex-encoded SHA-256 hash
-    private static func computeHash(at url: URL) throws -> String {
+    static func computeHash(at url: URL) throws -> String {
         // Open file for reading
         guard let fileHandle = FileHandle(forReadingAtPath: url.path) else {
             throw FileSystemError.cannotOpenFile(path: url.path)

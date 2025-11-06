@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(CommonCrypto)
+import CommonCrypto
+#elseif canImport(Crypto)
+import Crypto
+#endif
 
 /// Progress information during directory scanning
 public struct SnapshotProgress {
@@ -11,10 +16,24 @@ public struct SnapshotProgress {
     /// Total bytes processed so far
     public let bytesProcessed: Int64
 
-    public init(currentPath: String, filesProcessed: Int, bytesProcessed: Int64) {
+    /// Number of cache hits (hash reused from cache)
+    public let cacheHits: Int
+
+    /// Number of cache misses (hash computed and stored)
+    public let cacheMisses: Int
+
+    public init(
+        currentPath: String,
+        filesProcessed: Int,
+        bytesProcessed: Int64,
+        cacheHits: Int = 0,
+        cacheMisses: Int = 0
+    ) {
         self.currentPath = currentPath
         self.filesProcessed = filesProcessed
         self.bytesProcessed = bytesProcessed
+        self.cacheHits = cacheHits
+        self.cacheMisses = cacheMisses
     }
 }
 
@@ -33,6 +52,10 @@ public class SnapshotEngine {
     ) async throws -> [FileSystemItem] {
         // Use a class to hold mutable state (avoiding inout with async)
         let state = ScanState()
+
+        if options.useParallelHashing {
+            state.parallelHasher = ParallelHasher(maxConcurrentHashes: options.maxConcurrentHashing)
+        }
 
         try await scanDirectoryRecursive(
             at: url,
@@ -70,6 +93,15 @@ public class SnapshotEngine {
             let state = ScanState()
             state.writer = writer  // Enable streaming mode
 
+            // Initialize hash cache if enabled
+            if options.useHashCache {
+                state.hashCache = try openOrCreateCache(for: directory, options: options)
+            }
+
+            if options.useParallelHashing {
+                state.parallelHasher = ParallelHasher(maxConcurrentHashes: options.maxConcurrentHashing)
+            }
+
             // Scan directory - items are written to DB as discovered
             try await scanDirectoryRecursive(
                 at: directory,
@@ -86,6 +118,13 @@ public class SnapshotEngine {
                 totalSize: state.totalSize
             )
 
+            // Prune cache if enabled (remove entries for deleted files)
+            if let cache = state.hashCache {
+                // Collect all scanned paths from the database
+                let paths = try collectAllPaths(from: snapshot.database)
+                try cache.prune(validPaths: Set(paths))
+            }
+
             try snapshot.database.execute("COMMIT")
         } catch {
             try? snapshot.database.execute("ROLLBACK")
@@ -96,6 +135,50 @@ public class SnapshotEngine {
         // The Snapshot struct returned by create() has stale metadata (all zeros)
         // so we must reload it from the database to get the actual counts
         return try Snapshot.open(at: snapshotURL)
+    }
+
+    /// Open or create a hash cache for a directory
+    /// - Parameters:
+    ///   - directory: Directory being scanned
+    ///   - options: Scan options containing cache directory preference
+    /// - Returns: HashCache instance
+    private func openOrCreateCache(for directory: URL, options: ScanOptions) throws -> HashCache {
+        // Determine cache directory
+        let cacheDir: URL
+        if let customDir = options.hashCacheDirectory {
+            cacheDir = customDir
+        } else {
+            // Default: ~/.diffalla/cache/
+            let homeDir = FileManager.default.homeDirectoryForCurrentUser
+            cacheDir = homeDir.appendingPathComponent(".diffalla/cache")
+        }
+
+        // Create cache directory if it doesn't exist
+        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+
+        // Generate cache database name from directory path hash
+        let directoryPath = directory.path
+        let pathHash = directoryPath.data(using: .utf8)!.sha256Hex()
+        let cacheURL = cacheDir.appendingPathComponent("\(pathHash).db")
+
+        // Open or create cache
+        return try HashCache(at: cacheURL)
+    }
+
+    /// Collect all file paths from snapshot database for cache pruning
+    /// - Parameter database: Snapshot database
+    /// - Returns: Array of all file paths
+    private func collectAllPaths(from database: SQLiteDatabase) throws -> [String] {
+        let sql = "SELECT path FROM items WHERE is_folder = 0"
+        let statement = try database.prepare(sql)
+        let rows = try statement.query()
+
+        var paths: [String] = []
+        for row in rows {
+            guard let path = try row.string(at: 0) else { continue }
+            paths.append(path)
+        }
+        return paths
     }
 
     /// Compute parent path from a full path
@@ -124,9 +207,24 @@ public class SnapshotEngine {
         var totalFiles: Int = 0
         var totalFolders: Int = 0
         var totalSize: Int64 = 0
+        var cacheHits: Int = 0
+        var cacheMisses: Int = 0
 
         // Optional writer for streaming to database
         weak var writer: SnapshotWriter?
+
+        // Optional hash cache for reusing hashes
+        var hashCache: HashCache?
+
+        // Optional parallel hasher (limits concurrent hash computations)
+        var parallelHasher: ParallelHasher?
+    }
+
+    private struct ParallelFileResult {
+        let item: FileSystemItem
+        let cacheHit: Bool?
+        let resolvedURL: URL
+        let isSymlink: Bool
     }
 
     /// Recursive helper for directory scanning
@@ -152,143 +250,319 @@ public class SnapshotEngine {
             return
         }
 
-        // Process each item in the directory
+        if let parallelHasher = state.parallelHasher {
+            try await processDirectoryContentsParallel(
+                contents: contents,
+                baseURL: baseURL,
+                options: options,
+                state: state,
+                progress: progress,
+                parallelHasher: parallelHasher
+            )
+        } else {
+            try await processDirectoryContentsSequential(
+                contents: contents,
+                baseURL: baseURL,
+                options: options,
+                state: state,
+                progress: progress
+            )
+        }
+    }
+
+    private func processDirectoryContentsSequential(
+        contents: [URL],
+        baseURL: URL,
+        options: ScanOptions,
+        state: ScanState,
+        progress: ((SnapshotProgress) -> Void)?
+    ) async throws {
         for itemURL in contents {
-            // Check if we should include this item
             guard shouldInclude(itemURL, options: options) else {
                 continue
             }
 
-            // Handle symlinks
-            let resolvedURL: URL
-
-            // Check if this is a symlink (safely)
-            let isSymlink: Bool
+            let resourceValues: URLResourceValues
             do {
-                let resourceValues = try itemURL.resourceValues(forKeys: [.isSymbolicLinkKey])
-                isSymlink = resourceValues.isSymbolicLink ?? false
+                resourceValues = try itemURL.resourceValues(forKeys: [.isSymbolicLinkKey])
             } catch {
-                // If we can't read resource values, skip this item
                 continue
             }
 
-            if isSymlink {
-                if options.followSymlinks {
-                    // Follow the symlink
-                    do {
-                        guard let target = try handleSymlink(itemURL, options: options) else {
-                            // Broken symlink - skip it
-                            continue
+            let isSymlink = resourceValues.isSymbolicLink ?? false
+
+            guard let resolvedURL = try resolveURL(for: itemURL, isSymlink: isSymlink, options: options) else {
+                continue
+            }
+
+            do {
+                let item = try createFileSystemItem(
+                    resolvedURL: resolvedURL,
+                    originalURL: itemURL,
+                    baseURL: baseURL,
+                    options: options,
+                    isSymlink: isSymlink,
+                    hashCache: state.hashCache,
+                    parallelHasher: nil,
+                    cacheStatsCallback: { isHit in
+                        if isHit {
+                            state.cacheHits += 1
+                        } else {
+                            state.cacheMisses += 1
                         }
-
-                        resolvedURL = target
-                    } catch {
-                        // Error handling symlink - skip it
-                        continue
                     }
-                } else {
-                    // Don't follow symlinks - use the symlink itself
-                    resolvedURL = itemURL
-                }
-            } else {
-                resolvedURL = itemURL
-            }
-
-            // Create FileSystemItem for this item
-            // Note: For symlinks, we read from resolvedURL but compute path from itemURL
-            // This ensures symlinks are recorded with their symlink path, not target path
-            let item: FileSystemItem
-            do {
-                if isSymlink && options.followSymlinks {
-                    // Read attributes from target, but use symlink path
-                    item = try FileSystemItem(
-                        at: resolvedURL,
-                        relativeTo: baseURL,
-                        captureOwnership: options.captureOwnership,
-                        pathOverride: itemURL,
-                        followSymlinks: true
-                    )
-                } else if isSymlink && !options.followSymlinks {
-                    // Read symlink itself (not target)
-                    item = try FileSystemItem(
-                        at: itemURL,
-                        relativeTo: baseURL,
-                        captureOwnership: options.captureOwnership,
-                        followSymlinks: false
-                    )
-                } else {
-                    // Normal file or directory
-                    item = try FileSystemItem(
-                        at: resolvedURL,
-                        relativeTo: baseURL,
-                        captureOwnership: options.captureOwnership,
-                        followSymlinks: true
-                    )
-                }
-            } catch {
-                // If we can't read this item (permission denied, etc.), skip it
-                continue
-            }
-
-            // If writer is present, stream to database immediately
-            // Otherwise, collect in memory
-            if let writer = state.writer {
-                // Compute parent path
-                let parentPath = computeParentPath(from: item.path)
-
-                // Insert into database
-                let itemId = try writer.insertItem(item, parentPath: parentPath)
-
-                // Update totals for final metadata update
-                if item.isFolder {
-                    state.totalFolders += 1
-                } else {
-                    state.totalFiles += 1
-                }
-                state.totalSize += item.size
-
-                // If this is a directory, push it onto stack before recursing
-                if item.isFolder && !(isSymlink && options.followSymlinks) {
-                    writer.pushDirectory(path: item.path, id: itemId)
-                }
-            } else {
-                // Collect items in memory for later processing
-                state.items.append(item)
-            }
-
-            // Update progress
-            if !item.isFolder {
-                state.filesProcessed += 1
-                state.bytesProcessed += item.size
-            }
-
-            // Report progress
-            if let progress = progress {
-                let progressInfo = SnapshotProgress(
-                    currentPath: item.path,
-                    filesProcessed: state.filesProcessed,
-                    bytesProcessed: state.bytesProcessed
                 )
-                progress(progressInfo)
-            }
 
-            // If this is a directory, recursively scan it
-            // However, if this is a symlinked directory and we're following symlinks,
-            // don't recurse - we'll scan the actual target directory when we encounter it
-            if item.isFolder && !(isSymlink && options.followSymlinks) {
-                try await scanDirectoryRecursive(
-                    at: resolvedURL,
+                try await finalize(
+                    item: item,
+                    isSymlink: isSymlink,
+                    resolvedURL: resolvedURL,
                     baseURL: baseURL,
                     options: options,
                     state: state,
                     progress: progress
                 )
+            } catch {
+                continue
+            }
+        }
+    }
 
-                // Pop directory from stack after recursing
-                if let writer = state.writer {
-                    writer.popDirectory()
+    private func processDirectoryContentsParallel(
+        contents: [URL],
+        baseURL: URL,
+        options: ScanOptions,
+        state: ScanState,
+        progress: ((SnapshotProgress) -> Void)?,
+        parallelHasher: ParallelHasher
+    ) async throws {
+        let hashCache = state.hashCache
+
+        try await withThrowingTaskGroup(of: ParallelFileResult?.self) { group in
+            var pendingTasks = 0
+
+            for itemURL in contents {
+                guard shouldInclude(itemURL, options: options) else {
+                    continue
+                }
+
+                let resourceValues: URLResourceValues
+                do {
+                    resourceValues = try itemURL.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey])
+                } catch {
+                    continue
+                }
+
+                let isSymlink = resourceValues.isSymbolicLink ?? false
+                guard let resolvedURL = try resolveURL(for: itemURL, isSymlink: isSymlink, options: options) else {
+                    continue
+                }
+
+                let isDirectory = resourceValues.isDirectory ?? false
+                let shouldParallelize = !isDirectory && !isSymlink
+
+                if shouldParallelize {
+                    pendingTasks += 1
+                    group.addTask {
+                        do {
+                            var cacheHit: Bool?
+                            let item = try self.createFileSystemItem(
+                                resolvedURL: resolvedURL,
+                                originalURL: itemURL,
+                                baseURL: baseURL,
+                                options: options,
+                                isSymlink: isSymlink,
+                                hashCache: hashCache,
+                                parallelHasher: parallelHasher,
+                                cacheStatsCallback: { cacheHit = $0 }
+                            )
+                            return ParallelFileResult(
+                                item: item,
+                                cacheHit: cacheHit,
+                                resolvedURL: resolvedURL,
+                                isSymlink: isSymlink
+                            )
+                        } catch {
+                            return nil
+                        }
+                    }
+                } else {
+                    do {
+                        let item = try createFileSystemItem(
+                            resolvedURL: resolvedURL,
+                            originalURL: itemURL,
+                            baseURL: baseURL,
+                            options: options,
+                            isSymlink: isSymlink,
+                            hashCache: state.hashCache,
+                            parallelHasher: nil,
+                            cacheStatsCallback: { isHit in
+                                if isHit {
+                                    state.cacheHits += 1
+                                } else {
+                                    state.cacheMisses += 1
+                                }
+                            }
+                        )
+
+                        try await finalize(
+                            item: item,
+                            isSymlink: isSymlink,
+                            resolvedURL: resolvedURL,
+                            baseURL: baseURL,
+                            options: options,
+                            state: state,
+                            progress: progress
+                        )
+                    } catch {
+                        continue
+                    }
                 }
             }
+
+            while pendingTasks > 0 {
+                guard let taskResult = try await group.next() else {
+                    pendingTasks = 0
+                    break
+                }
+                pendingTasks -= 1
+
+                guard let parallelResult = taskResult else {
+                    continue
+                }
+
+                if let cacheHit = parallelResult.cacheHit {
+                    if cacheHit {
+                        state.cacheHits += 1
+                    } else {
+                        state.cacheMisses += 1
+                    }
+                }
+
+                try await finalize(
+                    item: parallelResult.item,
+                    isSymlink: parallelResult.isSymlink,
+                    resolvedURL: parallelResult.resolvedURL,
+                    baseURL: baseURL,
+                    options: options,
+                    state: state,
+                    progress: progress
+                )
+            }
+        }
+    }
+
+    private func createFileSystemItem(
+        resolvedURL: URL,
+        originalURL: URL,
+        baseURL: URL,
+        options: ScanOptions,
+        isSymlink: Bool,
+        hashCache: HashCache?,
+        parallelHasher: ParallelHasher?,
+        cacheStatsCallback: ((Bool) -> Void)?
+    ) throws -> FileSystemItem {
+        if isSymlink && options.followSymlinks {
+            return try FileSystemItem(
+                at: resolvedURL,
+                relativeTo: baseURL,
+                captureOwnership: options.captureOwnership,
+                pathOverride: originalURL,
+                followSymlinks: true,
+                hashCache: hashCache,
+                cacheStatsCallback: cacheStatsCallback,
+                parallelHasher: parallelHasher
+            )
+        } else if isSymlink && !options.followSymlinks {
+            return try FileSystemItem(
+                at: originalURL,
+                relativeTo: baseURL,
+                captureOwnership: options.captureOwnership,
+                followSymlinks: false,
+                hashCache: hashCache,
+                cacheStatsCallback: cacheStatsCallback,
+                parallelHasher: parallelHasher
+            )
+        } else {
+            return try FileSystemItem(
+                at: resolvedURL,
+                relativeTo: baseURL,
+                captureOwnership: options.captureOwnership,
+                followSymlinks: true,
+                hashCache: hashCache,
+                cacheStatsCallback: cacheStatsCallback,
+                parallelHasher: parallelHasher
+            )
+        }
+    }
+
+    private func finalize(
+        item: FileSystemItem,
+        isSymlink: Bool,
+        resolvedURL: URL,
+        baseURL: URL,
+        options: ScanOptions,
+        state: ScanState,
+        progress: ((SnapshotProgress) -> Void)?
+    ) async throws {
+        if let writer = state.writer {
+            let parentPath = computeParentPath(from: item.path)
+            let itemId = try writer.insertItem(item, parentPath: parentPath)
+
+            if item.isFolder {
+                state.totalFolders += 1
+                if !(isSymlink && options.followSymlinks) {
+                    writer.pushDirectory(path: item.path, id: itemId)
+                }
+            } else {
+                state.totalFiles += 1
+            }
+
+            state.totalSize += item.size
+        } else {
+            state.items.append(item)
+        }
+
+        if !item.isFolder {
+            state.filesProcessed += 1
+            state.bytesProcessed += item.size
+        }
+
+        if let progress = progress {
+            let progressInfo = SnapshotProgress(
+                currentPath: item.path,
+                filesProcessed: state.filesProcessed,
+                bytesProcessed: state.bytesProcessed,
+                cacheHits: state.cacheHits,
+                cacheMisses: state.cacheMisses
+            )
+            progress(progressInfo)
+        }
+
+        if item.isFolder && !(isSymlink && options.followSymlinks) {
+            try await scanDirectoryRecursive(
+                at: resolvedURL,
+                baseURL: baseURL,
+                options: options,
+                state: state,
+                progress: progress
+            )
+
+            if let writer = state.writer {
+                writer.popDirectory()
+            }
+        }
+    }
+
+    private func resolveURL(for itemURL: URL, isSymlink: Bool, options: ScanOptions) throws -> URL? {
+        if isSymlink {
+            if options.followSymlinks {
+                return try handleSymlink(itemURL, options: options)
+            } else {
+                return itemURL
+            }
+        } else {
+            return itemURL
         }
     }
 
@@ -335,5 +609,26 @@ public class SnapshotEngine {
         }
 
         return destinationURL
+    }
+}
+
+// MARK: - Data Extension for Hash Cache
+
+extension Data {
+    /// Compute SHA-256 hash and return as hex string
+    func sha256Hex() -> String {
+        #if canImport(CommonCrypto)
+        var digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+        self.withUnsafeBytes { bufferPointer in
+            _ = CC_SHA256(bufferPointer.baseAddress, CC_LONG(self.count), &digest)
+        }
+        return digest.map { String(format: "%02x", $0) }.joined()
+        #elseif canImport(Crypto)
+        let hash = SHA256.hash(data: self)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
+        #else
+        // Fallback: simple string hash (not cryptographic)
+        return String(self.hashValue, radix: 16)
+        #endif
     }
 }

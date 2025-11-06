@@ -17,15 +17,41 @@ public struct ScanOptions {
     /// Note: Requires appropriate permissions to read ownership
     public var captureOwnership: Bool
 
+    /// Enable hash caching for faster subsequent scans
+    /// Default: false (opt-in for Phase 4 optimization)
+    /// When enabled, file hashes are cached based on size and modification time
+    public var useHashCache: Bool
+
+    /// Custom hash cache directory
+    /// Default: nil (uses ~/.diffalla/cache/)
+    /// Each directory gets its own cache database based on path hash
+    public var hashCacheDirectory: URL?
+
+    /// Enable parallel hashing (uses multiple CPU cores)
+    /// Default: false (opt-in for Phase 4 optimization)
+    public var useParallelHashing: Bool
+
+    /// Maximum concurrent hash operations when parallel hashing is enabled
+    /// Default: ProcessInfo.activeProcessorCount
+    public var maxConcurrentHashing: Int
+
     /// Create with default options
     public init(
         followSymlinks: Bool = true,
         includeHidden: Bool = true,
-        captureOwnership: Bool = false
+        captureOwnership: Bool = false,
+        useHashCache: Bool = false,
+        hashCacheDirectory: URL? = nil,
+        useParallelHashing: Bool = false,
+        maxConcurrentHashing: Int = ProcessInfo.processInfo.activeProcessorCount
     ) {
         self.followSymlinks = followSymlinks
         self.includeHidden = includeHidden
         self.captureOwnership = captureOwnership
+        self.useHashCache = useHashCache
+        self.hashCacheDirectory = hashCacheDirectory
+        self.useParallelHashing = useParallelHashing
+        self.maxConcurrentHashing = max(1, maxConcurrentHashing)
     }
 }
 
