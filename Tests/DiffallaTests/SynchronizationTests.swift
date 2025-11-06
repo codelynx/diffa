@@ -537,4 +537,198 @@ final class SynchronizationTests: XCTestCase {
         XCTAssertEqual(result.errors.count, 0, "No errors")
         XCTAssertGreaterThan(result.duration, 0, "Duration should be positive")
     }
+
+    // MARK: - Step 4: Unidirectional Sync Tests
+
+    func testSyncUnidirectionalEmptyToEmpty() async throws {
+        // Create two empty directories
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Sync empty to empty
+        let synchronizer = Synchronizer()
+        let result = try await synchronizer.syncUnidirectional(
+            source: sourceDir,
+            destination: destDir
+        )
+
+        // Should have no operations
+        XCTAssertEqual(result.filesCopied, 0)
+        XCTAssertEqual(result.filesDeleted, 0)
+        XCTAssertEqual(result.bytesTransferred, 0)
+        XCTAssertEqual(result.errors.count, 0)
+    }
+
+    func testSyncUnidirectionalWithNewFiles() async throws {
+        // Create directories with new files in source
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Create files in source
+        try "file1 content".write(to: sourceDir.appendingPathComponent("file1.txt"), atomically: true, encoding: .utf8)
+        try "file2 content".write(to: sourceDir.appendingPathComponent("file2.txt"), atomically: true, encoding: .utf8)
+
+        // Sync
+        let synchronizer = Synchronizer()
+        let result = try await synchronizer.syncUnidirectional(
+            source: sourceDir,
+            destination: destDir
+        )
+
+        // Verify files copied
+        XCTAssertEqual(result.filesCopied, 2)
+        XCTAssertEqual(result.errors.count, 0)
+
+        // Verify files exist in destination
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destDir.appendingPathComponent("file1.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destDir.appendingPathComponent("file2.txt").path))
+
+        // Verify content
+        let content1 = try String(contentsOf: destDir.appendingPathComponent("file1.txt"), encoding: .utf8)
+        let content2 = try String(contentsOf: destDir.appendingPathComponent("file2.txt"), encoding: .utf8)
+        XCTAssertEqual(content1, "file1 content")
+        XCTAssertEqual(content2, "file2 content")
+    }
+
+    func testSyncUnidirectionalWithDeletedFiles() async throws {
+        // Create directories with extra files in destination
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Create files only in destination
+        try "extra1".write(to: destDir.appendingPathComponent("extra1.txt"), atomically: true, encoding: .utf8)
+        try "extra2".write(to: destDir.appendingPathComponent("extra2.txt"), atomically: true, encoding: .utf8)
+
+        // Sync (should delete extra files)
+        let synchronizer = Synchronizer()
+        let result = try await synchronizer.syncUnidirectional(
+            source: sourceDir,
+            destination: destDir
+        )
+
+        // Verify files deleted
+        XCTAssertEqual(result.filesDeleted, 2)
+        XCTAssertEqual(result.errors.count, 0)
+
+        // Verify files removed from destination
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destDir.appendingPathComponent("extra1.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destDir.appendingPathComponent("extra2.txt").path))
+    }
+
+    func testSyncUnidirectionalWithModifiedFiles() async throws {
+        // Create directories with modified files
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Create same file with different content
+        try "source version".write(to: sourceDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+        try "dest version".write(to: destDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        // Sync (should update file)
+        let synchronizer = Synchronizer()
+        let result = try await synchronizer.syncUnidirectional(
+            source: sourceDir,
+            destination: destDir
+        )
+
+        // Verify file updated
+        XCTAssertEqual(result.filesCopied, 1)
+        XCTAssertEqual(result.errors.count, 0)
+
+        // Verify content updated from source
+        let content = try String(contentsOf: destDir.appendingPathComponent("file.txt"), encoding: .utf8)
+        XCTAssertEqual(content, "source version")
+    }
+
+    func testSyncUnidirectionalDryRun() async throws {
+        // Create directories with differences
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Source has new file, dest has extra file
+        try "new".write(to: sourceDir.appendingPathComponent("new.txt"), atomically: true, encoding: .utf8)
+        try "extra".write(to: destDir.appendingPathComponent("extra.txt"), atomically: true, encoding: .utf8)
+
+        // Sync with dry run
+        let synchronizer = Synchronizer()
+        var options = SyncOptions()
+        options.dryRun = true
+
+        let result = try await synchronizer.syncUnidirectional(
+            source: sourceDir,
+            destination: destDir,
+            options: options
+        )
+
+        // Verify result shows what would happen
+        XCTAssertEqual(result.filesCopied, 1)
+        XCTAssertEqual(result.filesDeleted, 1)
+
+        // Verify NO actual changes made
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destDir.appendingPathComponent("new.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destDir.appendingPathComponent("extra.txt").path))
+    }
+
+    func testSyncUnidirectionalVerify() async throws {
+        // Create directories
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        // Create files in source
+        try "file content".write(to: sourceDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        // Sync with verification
+        let synchronizer = Synchronizer()
+        var options = SyncOptions()
+        options.verifyAfterSync = true
+
+        let result = try await synchronizer.syncUnidirectional(
+            source: sourceDir,
+            destination: destDir,
+            options: options
+        )
+
+        // Should succeed without errors
+        XCTAssertEqual(result.filesCopied, 1)
+        XCTAssertEqual(result.errors.count, 0)
+
+        // Verify file exists
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destDir.appendingPathComponent("file.txt").path))
+    }
 }
