@@ -88,6 +88,15 @@ struct SnapshotCommand: ParsableCommand {
         }
 
         let engine = SnapshotEngine()
+
+        // First pass: Count files (fast)
+        print("Counting files...", terminator: "")
+        fflush(stdout)
+        let (totalFiles, totalSize) = try engine.countFilesAndSize(at: directoryURL, options: options)
+        print("\r\u{1B}[K", terminator: "") // Clear the counting line
+        fflush(stdout)
+
+        // Second pass: Create snapshot with progress
         var lastProgress = Date()
 
         let snapshot = try await engine.createSnapshot(
@@ -98,8 +107,10 @@ struct SnapshotCommand: ParsableCommand {
                 // Update progress every 0.5 seconds
                 let now = Date()
                 if now.timeIntervalSince(lastProgress) >= 0.5 {
-                    let sizeStr = Self.formatBytes(progress.bytesProcessed)
-                    print("  Processing: \(progress.filesProcessed) files (\(sizeStr))...", terminator: "\r")
+                    let currentSizeStr = Self.formatBytes(progress.bytesProcessed)
+                    let totalSizeStr = Self.formatBytes(totalSize)
+                    let fileName = (progress.currentPath as NSString).lastPathComponent
+                    print("  Processing: \(progress.filesProcessed)/\(totalFiles) files (\(currentSizeStr) / \(totalSizeStr)) - \(fileName)", terminator: "\r")
                     fflush(stdout)
                     lastProgress = now
                 }

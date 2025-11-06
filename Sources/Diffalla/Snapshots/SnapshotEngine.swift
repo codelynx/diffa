@@ -67,6 +67,88 @@ public class SnapshotEngine {
         return state.items
     }
 
+    /// Count files and total size in a directory (fast, no hashing)
+    /// - Parameters:
+    ///   - url: Root directory URL to count
+    ///   - options: Scan options (hidden files, symlinks)
+    /// - Returns: Tuple of (file count, total size in bytes)
+    public func countFilesAndSize(
+        at url: URL,
+        options: ScanOptions
+    ) throws -> (fileCount: Int, totalSize: Int64) {
+        var fileCount = 0
+        var totalSize: Int64 = 0
+
+        try countRecursive(
+            at: url,
+            options: options,
+            fileCount: &fileCount,
+            totalSize: &totalSize
+        )
+
+        return (fileCount, totalSize)
+    }
+
+    /// Recursive helper for counting files
+    private func countRecursive(
+        at url: URL,
+        options: ScanOptions,
+        fileCount: inout Int,
+        totalSize: inout Int64
+    ) throws {
+        let fileManager = FileManager.default
+
+        // Get directory contents
+        let contents: [URL]
+        do {
+            contents = try fileManager.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey],
+                options: []
+            )
+        } catch {
+            return
+        }
+
+        for itemURL in contents {
+            guard shouldInclude(itemURL, options: options) else {
+                continue
+            }
+
+            let resourceValues: URLResourceValues
+            do {
+                resourceValues = try itemURL.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .fileSizeKey])
+            } catch {
+                continue
+            }
+
+            let isSymlink = resourceValues.isSymbolicLink ?? false
+            guard let resolvedURL = try resolveURL(for: itemURL, isSymlink: isSymlink, options: options) else {
+                continue
+            }
+
+            let isDirectory = resourceValues.isDirectory ?? false
+
+            if isDirectory {
+                // Recurse into directories
+                if !(isSymlink && options.followSymlinks) {
+                    try countRecursive(
+                        at: resolvedURL,
+                        options: options,
+                        fileCount: &fileCount,
+                        totalSize: &totalSize
+                    )
+                }
+            } else {
+                // Count files
+                fileCount += 1
+                if let size = resourceValues.fileSize {
+                    totalSize += Int64(size)
+                }
+            }
+        }
+    }
+
     /// Create a snapshot from a directory
     /// - Parameters:
     ///   - directory: Root directory to snapshot
@@ -295,7 +377,7 @@ public class SnapshotEngine {
             }
 
             do {
-                let item = try createFileSystemItem(
+                let item = try await createFileSystemItem(
                     resolvedURL: resolvedURL,
                     originalURL: itemURL,
                     baseURL: baseURL,
@@ -365,7 +447,7 @@ public class SnapshotEngine {
                     group.addTask {
                         do {
                             var cacheHit: Bool?
-                            let item = try self.createFileSystemItem(
+                            let item = try await self.createFileSystemItem(
                                 resolvedURL: resolvedURL,
                                 originalURL: itemURL,
                                 baseURL: baseURL,
@@ -387,7 +469,7 @@ public class SnapshotEngine {
                     }
                 } else {
                     do {
-                        let item = try createFileSystemItem(
+                        let item = try await createFileSystemItem(
                             resolvedURL: resolvedURL,
                             originalURL: itemURL,
                             baseURL: baseURL,
@@ -460,9 +542,9 @@ public class SnapshotEngine {
         hashCache: HashCache?,
         parallelHasher: ParallelHasher?,
         cacheStatsCallback: ((Bool) -> Void)?
-    ) throws -> FileSystemItem {
+    ) async throws -> FileSystemItem {
         if isSymlink && options.followSymlinks {
-            return try FileSystemItem(
+            return try await FileSystemItem(
                 at: resolvedURL,
                 relativeTo: baseURL,
                 captureOwnership: options.captureOwnership,
@@ -473,7 +555,7 @@ public class SnapshotEngine {
                 parallelHasher: parallelHasher
             )
         } else if isSymlink && !options.followSymlinks {
-            return try FileSystemItem(
+            return try await FileSystemItem(
                 at: originalURL,
                 relativeTo: baseURL,
                 captureOwnership: options.captureOwnership,
@@ -483,7 +565,7 @@ public class SnapshotEngine {
                 parallelHasher: parallelHasher
             )
         } else {
-            return try FileSystemItem(
+            return try await FileSystemItem(
                 at: resolvedURL,
                 relativeTo: baseURL,
                 captureOwnership: options.captureOwnership,

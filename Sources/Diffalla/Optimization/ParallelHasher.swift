@@ -16,19 +16,17 @@ public final class ParallelHasher {
     /// Compute the SHA-256 hash for a file. Work is dispatched onto the
     /// internal OperationQueue so multiple calls can run simultaneously,
     /// bounded by `maxConcurrentHashes`.
-    public func hashFile(at url: URL) throws -> String {
-        var result: Result<String, Error>!
-        let semaphore = DispatchSemaphore(value: 0)
-
-        queue.addOperation {
-            defer { semaphore.signal() }
-            result = Result {
-                try FileSystemItem.computeHash(at: url)
+    public func hashFile(at url: URL) async throws -> String {
+        return try await withCheckedThrowingContinuation { continuation in
+            queue.addOperation {
+                do {
+                    let hash = try FileSystemItem.computeHash(at: url)
+                    continuation.resume(returning: hash)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
             }
         }
-
-        semaphore.wait()
-        return try result.get()
     }
 }
 

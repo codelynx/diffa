@@ -47,7 +47,7 @@ public struct FileSystemItem: ItemProtocol {
         hashCache: HashCache? = nil,
         cacheStatsCallback: ((Bool) -> Void)? = nil,
         parallelHasher: ParallelHasher? = nil
-    ) throws {
+    ) async throws {
         let fileManager = FileManager.default
 
         // Check if this is a symlink
@@ -169,7 +169,7 @@ public struct FileSystemItem: ItemProtocol {
                 } else {
                     // Cache miss - compute hash and store
                     if let hasher = parallelHasher {
-                        hash = try hasher.hashFile(at: url)
+                        hash = try await hasher.hashFile(at: url)
                     } else {
                         hash = try Self.computeHash(at: url)
                     }
@@ -179,7 +179,7 @@ public struct FileSystemItem: ItemProtocol {
             } else {
                 // No cache - compute hash normally
                 if let hasher = parallelHasher {
-                    hash = try hasher.hashFile(at: url)
+                    hash = try await hasher.hashFile(at: url)
                 } else {
                     hash = try Self.computeHash(at: url)
                 }
