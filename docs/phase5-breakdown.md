@@ -1,7 +1,7 @@
 # Phase 5 Implementation Breakdown: CLI Tool
 
 **Date:** 2025-11-06
-**Status:** In Progress (Step 0 complete, Step 1 next)
+**Status:** In Progress (Steps 0-3 complete, Step 4 next)
 **Goal:** Implement `diffalla` command-line tool - PRIMARY PROJECT GOAL
 
 ## Overview
@@ -81,9 +81,11 @@ Phase 5 delivers the `diffalla` CLI tool for macOS and Linux. This is a **thin w
 
 ---
 
-### Step 1: Command Structure & Routing (2-3 hours)
+### Step 1: Command Structure & Routing ✅ COMPLETE (2-3 hours)
 
 **Goal:** Implement top-level command structure and routing
+
+**Status:** ✅ Implemented and committed
 
 **Deliverables:**
 ```swift
@@ -137,9 +139,11 @@ diffalla unknown-command     # Shows error + help
 
 ---
 
-### Step 2: Snapshot Command (2-3 hours)
+### Step 2: Snapshot Command ✅ COMPLETE (2-3 hours)
 
 **Goal:** Implement `diffalla snapshot` command
+
+**Status:** ✅ Implemented and committed
 
 **Syntax:**
 ```bash
@@ -216,9 +220,11 @@ diffalla snapshot /tmp/test  # Exit 2 (usage error)
 
 ---
 
-### Step 3: Compare Command (2-3 hours)
+### Step 3: Compare Command ✅ COMPLETE (2-3 hours)
 
 **Goal:** Implement `diffalla compare` command
+
+**Status:** ✅ Implemented and committed
 
 **Syntax:**
 ```bash
