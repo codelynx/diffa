@@ -1,0 +1,93 @@
+.TH DIFFALLA-SNAPSHOT 1 "November 2025" "diffalla 0.1.0" "User Commands"
+.SH NAME
+diffalla\-snapshot \- create a snapshot of a directory
+.SH SYNOPSIS
+.B diffalla snapshot
+\fIDIRECTORY\fR \fB\-o\fR \fIOUTPUT\fR [\fIOPTIONS\fR]
+.SH DESCRIPTION
+Creates a snapshot of a directory structure, storing file paths, sizes, modification times, and content hashes in a SQLite database. Snapshots capture the state of a directory without storing actual file content, making them lightweight and efficient for large directory structures.
+.PP
+Snapshots can be used for:
+.IP \(bu 2
+Directory comparison (current vs historical state)
+.IP \(bu 2
+Change detection and integrity monitoring
+.IP \(bu 2
+Build verification
+.IP \(bu 2
+Patch creation without requiring both directories
+.SH OPTIONS
+.TP
+.B \-o, \-\-output \fIPATH\fR
+Output snapshot file path (required). Convention: use .db or .sqlite extension
+.TP
+.B \-\-follow\-symlinks
+Follow symbolic links instead of storing them as-is (default: don't follow)
+.TP
+.B \-\-exclude \fIPATTERN\fR
+Exclude files matching pattern (can be repeated). Supports wildcards (*.log, temp/*, etc.)
+.TP
+.B \-\-use\-cache
+Enable hash caching for faster subsequent scans of the same directory
+.TP
+.B \-\-parallel
+Enable parallel hashing for faster processing on multi-core systems
+.SH EXAMPLES
+.PP
+Create a basic snapshot:
+.PP
+.RS
+.nf
+diffalla snapshot /path/to/dir \-o snapshot.db
+.fi
+.RE
+.PP
+Snapshot with exclusions:
+.PP
+.RS
+.nf
+diffalla snapshot /project \-o project.snapshot \\
+  \-\-exclude "*.log" \-\-exclude ".git/*"
+.fi
+.RE
+.PP
+Fast snapshot with parallel hashing:
+.PP
+.RS
+.nf
+diffalla snapshot /large\-dir \-o large.db \-\-parallel \-\-use\-cache
+.fi
+.RE
+.SH OUTPUT
+The command displays:
+.IP \(bu 2
+Progress during snapshot creation
+.IP \(bu 2
+Final statistics: file count, directory count, total size
+.IP \(bu 2
+Duration of the operation
+.SH EXIT STATUS
+.TP
+.B 0
+Success
+.TP
+.B 2
+Usage error (missing required argument)
+.TP
+.B 3
+File system error (directory not found, permission denied)
+.SH FILES
+.TP
+.I OUTPUT.db
+SQLite database containing directory structure, file metadata, and content hashes
+.SH PERFORMANCE
+.PP
+Memory usage: ~10 MB for 10,000 files (constant, independent of file sizes)
+.PP
+Speed: ~10,000 files in <30 seconds on HDD, <10 seconds on SSD
+.PP
+Parallelization: Use \-\-parallel for 2-3x speedup on multi-core systems
+.SH SEE ALSO
+.BR diffalla (1),
+.BR diffalla\-compare (1),
+.BR diffalla\-verify (1)

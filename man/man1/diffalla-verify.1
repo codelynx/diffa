@@ -1,0 +1,161 @@
+.TH DIFFALLA-VERIFY 1 "November 2025" "diffalla 0.1.0" "User Commands"
+.SH NAME
+diffalla\-verify \- verify a directory matches a snapshot
+.SH SYNOPSIS
+.B diffalla verify
+\fIDIRECTORY\fR \fISNAPSHOT\fR [\fIOPTIONS\fR]
+.SH DESCRIPTION
+Verifies that a directory matches a previously created snapshot. This is useful for:
+.IP \(bu 2
+Integrity monitoring (detect unauthorized changes)
+.IP \(bu 2
+Build verification (ensure build output matches expected)
+.IP \(bu 2
+Deployment validation (confirm deployment succeeded)
+.IP \(bu 2
+Change detection (detect any modifications)
+.PP
+The command creates a temporary snapshot of the directory and compares it to the reference snapshot.
+.SH OPTIONS
+.TP
+.B \-\-show\-diff
+Show detailed differences if verification fails (lists added/removed/modified files)
+.SH EXAMPLES
+.PP
+Basic verification:
+.PP
+.RS
+.nf
+diffalla verify /etc baseline.db
+.fi
+.RE
+.PP
+Verify with detailed output on failure:
+.PP
+.RS
+.nf
+diffalla verify /var/www production\-baseline.db \-\-show\-diff
+.fi
+.RE
+.PP
+Use in scripts:
+.PP
+.RS
+.nf
+if diffalla verify /critical/dir baseline.db; then
+  echo "Directory unchanged"
+else
+  echo "Changes detected!"
+  exit 1
+fi
+.fi
+.RE
+.SH OUTPUT
+.PP
+Success (no changes):
+.RS
+.nf
+✓ Verification successful
+  Directory matches snapshot perfectly
+.fi
+.RE
+.PP
+Failure (changes detected):
+.RS
+.nf
+✗ Verification failed
+
+Differences:
+  Added:    3 files
+  Removed:  1 files
+  Modified: 2 files
+.fi
+.RE
+.PP
+With \-\-show\-diff:
+.RS
+.nf
+Added files:
+  + new\-file.txt
+  + subdir/another.txt
+
+Removed files:
+  \- deleted.txt
+
+Modified files:
+  * changed.txt
+.fi
+.RE
+.SH EXIT STATUS
+.TP
+.B 0
+Verification successful (directory matches snapshot)
+.TP
+.B 1
+Verification failed (differences found)
+.TP
+.B 2
+Usage error
+.TP
+.B 3
+File system error (directory or snapshot not found)
+.SH USE CASES
+.SS Integrity Monitoring
+Create baseline snapshot of critical directories:
+.PP
+.RS
+.nf
+diffalla snapshot /etc \-o /root/etc\-baseline.db
+.fi
+.RE
+.PP
+Periodically verify (e.g., via cron):
+.PP
+.RS
+.nf
+diffalla verify /etc /root/etc\-baseline.db || \\
+  mail \-s "System changes detected" admin@example.com
+.fi
+.RE
+.SS Build Verification
+Capture expected build output:
+.PP
+.RS
+.nf
+diffalla snapshot /build/expected \-o expected\-output.db
+.fi
+.RE
+.PP
+Verify actual build:
+.PP
+.RS
+.nf
+make build
+diffalla verify /build/actual expected\-output.db
+.fi
+.RE
+.SS Deployment Validation
+Snapshot production before deployment:
+.PP
+.RS
+.nf
+diffalla snapshot /var/www \-o pre\-deploy.db
+.fi
+.RE
+.PP
+After deployment, verify expected changes:
+.PP
+.RS
+.nf
+diffalla verify /var/www expected\-state.db
+.fi
+.RE
+.SH NOTES
+.PP
+Temporary snapshot is automatically cleaned up after comparison.
+.PP
+Only checks file content, metadata, and structure. Does not verify file permissions or ownership unless enabled in snapshot creation.
+.SH SEE ALSO
+.BR diffalla (1),
+.BR diffalla\-snapshot (1),
+.BR diffalla\-compare (1)

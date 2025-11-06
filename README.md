@@ -4,7 +4,7 @@ A Swift library and command-line tool for comparing file systems and file system
 
 **Dual Interface:**
 - **Swift Library:** Embed in macOS/iOS applications
-- **CLI Tool:** `diffalla` command for macOS and Linux (coming in Phase 5)
+- **CLI Tool:** `diffalla` command for macOS and Linux
 
 ## Objectives
 
@@ -60,3 +60,112 @@ Create lightweight snapshots capturing directory structure, hashes, and metadata
 - Clear difference reporting
 - Extensible for different comparison types
 - Swift-native implementation
+
+## Installation
+
+### From Source
+
+Build the CLI tool:
+
+```bash
+git clone https://github.com/yourusername/Diffalla.git
+cd Diffalla
+swift build -c release
+```
+
+The binary will be at `.build/release/diffalla`. Copy to your PATH:
+
+```bash
+cp .build/release/diffalla /usr/local/bin/
+```
+
+### Using Swift Package Manager
+
+Add to your `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/yourusername/Diffalla.git", from: "1.0.0")
+]
+```
+
+## CLI Quick Start
+
+### Basic Commands
+
+**Create a snapshot:**
+```bash
+diffalla snapshot /path/to/dir -o snapshot.db
+```
+
+**Compare two directories:**
+```bash
+diffalla compare /dir-a /dir-b
+```
+
+**Create and apply a patch:**
+```bash
+diffalla patch create /old /new -o update.patch
+diffalla patch apply update.patch /target
+```
+
+**Synchronize directories:**
+```bash
+# Unidirectional (source → destination)
+diffalla sync /source /destination
+
+# Bidirectional (merge changes)
+diffalla sync /dir-a /dir-b --bidirectional --conflict-resolution newest
+```
+
+**Verify directory integrity:**
+```bash
+diffalla verify /path/to/dir baseline.db
+```
+
+### Common Workflows
+
+**Test Installer Impact:**
+```bash
+# Before install
+diffalla snapshot /Applications -o before.db
+
+# After install
+diffalla snapshot /Applications -o after.db
+
+# Compare
+diffalla compare before.db after.db --show-diff
+```
+
+**Deployment with Rollback:**
+```bash
+# Create reversible patch
+diffalla patch create /current /new -o deploy.patch --reversible
+
+# Apply deployment
+diffalla patch apply deploy.patch /production
+
+# Rollback if needed
+diffalla patch revert deploy.patch /production
+```
+
+**Integrity Monitoring:**
+```bash
+# Create baseline
+diffalla snapshot /etc -o etc-baseline.db
+
+# Verify periodically (e.g., via cron)
+diffalla verify /etc etc-baseline.db || echo "Changes detected!"
+```
+
+### Documentation
+
+- `man diffalla` - Main command overview
+- `man diffalla-snapshot` - Snapshot creation
+- `man diffalla-compare` - Directory comparison
+- `man diffalla-patch` - Patch operations
+- `man diffalla-sync` - Synchronization
+- `man diffalla-export` - Export formats
+- `man diffalla-verify` - Verification
+
+See `docs/cli-design.md` for complete CLI specification.

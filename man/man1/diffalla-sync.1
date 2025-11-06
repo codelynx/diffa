@@ -1,0 +1,179 @@
+.TH DIFFALLA-SYNC 1 "November 2025" "diffalla 0.1.0" "User Commands"
+.SH NAME
+diffalla\-sync \- synchronize two directories
+.SH SYNOPSIS
+.B diffalla sync
+\fISOURCE\fR \fIDESTINATION\fR [\fIOPTIONS\fR]
+.SH DESCRIPTION
+Synchronizes directories using one of two modes:
+.IP \(bu 2
+Unidirectional: Makes DESTINATION match SOURCE (default)
+.IP \(bu 2
+Bidirectional: Merges changes from both sides
+.PP
+Features:
+.IP \(bu 2
+Conflict detection and resolution
+.IP \(bu 2
+Move detection (copy+delete → move)
+.IP \(bu 2
+Dry-run mode for safe preview
+.IP \(bu 2
+Progress reporting
+.IP \(bu 2
+Error recovery (partial sync on failures)
+.SH OPTIONS
+.TP
+.B \-b, \-\-bidirectional
+Enable bidirectional sync (merge changes from both sides)
+.TP
+.B \-d, \-\-dry\-run
+Show what would be done without making changes
+.TP
+.B \-p, \-\-progress
+Show progress during sync
+.TP
+.B \-\-delete
+Delete files in destination that don't exist in source (unidirectional only)
+.TP
+.B \-\-conflict\-resolution \fISTRATEGY\fR
+Conflict resolution strategy (bidirectional only):
+.RS
+.IP \(bu 2
+.B error
+(default) - Abort on conflict
+.IP \(bu 2
+.B newest
+- Keep file with most recent modification time
+.IP \(bu 2
+.B source\-wins
+- Always prefer source
+.IP \(bu 2
+.B dest\-wins
+- Always prefer destination
+.RE
+.SH EXAMPLES
+.PP
+Unidirectional sync (source → destination):
+.PP
+.RS
+.nf
+diffalla sync /source /destination
+.fi
+.RE
+.PP
+Bidirectional sync with conflict resolution:
+.PP
+.RS
+.nf
+diffalla sync /dir\-a /dir\-b \-\-bidirectional \\
+  \-\-conflict\-resolution newest
+.fi
+.RE
+.PP
+Dry-run to preview changes:
+.PP
+.RS
+.nf
+diffalla sync /source /dest \-\-dry\-run
+.fi
+.RE
+.PP
+Sync with deletion (mirror mode):
+.PP
+.RS
+.nf
+diffalla sync /source /dest \-\-delete
+.fi
+.RE
+.PP
+Sync with progress:
+.PP
+.RS
+.nf
+diffalla sync /large\-source /dest \-\-progress
+.fi
+.RE
+.SH UNIDIRECTIONAL SYNC
+.PP
+Makes DESTINATION match SOURCE:
+.IP 1. 3
+Compares both directories
+.IP 2. 3
+Copies new/modified files from source to destination
+.IP 3. 3
+Optionally deletes extra files (with \-\-delete)
+.IP 4. 3
+Detects moves to optimize operations
+.PP
+Source directory is never modified.
+.SH BIDIRECTIONAL SYNC
+.PP
+Merges changes from both sides:
+.IP 1. 3
+Detects changes since last sync
+.IP 2. 3
+Propagates unique changes to opposite side
+.IP 3. 3
+Detects conflicts (both sides modified)
+.IP 4. 3
+Resolves conflicts using specified strategy
+.PP
+Both directories may be modified.
+.PP
+Note: \-\-delete flag is incompatible with bidirectional sync.
+.SH OUTPUT
+.PP
+Summary includes:
+.IP \(bu 2
+Files copied, deleted, moved
+.IP \(bu 2
+Bytes transferred
+.IP \(bu 2
+Duration
+.IP \(bu 2
+Conflicts resolved (bidirectional)
+.IP \(bu 2
+Errors/warnings
+.SH EXIT STATUS
+.TP
+.B 0
+Success (all operations completed)
+.TP
+.B 1
+Partial success (some operations failed)
+.TP
+.B 2
+Usage error (invalid flags, e.g., \-\-delete with \-\-bidirectional)
+.TP
+.B 3
+File system error
+.SH CONFLICTS
+.PP
+A conflict occurs in bidirectional sync when both sides modified the same file. Resolution strategies:
+.PP
+.B error
+- Safe default, requires manual intervention
+.PP
+.B newest
+- Automatic resolution, risk of data loss
+.PP
+.B source\-wins / dest\-wins
+- Predictable, but always discards one side
+.PP
+Recommendation: Use \-\-dry\-run first to identify conflicts.
+.SH PERFORMANCE
+.PP
+Optimizations:
+.IP \(bu 2
+Move detection reduces I/O
+.IP \(bu 2
+Parallel hashing (automatic)
+.IP \(bu 2
+Incremental sync (only changed files)
+.PP
+Typical performance: 10,000 files in <2 minutes on HDD
+.SH SEE ALSO
+.BR diffalla (1),
+.BR diffalla\-compare (1),
+.BR rsync (1)
