@@ -12,6 +12,10 @@ let package = Package(
             name: "Diffalla",
             targets: ["Diffalla"]
         ),
+        .executable(
+            name: "diffalla-benchmark",
+            targets: ["DiffallaBenchmark"]
+        ),
     ],
     targets: [
         .target(
@@ -26,6 +30,11 @@ let package = Package(
             linkerSettings: [
                 .linkedLibrary("sqlite3", .when(platforms: [.macOS, .iOS, .linux]))
             ]
+        ),
+        .executableTarget(
+            name: "DiffallaBenchmark",
+            dependencies: ["Diffalla"],
+            path: "Sources/DiffallaBenchmark"
         ),
         .testTarget(
             name: "DiffallaTests",

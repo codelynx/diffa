@@ -39,6 +39,9 @@ public struct SnapshotProgress {
 
 /// Engine for scanning directories and creating snapshots
 public class SnapshotEngine {
+    /// Create a new snapshot engine
+    public init() {}
+
     /// Recursively scan a directory and collect all items
     /// - Parameters:
     ///   - url: Root directory URL to scan
