@@ -1240,4 +1240,199 @@ final class SynchronizationTests: XCTestCase {
         )
         XCTAssertTrue(destWinsResolution2.action.contains("destination"))
     }
+
+    // MARK: - Step 7: Bidirectional Sync Tests
+
+    func testSyncBidirectionalNoConflicts() async throws {
+        // Simple two-way sync with no conflicts
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let dirA = tempDir.appendingPathComponent("a")
+        let dirB = tempDir.appendingPathComponent("b")
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        // A has file1.txt, B has file2.txt (no conflicts)
+        try "file1".write(to: dirA.appendingPathComponent("file1.txt"), atomically: true, encoding: .utf8)
+        try "file2".write(to: dirB.appendingPathComponent("file2.txt"), atomically: true, encoding: .utf8)
+
+        // Sync bidirectionally
+        let synchronizer = Synchronizer()
+        let result = try await synchronizer.syncBidirectional(a: dirA, b: dirB)
+
+        // Both should have both files now
+        XCTAssertEqual(result.filesCopied, 2) // file1 to B, file2 to A
+        XCTAssertEqual(result.errors.count, 0)
+
+        // Verify files exist in both
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("file1.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("file2.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("file1.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("file2.txt").path))
+    }
+
+    func testSyncBidirectionalWithConflicts() async throws {
+        // Bidirectional sync with diverged conflict
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let dirA = tempDir.appendingPathComponent("a")
+        let dirB = tempDir.appendingPathComponent("b")
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        // Create older file in A
+        try "version A".write(to: dirA.appendingPathComponent("conflict.txt"), atomically: true, encoding: .utf8)
+
+        // Wait to ensure different modification times
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        // Create newer file in B
+        try "version B".write(to: dirB.appendingPathComponent("conflict.txt"), atomically: true, encoding: .utf8)
+
+        // Sync with newest strategy
+        let synchronizer = Synchronizer()
+        let result = try await synchronizer.syncBidirectional(a: dirA, b: dirB, conflictResolution: .newest)
+
+        // Should resolve the conflict
+        XCTAssertEqual(result.conflicts.count, 1)
+        XCTAssertEqual(result.errors.count, 0)
+
+        // Both should have the newer version (B)
+        let contentA = try String(contentsOf: dirA.appendingPathComponent("conflict.txt"), encoding: .utf8)
+        let contentB = try String(contentsOf: dirB.appendingPathComponent("conflict.txt"), encoding: .utf8)
+        XCTAssertEqual(contentA, "version B")
+        XCTAssertEqual(contentB, "version B")
+    }
+
+    func testSyncBidirectionalNewestStrategy() async throws {
+        // Test newest strategy in bidirectional sync
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let dirA = tempDir.appendingPathComponent("a")
+        let dirB = tempDir.appendingPathComponent("b")
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        // A has newer file
+        try "newer in A".write(to: dirA.appendingPathComponent("newer_a.txt"), atomically: true, encoding: .utf8)
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        // B has newer file
+        try "newer in B".write(to: dirB.appendingPathComponent("newer_b.txt"), atomically: true, encoding: .utf8)
+
+        // Sync with newest strategy
+        let synchronizer = Synchronizer()
+        let result = try await synchronizer.syncBidirectional(a: dirA, b: dirB, conflictResolution: .newest)
+
+        XCTAssertEqual(result.errors.count, 0)
+
+        // Both should have both files
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("newer_a.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("newer_b.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("newer_a.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("newer_b.txt").path))
+    }
+
+    func testSyncBidirectionalSourceWinsStrategy() async throws {
+        // Test sourceWins strategy (A wins)
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let dirA = tempDir.appendingPathComponent("a")
+        let dirB = tempDir.appendingPathComponent("b")
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        // Different content in A and B
+        try "version A".write(to: dirA.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+        try "version B".write(to: dirB.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        // Sync with sourceWins strategy (A wins)
+        let synchronizer = Synchronizer()
+        let result = try await synchronizer.syncBidirectional(a: dirA, b: dirB, conflictResolution: .sourceWins)
+
+        XCTAssertEqual(result.conflicts.count, 1)
+        XCTAssertEqual(result.errors.count, 0)
+
+        // Both should have A's version
+        let contentA = try String(contentsOf: dirA.appendingPathComponent("file.txt"), encoding: .utf8)
+        let contentB = try String(contentsOf: dirB.appendingPathComponent("file.txt"), encoding: .utf8)
+        XCTAssertEqual(contentA, "version A")
+        XCTAssertEqual(contentB, "version A")
+    }
+
+    func testSyncBidirectionalBothIdenticalAfter() async throws {
+        // Verify both folders are identical after sync
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let dirA = tempDir.appendingPathComponent("a")
+        let dirB = tempDir.appendingPathComponent("b")
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        // Different files in each
+        try "a1".write(to: dirA.appendingPathComponent("a1.txt"), atomically: true, encoding: .utf8)
+        try "a2".write(to: dirA.appendingPathComponent("a2.txt"), atomically: true, encoding: .utf8)
+        try "b1".write(to: dirB.appendingPathComponent("b1.txt"), atomically: true, encoding: .utf8)
+
+        // Sync with verification
+        let synchronizer = Synchronizer()
+        var options = SyncOptions()
+        options.verifyAfterSync = true
+
+        let result = try await synchronizer.syncBidirectional(a: dirA, b: dirB, options: options)
+
+        // Should succeed without errors (verification passed)
+        XCTAssertEqual(result.errors.count, 0)
+
+        // Manually verify both have all files
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("a1.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("a2.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("b1.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("a1.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("a2.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("b1.txt").path))
+    }
+
+    func testSyncBidirectionalDryRun() async throws {
+        // Dry run should not make any changes
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let dirA = tempDir.appendingPathComponent("a")
+        let dirB = tempDir.appendingPathComponent("b")
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        // A has file1, B has file2
+        try "a1".write(to: dirA.appendingPathComponent("file1.txt"), atomically: true, encoding: .utf8)
+        try "b2".write(to: dirB.appendingPathComponent("file2.txt"), atomically: true, encoding: .utf8)
+
+        // Sync with dry run
+        let synchronizer = Synchronizer()
+        var options = SyncOptions()
+        options.dryRun = true
+
+        let result = try await synchronizer.syncBidirectional(a: dirA, b: dirB, options: options)
+
+        // Result should show what would happen
+        XCTAssertEqual(result.filesCopied, 2) // Would copy file1 to B, file2 to A
+
+        // But NO actual changes should be made
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("file1.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("file2.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("file1.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("file2.txt").path))
+    }
 }
