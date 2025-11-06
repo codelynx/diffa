@@ -23,6 +23,9 @@ public enum DiffallaError: Error, CustomStringConvertible {
     /// Invalid or corrupt snapshot file
     case invalidSnapshot(reason: String)
 
+    /// Invalid or corrupt patch file
+    case invalidPatch(reason: String)
+
     /// Database operation failed
     case databaseError(reason: String, underlying: Error?)
 
@@ -42,6 +45,8 @@ public enum DiffallaError: Error, CustomStringConvertible {
             return "Snapshot comparison failed: \(reason)"
         case .invalidSnapshot(let reason):
             return "Invalid snapshot: \(reason)"
+        case .invalidPatch(let reason):
+            return "Invalid patch: \(reason)"
         case .databaseError(let reason, let error):
             if let error = error {
                 return "Database error: \(reason) (\(error.localizedDescription))"
