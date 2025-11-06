@@ -243,8 +243,9 @@ public class Synchronizer {
         for resolution in resolvedConflicts {
             let conflict = resolution.conflict
 
-            // Determine which direction to sync based on resolution
-            if resolution.action.contains("source") || resolution.action.contains("Use source") {
+            // Determine which direction to sync based on resolution direction
+            switch resolution.direction {
+            case .copyToDestination:
                 // Copy from A to B
                 if let sourceItem = conflict.sourceItem {
                     let sourcePath = a.appendingPathComponent(sourceItem.path)
@@ -256,18 +257,8 @@ public class Synchronizer {
                         operations.append(.copyFile(from: sourcePath, to: destPath, size: sourceItem.size))
                     }
                 }
-                // If sourceItem is nil and action is "Delete from destination", delete from B
-                else if resolution.action.contains("Delete from destination") {
-                    if let destItem = conflict.destinationItem {
-                        let destPath = b.appendingPathComponent(destItem.path)
-                        if destItem.isFolder {
-                            operations.append(.deleteDirectory(at: destPath))
-                        } else {
-                            operations.append(.deleteFile(at: destPath))
-                        }
-                    }
-                }
-            } else if resolution.action.contains("destination") || resolution.action.contains("Use destination") {
+
+            case .copyToSource:
                 // Copy from B to A
                 if let destItem = conflict.destinationItem {
                     let sourcePath = b.appendingPathComponent(destItem.path)
@@ -279,15 +270,26 @@ public class Synchronizer {
                         operations.append(.copyFile(from: sourcePath, to: destPath, size: destItem.size))
                     }
                 }
-                // If destItem is nil and action is "Delete from source", delete from A
-                else if resolution.action.contains("Delete from source") {
-                    if let sourceItem = conflict.sourceItem {
-                        let sourcePath = a.appendingPathComponent(sourceItem.path)
-                        if sourceItem.isFolder {
-                            operations.append(.deleteDirectory(at: sourcePath))
-                        } else {
-                            operations.append(.deleteFile(at: sourcePath))
-                        }
+
+            case .deleteFromSource:
+                // Delete from A
+                if let sourceItem = conflict.sourceItem {
+                    let sourcePath = a.appendingPathComponent(sourceItem.path)
+                    if sourceItem.isFolder {
+                        operations.append(.deleteDirectory(at: sourcePath))
+                    } else {
+                        operations.append(.deleteFile(at: sourcePath))
+                    }
+                }
+
+            case .deleteFromDestination:
+                // Delete from B
+                if let destItem = conflict.destinationItem {
+                    let destPath = b.appendingPathComponent(destItem.path)
+                    if destItem.isFolder {
+                        operations.append(.deleteDirectory(at: destPath))
+                    } else {
+                        operations.append(.deleteFile(at: destPath))
                     }
                 }
             }

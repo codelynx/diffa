@@ -60,6 +60,21 @@ public enum ConflictType {
     case onlyInDestination
 }
 
+/// Direction of resolution for bidirectional sync
+public enum ResolutionDirection {
+    /// Copy from source (A) to destination (B)
+    case copyToDestination
+
+    /// Copy from destination (B) to source (A)
+    case copyToSource
+
+    /// Delete from source (A)
+    case deleteFromSource
+
+    /// Delete from destination (B)
+    case deleteFromDestination
+}
+
 /// Record of how a conflict was resolved
 public struct ResolvedConflict {
     /// The original conflict
@@ -68,16 +83,21 @@ public struct ResolvedConflict {
     /// The resolution strategy that was applied
     public let resolution: ConflictResolution
 
+    /// The direction of the resolution (what to do)
+    public let direction: ResolutionDirection
+
     /// Description of the action taken
     public let action: String
 
     public init(
         conflict: Conflict,
         resolution: ConflictResolution,
+        direction: ResolutionDirection,
         action: String
     ) {
         self.conflict = conflict
         self.resolution = resolution
+        self.direction = direction
         self.action = action
     }
 }

@@ -62,6 +62,7 @@ class ConflictResolver {
                 return ResolvedConflict(
                     conflict: conflict,
                     resolution: .newest,
+                    direction: .copyToDestination,
                     action: "Use source (newer: \(sourceItem.modificationDate) > \(destItem.modificationDate))"
                 )
             } else {
@@ -69,6 +70,7 @@ class ConflictResolver {
                 return ResolvedConflict(
                     conflict: conflict,
                     resolution: .newest,
+                    direction: .copyToSource,
                     action: "Use destination (newer: \(destItem.modificationDate) >= \(sourceItem.modificationDate))"
                 )
             }
@@ -78,6 +80,7 @@ class ConflictResolver {
             return ResolvedConflict(
                 conflict: conflict,
                 resolution: .newest,
+                direction: .copyToDestination,
                 action: "Use source (only exists in source)"
             )
 
@@ -86,6 +89,7 @@ class ConflictResolver {
             return ResolvedConflict(
                 conflict: conflict,
                 resolution: .newest,
+                direction: .copyToSource,
                 action: "Use destination (only exists in destination)"
             )
         }
@@ -99,6 +103,7 @@ class ConflictResolver {
             return ResolvedConflict(
                 conflict: conflict,
                 resolution: .sourceWins,
+                direction: .copyToDestination,
                 action: "Use source (source wins strategy)"
             )
 
@@ -107,6 +112,7 @@ class ConflictResolver {
             return ResolvedConflict(
                 conflict: conflict,
                 resolution: .sourceWins,
+                direction: .copyToDestination,
                 action: "Use source (already only in source)"
             )
 
@@ -115,6 +121,7 @@ class ConflictResolver {
             return ResolvedConflict(
                 conflict: conflict,
                 resolution: .sourceWins,
+                direction: .deleteFromDestination,
                 action: "Delete from destination (source doesn't have it)"
             )
         }
@@ -128,6 +135,7 @@ class ConflictResolver {
             return ResolvedConflict(
                 conflict: conflict,
                 resolution: .destinationWins,
+                direction: .copyToSource,
                 action: "Use destination (destination wins strategy)"
             )
 
@@ -136,6 +144,7 @@ class ConflictResolver {
             return ResolvedConflict(
                 conflict: conflict,
                 resolution: .destinationWins,
+                direction: .deleteFromSource,
                 action: "Delete from source (destination doesn't have it)"
             )
 
@@ -144,6 +153,7 @@ class ConflictResolver {
             return ResolvedConflict(
                 conflict: conflict,
                 resolution: .destinationWins,
+                direction: .copyToSource,
                 action: "Use destination (already only in destination)"
             )
         }

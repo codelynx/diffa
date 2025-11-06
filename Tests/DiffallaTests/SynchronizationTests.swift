@@ -1435,4 +1435,58 @@ final class SynchronizationTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("file1.txt").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("file2.txt").path))
     }
+
+    func testSyncBidirectionalDeletesWithSourceWins() async throws {
+        // Test that sourceWins actually deletes files only in destination
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let dirA = tempDir.appendingPathComponent("a")
+        let dirB = tempDir.appendingPathComponent("b")
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        // A is empty, B has a file
+        try "unwanted in B".write(to: dirB.appendingPathComponent("extra.txt"), atomically: true, encoding: .utf8)
+
+        // Sync with sourceWins - should DELETE extra.txt from B
+        let synchronizer = Synchronizer()
+        let result = try await synchronizer.syncBidirectional(a: dirA, b: dirB, conflictResolution: .sourceWins)
+
+        XCTAssertEqual(result.conflicts.count, 1)
+        XCTAssertEqual(result.filesDeleted, 1, "Should have deleted 1 file")
+        XCTAssertEqual(result.filesCopied, 0, "Should NOT have copied anything")
+
+        // File should be DELETED from B
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("extra.txt").path), "File should be deleted from B")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("extra.txt").path), "File should not appear in A")
+    }
+
+    func testSyncBidirectionalDeletesWithDestinationWins() async throws {
+        // Test that destinationWins actually deletes files only in source
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let dirA = tempDir.appendingPathComponent("a")
+        let dirB = tempDir.appendingPathComponent("b")
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        // A has a file, B is empty
+        try "unwanted in A".write(to: dirA.appendingPathComponent("extra.txt"), atomically: true, encoding: .utf8)
+
+        // Sync with destinationWins - should DELETE extra.txt from A
+        let synchronizer = Synchronizer()
+        let result = try await synchronizer.syncBidirectional(a: dirA, b: dirB, conflictResolution: .destinationWins)
+
+        XCTAssertEqual(result.conflicts.count, 1)
+        XCTAssertEqual(result.filesDeleted, 1, "Should have deleted 1 file")
+        XCTAssertEqual(result.filesCopied, 0, "Should NOT have copied anything")
+
+        // File should be DELETED from A
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dirA.appendingPathComponent("extra.txt").path), "File should be deleted from A")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dirB.appendingPathComponent("extra.txt").path), "File should not appear in B")
+    }
 }
