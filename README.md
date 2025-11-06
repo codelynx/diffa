@@ -127,6 +127,10 @@ dependencies: [
 ]
 ```
 
+## Documentation
+
+📚 **[Getting Started Guide](GETTING_STARTED.md)** - Comprehensive user guide with practical examples, workflows, and troubleshooting
+
 ## CLI Quick Start
 
 ### Basic Commands
