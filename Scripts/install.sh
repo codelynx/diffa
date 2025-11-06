@@ -1,9 +1,9 @@
 #!/bin/bash
-# install.sh - Install diffalla from source or binary
+# install.sh - Install diffa from source or binary
 #
 # Usage:
 #   # Install from source (recommended)
-#   curl -fsSL https://raw.githubusercontent.com/yourusername/Diffalla/main/Scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/yourusername/Diffa/main/Scripts/install.sh | bash
 #
 #   # Or download and run
 #   ./Scripts/install.sh
@@ -15,10 +15,10 @@ set -euo pipefail
 
 # Configuration
 PREFIX="${PREFIX:-/usr/local}"
-REPO="${REPO:-codelynx/Diffalla}"
+REPO="${REPO:-codelynx/Diffa}"
 VERSION="${VERSION:-latest}"
 
-echo "=== Diffalla Installer ==="
+echo "=== Diffa Installer ==="
 echo
 
 # Detect platform
@@ -42,7 +42,7 @@ echo "Install prefix: $PREFIX"
 echo
 
 # Check if we're in the source directory
-if [ -f "Package.swift" ] && [ -d "Sources/DiffallaCLI" ]; then
+if [ -f "Package.swift" ] && [ -d "Sources/DiffaCLI" ]; then
     echo "📦 Building from source..."
     echo
 
@@ -62,7 +62,7 @@ if [ -f "Package.swift" ] && [ -d "Sources/DiffallaCLI" ]; then
     echo "🔨 Building release binary..."
     swift build -c release
 
-    BINARY_PATH=".build/release/diffalla"
+    BINARY_PATH=".build/release/diffa"
 
     # Verify binary
     if [ ! -f "$BINARY_PATH" ]; then
@@ -77,11 +77,11 @@ if [ -f "Package.swift" ] && [ -d "Sources/DiffallaCLI" ]; then
     echo "📥 Installing binary..."
     if [ ! -w "$PREFIX/bin" ]; then
         echo "Need sudo to install to $PREFIX/bin"
-        sudo install -m 755 "$BINARY_PATH" "$PREFIX/bin/diffalla"
+        sudo install -m 755 "$BINARY_PATH" "$PREFIX/bin/diffa"
     else
-        install -m 755 "$BINARY_PATH" "$PREFIX/bin/diffalla"
+        install -m 755 "$BINARY_PATH" "$PREFIX/bin/diffa"
     fi
-    echo "✓ Binary installed to $PREFIX/bin/diffalla"
+    echo "✓ Binary installed to $PREFIX/bin/diffa"
 
     # Install man pages
     if [ -d "man/man1" ]; then
@@ -106,15 +106,15 @@ if [ -f "Package.swift" ] && [ -d "Sources/DiffallaCLI" ]; then
         echo
         echo "📖 Installing documentation..."
         if [ ! -w "$PREFIX/share/doc" ]; then
-            sudo mkdir -p "$PREFIX/share/doc/diffalla"
-            [ -f "README.md" ] && sudo cp README.md "$PREFIX/share/doc/diffalla/"
-            [ -d "examples" ] && sudo cp -r examples "$PREFIX/share/doc/diffalla/"
+            sudo mkdir -p "$PREFIX/share/doc/diffa"
+            [ -f "README.md" ] && sudo cp README.md "$PREFIX/share/doc/diffa/"
+            [ -d "examples" ] && sudo cp -r examples "$PREFIX/share/doc/diffa/"
         else
-            mkdir -p "$PREFIX/share/doc/diffalla"
-            [ -f "README.md" ] && cp README.md "$PREFIX/share/doc/diffalla/"
-            [ -d "examples" ] && cp -r examples "$PREFIX/share/doc/diffalla/"
+            mkdir -p "$PREFIX/share/doc/diffa"
+            [ -f "README.md" ] && cp README.md "$PREFIX/share/doc/diffa/"
+            [ -d "examples" ] && cp -r examples "$PREFIX/share/doc/diffa/"
         fi
-        echo "✓ Documentation installed to $PREFIX/share/doc/diffalla/"
+        echo "✓ Documentation installed to $PREFIX/share/doc/diffa/"
     fi
 
 else
@@ -124,9 +124,9 @@ else
 
     # Determine download URL
     if [ "$VERSION" = "latest" ]; then
-        DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/diffalla-$VERSION-$PLATFORM_NAME.tar.gz"
+        DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/diffa-$VERSION-$PLATFORM_NAME.tar.gz"
     else
-        DOWNLOAD_URL="https://github.com/$REPO/releases/download/v$VERSION/diffalla-$VERSION-$PLATFORM_NAME.tar.gz"
+        DOWNLOAD_URL="https://github.com/$REPO/releases/download/v$VERSION/diffa-$VERSION-$PLATFORM_NAME.tar.gz"
     fi
 
     echo "Download URL: $DOWNLOAD_URL"
@@ -139,9 +139,9 @@ else
     # Download
     echo "⬇️  Downloading..."
     if command -v curl &> /dev/null; then
-        curl -fsSL "$DOWNLOAD_URL" -o "$TEMP_DIR/diffalla.tar.gz"
+        curl -fsSL "$DOWNLOAD_URL" -o "$TEMP_DIR/diffa.tar.gz"
     elif command -v wget &> /dev/null; then
-        wget -q "$DOWNLOAD_URL" -O "$TEMP_DIR/diffalla.tar.gz"
+        wget -q "$DOWNLOAD_URL" -O "$TEMP_DIR/diffa.tar.gz"
     else
         echo "❌ Neither curl nor wget found"
         echo "Install curl or wget to continue"
@@ -151,8 +151,8 @@ else
     # Extract
     echo "📂 Extracting..."
     cd "$TEMP_DIR"
-    tar -xzf diffalla.tar.gz
-    cd diffalla-*
+    tar -xzf diffa.tar.gz
+    cd diffa-*
 
     # Run install script from package
     if [ -f "install.sh" ]; then
@@ -168,18 +168,18 @@ echo "=== Installation Complete ==="
 echo
 
 # Verify installation
-if command -v diffalla &> /dev/null; then
-    INSTALLED_VERSION=$(diffalla --version 2>&1 | head -1)
-    echo "✅ diffalla installed successfully!"
+if command -v diffa &> /dev/null; then
+    INSTALLED_VERSION=$(diffa --version 2>&1 | head -1)
+    echo "✅ diffa installed successfully!"
     echo "   Version: $INSTALLED_VERSION"
-    echo "   Location: $(which diffalla)"
+    echo "   Location: $(which diffa)"
 else
-    echo "⚠️  Installation complete but 'diffalla' not found in PATH"
+    echo "⚠️  Installation complete but 'diffa' not found in PATH"
     echo "   Add $PREFIX/bin to your PATH:"
     echo "   export PATH=\"$PREFIX/bin:\$PATH\""
 fi
 
 echo
 echo "Get started:"
-echo "  diffalla --help"
-echo "  man diffalla"
+echo "  diffa --help"
+echo "  man diffa"

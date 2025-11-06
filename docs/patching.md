@@ -121,7 +121,7 @@ struct OriginalFileData {
 Convert a Difference result into a Patch:
 
 ```swift
-let diff = try await Diffalla.Difference.compare(
+let diff = try await Diffa.Difference.compare(
 	source: sourceFolder,
 	destination: destFolder
 )
@@ -162,10 +162,10 @@ When `includeRevertData: true`, the patch creation process:
 
 ```swift
 let cacheDir = FileManager.default.temporaryDirectory
-	.appendingPathComponent("diffalla-cache")
+	.appendingPathComponent("diffa-cache")
 	.appendingPathComponent(UUID().uuidString)
 
-let diff = try await Diffalla.Difference.compare(
+let diff = try await Diffa.Difference.compare(
 	source: sourceFolder,
 	destination: destFolder
 )
@@ -273,7 +273,7 @@ try await patch.revert(on: targetFolder)
 // If using cache directory, ensure it still exists:
 if let cacheLocation = patch.revertData?.cacheLocation {
 	guard FileManager.default.fileExists(atPath: cacheLocation.path) else {
-		throw DiffallaError.cacheNotFound
+		throw DiffaError.cacheNotFound
 	}
 }
 ```
@@ -375,7 +375,7 @@ Store patches in a serializable format:
 		}
 	],
 	"revertData": {
-		"cacheLocation": "/tmp/diffalla-cache/uuid-here",
+		"cacheLocation": "/tmp/diffa-cache/uuid-here",
 		"originalFiles": {
 			"folder/oldfile.txt": {
 				"path": "folder/oldfile.txt",

@@ -28,7 +28,7 @@ Directory → Scan → Snapshot (SQLite) → Compare → Difference
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Core/Metadata.swift
+// Sources/Diffa/Core/Metadata.swift
 struct Metadata: Equatable, Codable {
     let modificationDate: Date
     let size: Int64
@@ -42,7 +42,7 @@ struct FilePermissions: Equatable, Codable {
     let symbolic: String      // "rwxr-xr-x"
 }
 
-// Sources/Diffalla/Core/ItemProtocol.swift
+// Sources/Diffa/Core/ItemProtocol.swift
 protocol ItemProtocol: Equatable {
     var path: String { get }
     var isFolder: Bool { get }
@@ -70,7 +70,7 @@ protocol ItemProtocol: Equatable {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Core/FileSystemItem.swift
+// Sources/Diffa/Core/FileSystemItem.swift
 struct FileSystemItem: ItemProtocol {
     let path: String
     let isFolder: Bool
@@ -85,7 +85,7 @@ struct FileSystemItem: ItemProtocol {
     private func computeHash(at url: URL) throws -> String
 }
 
-// Sources/Diffalla/Core/ScanOptions.swift
+// Sources/Diffa/Core/ScanOptions.swift
 struct ScanOptions {
     var followSymlinks: Bool = true
     var includeHidden: Bool = true
@@ -115,7 +115,7 @@ struct ScanOptions {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Snapshots/SnapshotSchema.swift
+// Sources/Diffa/Snapshots/SnapshotSchema.swift
 enum SnapshotSchema {
     static let version = 1
 
@@ -126,7 +126,7 @@ enum SnapshotSchema {
     }
 }
 
-// Sources/Diffalla/Snapshots/Snapshot.swift (partial)
+// Sources/Diffa/Snapshots/Snapshot.swift (partial)
 public struct Snapshot {
     let databaseURL: URL
     let rootPath: String
@@ -199,7 +199,7 @@ CREATE INDEX idx_items_sha256 ON items(sha256);
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Snapshots/SnapshotEngine.swift
+// Sources/Diffa/Snapshots/SnapshotEngine.swift
 class SnapshotEngine {
     func scanDirectory(
         at url: URL,
@@ -245,7 +245,7 @@ struct SnapshotProgress {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Snapshots/SnapshotWriter.swift
+// Sources/Diffa/Snapshots/SnapshotWriter.swift
 class SnapshotWriter {
     private let db: SQLiteDatabase
     private var itemIdMap: [String: Int64] = [:] // path → id
@@ -294,7 +294,7 @@ extension SnapshotEngine {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Snapshots/SnapshotReader.swift
+// Sources/Diffa/Snapshots/SnapshotReader.swift
 class SnapshotReader {
     private let db: SQLiteDatabase
 
@@ -347,7 +347,7 @@ extension Snapshot {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Comparison/Difference.swift
+// Sources/Diffa/Comparison/Difference.swift
 public struct Difference {
     let sourceSnapshot: Snapshot
     let destinationSnapshot: Snapshot
@@ -368,7 +368,7 @@ public struct Difference {
     var modified: [SnapshotItem] { get throws }
 }
 
-// Sources/Diffalla/Comparison/ComparisonEngine.swift
+// Sources/Diffa/Comparison/ComparisonEngine.swift
 class ComparisonEngine {
     func findAdded(source: Snapshot, destination: Snapshot) throws -> [SnapshotItem]
     func findRemoved(source: Snapshot, destination: Snapshot) throws -> [SnapshotItem]
@@ -420,7 +420,7 @@ WHERE d.sha256 != s.sha256
 
 **Deliverables:**
 ```swift
-// Tests/DiffallaTests/IntegrationTests.swift
+// Tests/DiffaTests/IntegrationTests.swift
 class IntegrationTests: XCTestCase {
     func testCreateSnapshotAndCompare()
     func testModifyFilesAndDetect()
@@ -452,8 +452,8 @@ class IntegrationTests: XCTestCase {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Core/DiffallaError.swift
-enum DiffallaError: Error, CustomStringConvertible {
+// Sources/Diffa/Core/DiffaError.swift
+enum DiffaError: Error, CustomStringConvertible {
     case fileNotFound(path: String)
     case permissionDenied(path: String)
     case hashComputationFailed(path: String, underlying: Error)
@@ -489,9 +489,9 @@ enum DiffallaError: Error, CustomStringConvertible {
    - Usage examples in comments
 
 2. **README for Core:**
-   - `Sources/Diffalla/Core/README.md`
-   - `Sources/Diffalla/Snapshots/README.md`
-   - `Sources/Diffalla/Comparison/README.md`
+   - `Sources/Diffa/Core/README.md`
+   - `Sources/Diffa/Snapshots/README.md`
+   - `Sources/Diffa/Comparison/README.md`
 
 3. **Example code:**
    ```swift

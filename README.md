@@ -1,10 +1,10 @@
-# Diffalla
+# Diffa
 
 A Swift library and command-line tool for comparing file systems and file system-like structures.
 
 **Dual Interface:**
 - **Swift Library:** Embed in macOS/iOS applications
-- **CLI Tool:** `diffalla` command for macOS and Linux
+- **CLI Tool:** `diffa` command for macOS and Linux
 
 ## Objectives
 
@@ -69,13 +69,13 @@ Create lightweight snapshots capturing directory structure, hashes, and metadata
 # Add the tap
 brew tap codelynx/tap
 
-# Install diffalla
-brew install diffalla
+# Install diffa
+brew install diffa
 ```
 
 Or install directly without tap:
 ```bash
-brew install codelynx/tap/diffalla
+brew install codelynx/tap/diffa
 ```
 
 ### Pre-built Binaries
@@ -84,21 +84,21 @@ Download the latest release for your platform:
 
 **macOS (Universal: arm64 + x86_64):**
 ```bash
-curl -fsSL https://github.com/codelynx/Diffalla/releases/latest/download/diffalla-0.10.0-macos.tar.gz | tar -xz
-cd diffalla-0.10.0-macos
+curl -fsSL https://github.com/codelynx/Diffa/releases/latest/download/diffa-0.10.0-macos.tar.gz | tar -xz
+cd diffa-0.10.0-macos
 sudo ./install.sh
 ```
 
 **Linux (x86_64):**
 ```bash
-curl -fsSL https://github.com/codelynx/Diffalla/releases/latest/download/diffalla-0.10.0-linux.tar.gz | tar -xz
-cd diffalla-0.10.0-linux
+curl -fsSL https://github.com/codelynx/Diffa/releases/latest/download/diffa-0.10.0-linux.tar.gz | tar -xz
+cd diffa-0.10.0-linux
 sudo ./install.sh
 ```
 
 **Ubuntu Snap:**
 ```bash
-snap install diffalla
+snap install diffa
 ```
 
 ### From Source
@@ -106,24 +106,24 @@ snap install diffalla
 Build the CLI tool:
 
 ```bash
-git clone https://github.com/codelynx/Diffalla.git
-cd Diffalla
+git clone https://github.com/codelynx/Diffa.git
+cd Diffa
 swift build -c release
 ```
 
-The binary will be at `.build/release/diffalla`. Copy to your PATH:
+The binary will be at `.build/release/diffa`. Copy to your PATH:
 
 ```bash
-cp .build/release/diffalla /usr/local/bin/
+cp .build/release/diffa /usr/local/bin/
 ```
 
 ### Swift Package Manager (Library)
 
-To use Diffalla as a library in your Swift project, add to your `Package.swift`:
+To use Diffa as a library in your Swift project, add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/codelynx/Diffalla.git", from: "0.10.0")
+    .package(url: "https://github.com/codelynx/Diffa.git", from: "0.10.0")
 ]
 ```
 
@@ -137,32 +137,32 @@ dependencies: [
 
 **Create a snapshot:**
 ```bash
-diffalla snapshot /path/to/dir -o snapshot.db
+diffa snapshot /path/to/dir -o snapshot.db
 ```
 
 **Compare two directories:**
 ```bash
-diffalla compare /dir-a /dir-b
+diffa compare /dir-a /dir-b
 ```
 
 **Create and apply a patch:**
 ```bash
-diffalla patch create /old /new -o update.patch
-diffalla patch apply update.patch /target
+diffa patch create /old /new -o update.patch
+diffa patch apply update.patch /target
 ```
 
 **Synchronize directories:**
 ```bash
 # Unidirectional (source → destination)
-diffalla sync /source /destination
+diffa sync /source /destination
 
 # Bidirectional (merge changes)
-diffalla sync /dir-a /dir-b --bidirectional --conflict-resolution newest
+diffa sync /dir-a /dir-b --bidirectional --conflict-resolution newest
 ```
 
 **Verify directory integrity:**
 ```bash
-diffalla verify /path/to/dir baseline.db
+diffa verify /path/to/dir baseline.db
 ```
 
 ### Common Workflows
@@ -170,44 +170,44 @@ diffalla verify /path/to/dir baseline.db
 **Test Installer Impact:**
 ```bash
 # Before install
-diffalla snapshot /Applications -o before.db
+diffa snapshot /Applications -o before.db
 
 # After install
-diffalla snapshot /Applications -o after.db
+diffa snapshot /Applications -o after.db
 
 # Compare
-diffalla compare before.db after.db --show-diff
+diffa compare before.db after.db --show-diff
 ```
 
 **Deployment with Rollback:**
 ```bash
 # Create reversible patch
-diffalla patch create /current /new -o deploy.patch --reversible
+diffa patch create /current /new -o deploy.patch --reversible
 
 # Apply deployment
-diffalla patch apply deploy.patch /production
+diffa patch apply deploy.patch /production
 
 # Rollback if needed
-diffalla patch revert deploy.patch /production
+diffa patch revert deploy.patch /production
 ```
 
 **Integrity Monitoring:**
 ```bash
 # Create baseline
-diffalla snapshot /etc -o etc-baseline.db
+diffa snapshot /etc -o etc-baseline.db
 
 # Verify periodically (e.g., via cron)
-diffalla verify /etc etc-baseline.db || echo "Changes detected!"
+diffa verify /etc etc-baseline.db || echo "Changes detected!"
 ```
 
 ### Documentation
 
-- `man diffalla` - Main command overview
-- `man diffalla-snapshot` - Snapshot creation
-- `man diffalla-compare` - Directory comparison
-- `man diffalla-patch` - Patch operations
-- `man diffalla-sync` - Synchronization
-- `man diffalla-export` - Export formats
-- `man diffalla-verify` - Verification
+- `man diffa` - Main command overview
+- `man diffa-snapshot` - Snapshot creation
+- `man diffa-compare` - Directory comparison
+- `man diffa-patch` - Patch operations
+- `man diffa-sync` - Synchronization
+- `man diffa-export` - Export formats
+- `man diffa-verify` - Verification
 
 See `docs/cli-design.md` for complete CLI specification.

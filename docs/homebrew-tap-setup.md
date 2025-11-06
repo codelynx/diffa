@@ -1,10 +1,10 @@
 # Homebrew Tap Setup Guide
 
-A step-by-step guide to creating and maintaining a Homebrew tap for Diffalla.
+A step-by-step guide to creating and maintaining a Homebrew tap for Diffa.
 
 ## Quick Overview
 
-A Homebrew tap is a Git repository containing Formula files (Ruby scripts) that tell Homebrew how to install your software. This guide covers creating your own tap for distributing Diffalla.
+A Homebrew tap is a Git repository containing Formula files (Ruby scripts) that tell Homebrew how to install your software. This guide covers creating your own tap for distributing Diffa.
 
 ## Prerequisites
 
@@ -19,19 +19,19 @@ A Homebrew tap is a Git repository containing Formula files (Ruby scripts) that 
 Homebrew taps must follow the naming pattern: `homebrew-{name}`
 
 Examples:
-- `homebrew-diffalla` - Single tool tap
+- `homebrew-diffa` - Single tool tap
 - `homebrew-tools` - Multiple tools tap
 - `homebrew-tap` - Generic name
 
 ### Create on GitHub
 
 1. Go to GitHub and create new repository
-2. Name it: `homebrew-diffalla`
+2. Name it: `homebrew-diffa`
 3. Initialize with README
 4. Clone locally:
    ```bash
-   git clone https://github.com/codelynx/homebrew-diffalla.git
-   cd homebrew-diffalla
+   git clone https://github.com/codelynx/homebrew-diffa.git
+   cd homebrew-diffa
    ```
 
 ## Step 2: Create Formula Structure
@@ -41,32 +41,32 @@ Examples:
 mkdir Formula
 
 # Create your formula file
-touch Formula/diffalla.rb
+touch Formula/diffa.rb
 ```
 
 ## Step 3: Write Your Formula
 
-Edit `Formula/diffalla.rb`:
+Edit `Formula/diffa.rb`:
 
 ```ruby
-class Diffalla < Formula
+class Diffa < Formula
   desc "Fast file system comparison, patching, and synchronization"
-  homepage "https://github.com/codelynx/Diffalla"
+  homepage "https://github.com/codelynx/Diffa"
   license "MIT"
   
   # Version and download URL
   version "0.9.0"
-  url "https://github.com/codelynx/Diffalla/archive/refs/tags/v#{version}.tar.gz"
+  url "https://github.com/codelynx/Diffa/archive/refs/tags/v#{version}.tar.gz"
   sha256 "PUT_ACTUAL_SHA256_HERE"
   
   # Specify the latest stable version
   stable do
-    url "https://github.com/codelynx/Diffalla/archive/refs/tags/v#{version}.tar.gz"
+    url "https://github.com/codelynx/Diffa/archive/refs/tags/v#{version}.tar.gz"
     sha256 "PUT_ACTUAL_SHA256_HERE"
   end
   
   # HEAD for installing from main branch
-  head "https://github.com/codelynx/Diffalla.git", branch: "main"
+  head "https://github.com/codelynx/Diffa.git", branch: "main"
   
   # Dependencies
   depends_on "swift" => :build  # Build-time only
@@ -74,7 +74,7 @@ class Diffalla < Formula
   
   # Bottles (precompiled binaries) - optional but recommended
   bottle do
-    root_url "https://github.com/codelynx/Diffalla/releases/download/v#{version}"
+    root_url "https://github.com/codelynx/Diffa/releases/download/v#{version}"
     rebuild 0
     sha256 cellar: :any_skip_relocation, arm64_sonoma:  "SHA256_HERE"
     sha256 cellar: :any_skip_relocation, arm64_ventura: "SHA256_HERE"
@@ -88,39 +88,39 @@ class Diffalla < Formula
            "--disable-sandbox"
     
     # Install the binary
-    bin.install ".build/release/diffalla"
+    bin.install ".build/release/diffa"
     
     # Install man pages if they exist
-    man1.install "man/diffalla.1" if File.exist?("man/diffalla.1")
+    man1.install "man/diffa.1" if File.exist?("man/diffa.1")
     
     # Install shell completions if they exist
-    bash_completion.install "completions/diffalla.bash" if File.exist?("completions/diffalla.bash")
-    zsh_completion.install "completions/_diffalla" if File.exist?("completions/_diffalla")
+    bash_completion.install "completions/diffa.bash" if File.exist?("completions/diffa.bash")
+    zsh_completion.install "completions/_diffa" if File.exist?("completions/_diffa")
   end
   
   def post_install
     # Create working directory
-    (var/"diffalla").mkpath
+    (var/"diffa").mkpath
   end
   
   def caveats
     <<~EOS
-      Diffalla has been installed successfully!
+      Diffa has been installed successfully!
       
       Get started with:
-        diffalla --help
+        diffa --help
         
       Create your first snapshot:
-        diffalla snapshot /path/to/directory -o snapshot.sqlite
+        diffa snapshot /path/to/directory -o snapshot.sqlite
         
       Documentation available at:
-        https://github.com/codelynx/Diffalla
+        https://github.com/codelynx/Diffa
     EOS
   end
   
   test do
     # Test that the binary runs
-    system "#{bin}/diffalla", "--version"
+    system "#{bin}/diffa", "--version"
     
     # Test basic functionality
     Dir.mktmpdir do |dir|
@@ -128,7 +128,7 @@ class Diffalla < Formula
       (Pathname(dir)/"test.txt").write("hello")
       
       # Create snapshot
-      system "#{bin}/diffalla", "snapshot", dir, "-o", "test.sqlite"
+      system "#{bin}/diffa", "snapshot", dir, "-o", "test.sqlite"
       
       # Verify snapshot was created
       assert_predicate Pathname("test.sqlite"), :exist?
@@ -143,11 +143,11 @@ Get the SHA256 hash of your source tarball:
 
 ```bash
 # For a specific release
-curl -sL https://github.com/codelynx/Diffalla/archive/refs/tags/v0.9.0.tar.gz | sha256sum
+curl -sL https://github.com/codelynx/Diffa/archive/refs/tags/v0.9.0.tar.gz | sha256sum
 # Example output: a1b2c3d4e5f6... (use this in your formula)
 
 # Or using brew's built-in command
-brew fetch --formula Formula/diffalla.rb
+brew fetch --formula Formula/diffa.rb
 ```
 
 ## Step 5: Test Your Formula
@@ -156,19 +156,19 @@ brew fetch --formula Formula/diffalla.rb
 
 ```bash
 # In your tap repository directory
-cd homebrew-diffalla
+cd homebrew-diffa
 
 # Install from local formula
-brew install --build-from-source Formula/diffalla.rb
+brew install --build-from-source Formula/diffa.rb
 
 # Test the installation
-brew test diffalla
+brew test diffa
 
 # Audit for issues
-brew audit --strict diffalla
+brew audit --strict diffa
 
 # Check for style issues
-brew style Formula/diffalla.rb
+brew style Formula/diffa.rb
 ```
 
 ### Fix Common Issues
@@ -178,7 +178,7 @@ brew style Formula/diffalla.rb
 # Keep description under 80 characters
 
 # If style fails
-brew style --fix Formula/diffalla.rb
+brew style --fix Formula/diffa.rb
 ```
 
 ## Step 6: Create Bottles (Optional but Recommended)
@@ -189,14 +189,14 @@ Bottles are precompiled binaries that make installation faster:
 
 ```bash
 # 1. Install your formula with bottle flag
-brew install --build-bottle diffalla
+brew install --build-bottle diffa
 
 # 2. Create bottle files
-brew bottle diffalla
+brew bottle diffa
 
 # This creates files like:
-# - diffalla--0.9.0.arm64_sonoma.bottle.tar.gz
-# - diffalla--0.9.0.x86_64_linux.bottle.tar.gz
+# - diffa--0.9.0.arm64_sonoma.bottle.tar.gz
+# - diffa--0.9.0.x86_64_linux.bottle.tar.gz
 ```
 
 ### Upload Bottles
@@ -205,7 +205,7 @@ Upload bottle files to your GitHub release:
 
 ```bash
 # Using GitHub CLI
-gh release upload v0.9.0 diffalla--0.9.0.*.bottle.tar.gz
+gh release upload v0.9.0 diffa--0.9.0.*.bottle.tar.gz
 
 # Or manually upload via GitHub web interface
 ```
@@ -214,7 +214,7 @@ gh release upload v0.9.0 diffalla--0.9.0.*.bottle.tar.gz
 
 ```ruby
 bottle do
-  root_url "https://github.com/codelynx/Diffalla/releases/download/v0.9.0"
+  root_url "https://github.com/codelynx/Diffa/releases/download/v0.9.0"
   rebuild 0
   sha256 cellar: :any_skip_relocation, arm64_sonoma:  "abc123..."
   sha256 cellar: :any_skip_relocation, arm64_ventura: "def456..."
@@ -225,24 +225,24 @@ end
 ## Step 7: Push Your Tap
 
 ```bash
-git add Formula/diffalla.rb
-git commit -m "Add diffalla formula v0.9.0"
+git add Formula/diffa.rb
+git commit -m "Add diffa formula v0.9.0"
 git push origin main
 ```
 
 ## Step 8: Users Install Your Tool
 
-Now users can install Diffalla:
+Now users can install Diffa:
 
 ```bash
 # Add your tap
-brew tap codelynx/diffalla
+brew tap codelynx/diffa
 
 # Install
-brew install diffalla
+brew install diffa
 
 # Or in one command
-brew install codelynx/diffalla/diffalla
+brew install codelynx/diffa/diffa
 ```
 
 ## Updating Your Formula
@@ -271,22 +271,22 @@ if [ -z "$VERSION" ]; then
 fi
 
 # Download and calculate SHA
-URL="https://github.com/codelynx/Diffalla/archive/refs/tags/v${VERSION}.tar.gz"
+URL="https://github.com/codelynx/Diffa/archive/refs/tags/v${VERSION}.tar.gz"
 SHA=$(curl -sL "$URL" | sha256sum | cut -d' ' -f1)
 
 # Update formula
-sed -i.bak "s/version \".*\"/version \"${VERSION}\"/" Formula/diffalla.rb
-sed -i.bak "s/sha256 \".*\"/sha256 \"${SHA}\"/" Formula/diffalla.rb
+sed -i.bak "s/version \".*\"/version \"${VERSION}\"/" Formula/diffa.rb
+sed -i.bak "s/sha256 \".*\"/sha256 \"${SHA}\"/" Formula/diffa.rb
 
 # Clean up backup
-rm Formula/diffalla.rb.bak
+rm Formula/diffa.rb.bak
 
 echo "Updated formula to version ${VERSION}"
 echo "SHA256: ${SHA}"
 
 # Commit and push
-git add Formula/diffalla.rb
-git commit -m "Update diffalla to v${VERSION}"
+git add Formula/diffa.rb
+git commit -m "Update diffa to v${VERSION}"
 git push
 ```
 
@@ -297,13 +297,13 @@ git push
 Support multiple versions simultaneously:
 
 ```ruby
-class DiffallaAT08 < Formula
-  desc "Diffalla 0.8 (old stable)"
+class DiffaAT08 < Formula
+  desc "Diffa 0.8 (old stable)"
   # ... rest of formula for v0.8
 end
 ```
 
-Users install with: `brew install diffalla@0.8`
+Users install with: `brew install diffa@0.8`
 
 ### Development Builds
 
@@ -311,12 +311,12 @@ Add a `devel` block for pre-releases:
 
 ```ruby
 devel do
-  url "https://github.com/codelynx/Diffalla/archive/refs/tags/v1.0.0-beta.1.tar.gz"
+  url "https://github.com/codelynx/Diffa/archive/refs/tags/v1.0.0-beta.1.tar.gz"
   sha256 "SHA256_HERE"
 end
 ```
 
-Users install with: `brew install --devel diffalla`
+Users install with: `brew install --devel diffa`
 
 ### Platform-Specific Logic
 
@@ -328,7 +328,7 @@ def install
     system "swift", "build", "-c", "release", "--static-swift-stdlib"
   end
   
-  bin.install ".build/release/diffalla"
+  bin.install ".build/release/diffa"
 end
 ```
 
@@ -338,14 +338,14 @@ If your tool includes a daemon:
 
 ```ruby
 service do
-  run [opt_bin/"diffalla", "server"]
+  run [opt_bin/"diffa", "server"]
   keep_alive true
-  log_path var/"log/diffalla.log"
-  error_log_path var/"log/diffalla.error.log"
+  log_path var/"log/diffa.log"
+  error_log_path var/"log/diffa.error.log"
 end
 ```
 
-Users manage with: `brew services start diffalla`
+Users manage with: `brew services start diffa`
 
 ## GitHub Actions for Automation
 
@@ -383,7 +383,7 @@ Trigger from main repo when releasing:
   uses: peter-evans/repository-dispatch@v2
   with:
     token: ${{ secrets.TAP_GITHUB_TOKEN }}
-    repository: codelynx/homebrew-diffalla
+    repository: codelynx/homebrew-diffa
     event-type: new-release
     client-payload: '{"version": "${{ github.ref_name }}"}'
 ```
@@ -393,9 +393,9 @@ Trigger from main repo when releasing:
 Before publishing updates:
 
 - [ ] Formula installs successfully
-- [ ] `brew test diffalla` passes
-- [ ] `brew audit --strict diffalla` passes
-- [ ] `brew style Formula/diffalla.rb` passes
+- [ ] `brew test diffa` passes
+- [ ] `brew audit --strict diffa` passes
+- [ ] `brew style Formula/diffa.rb` passes
 - [ ] Bottles (if any) download correctly
 - [ ] Version number is correct
 - [ ] SHA256 is correct

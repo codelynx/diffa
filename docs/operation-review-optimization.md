@@ -597,7 +597,7 @@ struct OptimizationOptions {
 }
 
 // Use in operations
-extension Diffalla {
+extension Diffa {
     static func syncUnidirectional(
         source: URL,
         destination: URL,

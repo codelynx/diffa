@@ -40,7 +40,7 @@ For conflict detection (Step 6), we need access to **both** source and destinati
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Comparison/Difference.swift
+// Sources/Diffa/Comparison/Difference.swift
 extension Difference {
     /// Load source item for a given path
     /// - Returns: SnapshotItem from source snapshot, or nil if path doesn't exist in source
@@ -86,7 +86,7 @@ public func destinationItem(for path: String) throws -> SnapshotItem? {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Synchronization/SyncProgress.swift
+// Sources/Diffa/Synchronization/SyncProgress.swift
 public struct SyncProgress {
     public let currentOperation: String
     public let filesProcessed: Int
@@ -103,7 +103,7 @@ public enum OperationType: String, Codable {
     case moving
 }
 
-// Sources/Diffalla/Synchronization/SyncResult.swift
+// Sources/Diffa/Synchronization/SyncResult.swift
 public struct SyncResult {
     public let filesCopied: Int
     public let filesDeleted: Int
@@ -111,10 +111,10 @@ public struct SyncResult {
     public let bytesTransferred: Int64
     public let conflicts: [ResolvedConflict]
     public let duration: TimeInterval
-    public let errors: [DiffallaError]
+    public let errors: [DiffaError]
 }
 
-// Sources/Diffalla/Synchronization/ConflictResolution.swift
+// Sources/Diffa/Synchronization/ConflictResolution.swift
 public enum ConflictResolution {
     case newest          // Use file with newest modification date
     case sourceWins      // Always use source version
@@ -166,7 +166,7 @@ public struct ResolvedConflict {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Synchronization/SyncOperation.swift
+// Sources/Diffa/Synchronization/SyncOperation.swift
 enum SyncOperation {
     case copyFile(from: URL, to: URL, size: Int64)
     case deleteFile(at: URL)
@@ -174,7 +174,7 @@ enum SyncOperation {
     case deleteDirectory(at: URL)
 }
 
-// Sources/Diffalla/Synchronization/SyncPlanner.swift
+// Sources/Diffa/Synchronization/SyncPlanner.swift
 class SyncPlanner {
     /// Plan unidirectional sync operations (source → destination)
     func planUnidirectional(
@@ -218,7 +218,7 @@ class SyncPlanner {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Synchronization/SyncExecutor.swift
+// Sources/Diffa/Synchronization/SyncExecutor.swift
 class SyncExecutor {
     private let fileManager = FileManager.default
 
@@ -274,7 +274,7 @@ class SyncExecutor {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Synchronization/Synchronizer.swift
+// Sources/Diffa/Synchronization/Synchronizer.swift
 public class Synchronizer {
     private let engine = SnapshotEngine()
 
@@ -287,7 +287,7 @@ public class Synchronizer {
     ) async throws -> SyncResult
 }
 
-// Sources/Diffalla/Synchronization/SyncOptions.swift
+// Sources/Diffa/Synchronization/SyncOptions.swift
 public struct SyncOptions {
     public var dryRun: Bool = false           // Don't modify files, just report
     public var verifyAfterSync: Bool = false  // Re-compare after sync
@@ -329,7 +329,7 @@ public struct SyncOptions {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Synchronization/ConflictDetector.swift
+// Sources/Diffa/Synchronization/ConflictDetector.swift
 class ConflictDetector {
     /// Detect conflicts when syncing bidirectionally
     /// Uses Difference.sourceItem(for:) and destinationItem(for:) to get both versions
@@ -382,7 +382,7 @@ Given a path that appears in `added`, `removed`, or `modified` from Difference:
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Synchronization/ConflictResolver.swift
+// Sources/Diffa/Synchronization/ConflictResolver.swift
 class ConflictResolver {
     /// Resolve a conflict using the given strategy
     func resolve(
@@ -482,7 +482,7 @@ extension Synchronizer {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Synchronization/SyncValidator.swift
+// Sources/Diffa/Synchronization/SyncValidator.swift
 class SyncValidator {
     /// Validate sync is safe to perform
     func validateSync(
@@ -532,7 +532,7 @@ class SyncValidator {
 
 **Deliverables:**
 ```swift
-// Tests/DiffallaTests/SynchronizationIntegrationTests.swift
+// Tests/DiffaTests/SynchronizationIntegrationTests.swift
 class SynchronizationIntegrationTests: XCTestCase {
     func testFullUnidirectionalSyncWorkflow()
     func testFullBidirectionalSyncWorkflow()
@@ -565,8 +565,8 @@ class SynchronizationIntegrationTests: XCTestCase {
 
 **Deliverables:**
 ```swift
-// Add to DiffallaError
-enum DiffallaError: Error {
+// Add to DiffaError
+enum DiffaError: Error {
     case syncFailed(reason: String)
     case conflictDetected(conflicts: [Conflict])
     case insufficientSpace(required: Int64, available: Int64)

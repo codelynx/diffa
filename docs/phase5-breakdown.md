@@ -2,11 +2,11 @@
 
 **Date:** 2025-11-06
 **Status:** ✅ COMPLETE (All steps 0-10 complete)
-**Goal:** Implement `diffalla` command-line tool - PRIMARY PROJECT GOAL
+**Goal:** Implement `diffa` command-line tool - PRIMARY PROJECT GOAL
 
 ## Overview
 
-Phase 5 delivers the `diffalla` CLI tool for macOS and Linux. This is a **thin wrapper** around the Diffalla library, providing rsync-like functionality as a standalone executable.
+Phase 5 delivers the `diffa` CLI tool for macOS and Linux. This is a **thin wrapper** around the Diffa library, providing rsync-like functionality as a standalone executable.
 
 **Design Philosophy:**
 - Minimal CLI-specific code (thin wrapper)
@@ -50,17 +50,17 @@ Phase 5 delivers the `diffalla` CLI tool for macOS and Linux. This is a **thin w
 ```swift
 // Package.swift additions
 .executable(
-    name: "diffalla",
-    targets: ["DiffallaCLI"]
+    name: "diffa",
+    targets: ["DiffaCLI"]
 ),
 
 .executableTarget(
-    name: "DiffallaCLI",
+    name: "DiffaCLI",
     dependencies: [
-        "Diffalla",
+        "Diffa",
         .product(name: "ArgumentParser", package: "swift-argument-parser")
     ],
-    path: "Sources/DiffallaCLI"
+    path: "Sources/DiffaCLI"
 ),
 
 .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0")
@@ -68,10 +68,10 @@ Phase 5 delivers the `diffalla` CLI tool for macOS and Linux. This is a **thin w
 
 **Tasks:**
 1. Add `swift-argument-parser` dependency
-2. Create `Sources/DiffallaCLI/` directory
+2. Create `Sources/DiffaCLI/` directory
 3. Create basic `main.swift` with `@main` struct
 4. Verify `swift build` succeeds
-5. Test `swift run diffalla --version`
+5. Test `swift run diffa --version`
 
 **Exit Criteria:**
 - ✅ Package builds successfully
@@ -89,11 +89,11 @@ Phase 5 delivers the `diffalla` CLI tool for macOS and Linux. This is a **thin w
 
 **Deliverables:**
 ```swift
-// Sources/DiffallaCLI/main.swift
+// Sources/DiffaCLI/main.swift
 @main
-struct DiffallaCLI: AsyncParsableCommand {
+struct DiffaCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "diffalla",
+        commandName: "diffa",
         abstract: "Snapshot, compare, patch, and sync directories",
         version: "0.9.0",  // Feature complete, seeking feedback before 1.0.0
         subcommands: [
@@ -120,15 +120,15 @@ struct VerifyCommand: AsyncParsableCommand { ... }
 1. Create main command struct with subcommands
 2. Implement help text
 3. Create stub for each subcommand
-4. Test command routing (`diffalla help`, `diffalla snapshot --help`)
+4. Test command routing (`diffa help`, `diffa snapshot --help`)
 5. Implement `--version` flag
 
 **Tests:**
 ```bash
-diffalla --help              # Shows all commands
-diffalla --version           # Shows version
-diffalla snapshot --help     # Shows snapshot help
-diffalla unknown-command     # Shows error + help
+diffa --help              # Shows all commands
+diffa --version           # Shows version
+diffa snapshot --help     # Shows snapshot help
+diffa unknown-command     # Shows error + help
 ```
 
 **Exit Criteria:**
@@ -141,13 +141,13 @@ diffalla unknown-command     # Shows error + help
 
 ### Step 2: Snapshot Command ✅ COMPLETE (2-3 hours)
 
-**Goal:** Implement `diffalla snapshot` command
+**Goal:** Implement `diffa snapshot` command
 
 **Status:** ✅ Implemented and committed
 
 **Syntax:**
 ```bash
-diffalla snapshot <directory> -o <output.sqlite> [options]
+diffa snapshot <directory> -o <output.sqlite> [options]
 ```
 
 **Deliverables:**
@@ -196,19 +196,19 @@ struct SnapshotCommand: AsyncParsableCommand {
 **Tests:**
 ```bash
 # Basic snapshot
-diffalla snapshot /tmp/test -o test.sqlite
+diffa snapshot /tmp/test -o test.sqlite
 
 # With progress
-diffalla snapshot /tmp/test -o test.sqlite --progress
+diffa snapshot /tmp/test -o test.sqlite --progress
 
 # Exclude hidden
-diffalla snapshot /tmp/test -o test.sqlite --no-hidden
+diffa snapshot /tmp/test -o test.sqlite --no-hidden
 
 # Error: directory doesn't exist
-diffalla snapshot /nonexistent -o test.sqlite  # Exit 3
+diffa snapshot /nonexistent -o test.sqlite  # Exit 3
 
 # Error: no output file
-diffalla snapshot /tmp/test  # Exit 2 (usage error)
+diffa snapshot /tmp/test  # Exit 2 (usage error)
 ```
 
 **Exit Criteria:**
@@ -222,13 +222,13 @@ diffalla snapshot /tmp/test  # Exit 2 (usage error)
 
 ### Step 3: Compare Command ✅ COMPLETE (2-3 hours)
 
-**Goal:** Implement `diffalla compare` command
+**Goal:** Implement `diffa compare` command
 
 **Status:** ✅ Implemented and committed
 
 **Syntax:**
 ```bash
-diffalla compare <source> <destination> [options]
+diffa compare <source> <destination> [options]
 ```
 
 **Deliverables:**
@@ -280,19 +280,19 @@ struct CompareCommand: AsyncParsableCommand {
 **Tests:**
 ```bash
 # Compare two directories
-diffalla compare /dir-a /dir-b
+diffa compare /dir-a /dir-b
 
 # Compare snapshots (fast)
-diffalla compare a.sqlite b.sqlite
+diffa compare a.sqlite b.sqlite
 
 # Summary only
-diffalla compare /dir-a /dir-b --summary
+diffa compare /dir-a /dir-b --summary
 
 # Show only added
-diffalla compare /dir-a /dir-b --added
+diffa compare /dir-a /dir-b --added
 
 # Exit code
-diffalla compare /identical-a /identical-b && echo "No diff"
+diffa compare /identical-a /identical-b && echo "No diff"
 ```
 
 **Exit Criteria:**
@@ -306,15 +306,15 @@ diffalla compare /identical-a /identical-b && echo "No diff"
 
 ### Step 4: Patch Command ✅ COMPLETE (3-4 hours)
 
-**Goal:** Implement `diffalla patch create|apply|revert` commands
+**Goal:** Implement `diffa patch create|apply|revert` commands
 
 **Status:** ✅ Implemented and committed
 
 **Syntax:**
 ```bash
-diffalla patch create <source> <dest> -o <patch.sqlite> [options]
-diffalla patch apply <patch.sqlite> <target-dir> [options]
-diffalla patch revert <patch.sqlite> <target-dir> [options]
+diffa patch create <source> <dest> -o <patch.sqlite> [options]
+diffa patch apply <patch.sqlite> <target-dir> [options]
+diffa patch revert <patch.sqlite> <target-dir> [options]
 ```
 
 **Deliverables:**
@@ -346,16 +346,16 @@ struct RevertPatch: AsyncParsableCommand { ... }
 **Tests:**
 ```bash
 # Create patch
-diffalla patch create /old /new -o update.patch
+diffa patch create /old /new -o update.patch
 
 # Apply patch
-diffalla patch apply update.patch /target
+diffa patch apply update.patch /target
 
 # Dry-run
-diffalla patch apply update.patch /target --dry-run
+diffa patch apply update.patch /target --dry-run
 
 # Revert
-diffalla patch revert update.patch /target
+diffa patch revert update.patch /target
 ```
 
 **Exit Criteria:**
@@ -369,13 +369,13 @@ diffalla patch revert update.patch /target
 
 ### Step 5: Sync Command ✅ COMPLETE (3-4 hours)
 
-**Goal:** Implement `diffalla sync` command
+**Goal:** Implement `diffa sync` command
 
 **Status:** ✅ Implemented and committed
 
 **Syntax:**
 ```bash
-diffalla sync <source> <destination> [options]
+diffa sync <source> <destination> [options]
 ```
 
 **Deliverables:**
@@ -427,16 +427,16 @@ struct SyncCommand: AsyncParsableCommand {
 **Tests:**
 ```bash
 # Unidirectional sync
-diffalla sync /source /dest
+diffa sync /source /dest
 
 # Bidirectional with conflicts
-diffalla sync /dir-a /dir-b --bidirectional --conflicts newest
+diffa sync /dir-a /dir-b --bidirectional --conflicts newest
 
 # Dry-run
-diffalla sync /source /dest --dry-run
+diffa sync /source /dest --dry-run
 
 # With delete
-diffalla sync /source /dest --delete
+diffa sync /source /dest --delete
 ```
 
 **Exit Criteria:**
@@ -457,12 +457,12 @@ diffalla sync /source /dest --delete
 
 **Export Syntax:**
 ```bash
-diffalla export <patch.sqlite> -f <format> -o <output>
+diffa export <patch.sqlite> -f <format> -o <output>
 ```
 
 **Verify Syntax:**
 ```bash
-diffalla verify <directory> <snapshot.sqlite>
+diffa verify <directory> <snapshot.sqlite>
 ```
 
 **Deliverables:**
@@ -485,13 +485,13 @@ struct VerifyCommand: AsyncParsableCommand {
 **Tests:**
 ```bash
 # Export as HTML
-diffalla export update.patch -f html -o report.html
+diffa export update.patch -f html -o report.html
 
 # Verify
-diffalla verify /etc baseline.sqlite  # Exit 0 if match
+diffa verify /etc baseline.sqlite  # Exit 0 if match
 
 # Verify with diff
-diffalla verify /etc baseline.sqlite --show-diff
+diffa verify /etc baseline.sqlite --show-diff
 ```
 
 **Exit Criteria:**
@@ -606,13 +606,13 @@ final class CLIIntegrationTests: XCTestCase {
 
 **Deliverables:**
 1. **Man pages (7 total):**
-   - ✅ `man/man1/diffalla.1` - Main man page
-   - ✅ `man/man1/diffalla-snapshot.1` - Snapshot creation
-   - ✅ `man/man1/diffalla-compare.1` - Directory comparison
-   - ✅ `man/man1/diffalla-patch.1` - Patch operations
-   - ✅ `man/man1/diffalla-sync.1` - Synchronization
-   - ✅ `man/man1/diffalla-export.1` - Export formats
-   - ✅ `man/man1/diffalla-verify.1` - Verification
+   - ✅ `man/man1/diffa.1` - Main man page
+   - ✅ `man/man1/diffa-snapshot.1` - Snapshot creation
+   - ✅ `man/man1/diffa-compare.1` - Directory comparison
+   - ✅ `man/man1/diffa-patch.1` - Patch operations
+   - ✅ `man/man1/diffa-sync.1` - Synchronization
+   - ✅ `man/man1/diffa-export.1` - Export formats
+   - ✅ `man/man1/diffa-verify.1` - Verification
 
 2. **README updates:**
    - ✅ Installation instructions (from source, SPM)
@@ -638,7 +638,7 @@ final class CLIIntegrationTests: XCTestCase {
 - ✅ All man pages created
 - ✅ README has CLI section
 - ✅ Example scripts work
-- ✅ `man diffalla` works
+- ✅ `man diffa` works
 
 ---
 
@@ -654,7 +654,7 @@ final class CLIIntegrationTests: XCTestCase {
   - Linux x86_64 binary
   - Distribution tarball with binaries, man pages, docs, examples
   - SHA256 checksums
-- ✅ Homebrew formula (`Formula/diffalla.rb`)
+- ✅ Homebrew formula (`Formula/diffa.rb`)
   - Builds from source
   - Includes tests
 - ✅ Installation script (`Scripts/install.sh`)
@@ -750,9 +750,9 @@ final class CLIIntegrationTests: XCTestCase {
 ## Success Metrics ✅ ALL ACHIEVED
 
 **Phase 5 is complete when:**
-1. ⏸️ User can run `brew install diffalla` (or equivalent) - **Deferred to Step 10**
+1. ⏸️ User can run `brew install diffa` (or equivalent) - **Deferred to Step 10**
 2. ✅ All 6 commands work as documented
-3. ✅ `man diffalla` shows complete documentation
+3. ✅ `man diffa` shows complete documentation
 4. ✅ Integration tests pass on macOS (23 tests)
 5. ✅ Example workflows run successfully (4 scripts)
 6. ✅ Zero library test regressions (all 273 tests pass)

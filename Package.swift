@@ -2,23 +2,23 @@
 import PackageDescription
 
 let package = Package(
-    name: "Diffalla",
+    name: "Diffa",
     platforms: [
         .macOS(.v13),
         .iOS(.v16)
     ],
     products: [
         .library(
-            name: "Diffalla",
-            targets: ["Diffalla"]
+            name: "Diffa",
+            targets: ["Diffa"]
         ),
         .executable(
-            name: "diffalla",
-            targets: ["DiffallaCLI"]
+            name: "diffa",
+            targets: ["DiffaCLI"]
         ),
         .executable(
-            name: "diffalla-benchmark",
-            targets: ["DiffallaBenchmark"]
+            name: "diffa-benchmark",
+            targets: ["DiffaBenchmark"]
         ),
     ],
     dependencies: [
@@ -27,10 +27,11 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "Diffalla",
+            name: "Diffa",
             dependencies: [
                 .product(name: "Crypto", package: "swift-crypto")
             ],
+            path: "Sources/Diffa",
             exclude: [
                 "Database/README.md",
                 "Core/README.md",
@@ -42,25 +43,26 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "DiffallaCLI",
+            name: "DiffaCLI",
             dependencies: [
-                "Diffalla",
+                "Diffa",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ],
-            path: "Sources/DiffallaCLI"
+            path: "Sources/DiffaCLI"
         ),
         .executableTarget(
-            name: "DiffallaBenchmark",
-            dependencies: ["Diffalla"],
-            path: "Sources/DiffallaBenchmark"
+            name: "DiffaBenchmark",
+            dependencies: ["Diffa"],
+            path: "Sources/DiffaBenchmark"
         ),
         .testTarget(
-            name: "DiffallaTests",
-            dependencies: ["Diffalla"]
+            name: "DiffaTests",
+            dependencies: ["Diffa"],
+            path: "Tests/DiffaTests"
         ),
         .testTarget(
             name: "CLIIntegrationTests",
-            dependencies: ["Diffalla"]
+            dependencies: ["Diffa"]
         ),
     ]
 )

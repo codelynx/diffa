@@ -27,7 +27,7 @@
 
 ## Overview
 
-Phase 4 delivers performance optimizations that make Diffalla practical for large-scale use (100k+ files). The focus is on:
+Phase 4 delivers performance optimizations that make Diffa practical for large-scale use (100k+ files). The focus is on:
 - **Speed:** Hash caching, parallel operations, move detection
 - **Efficiency:** Memory optimization, smart comparison
 - **Measurement:** Benchmarking harness, performance validation
@@ -60,7 +60,7 @@ Phase 4 is **additive** - all optimizations are opt-in or transparent. Existing 
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Optimization/HashCache.swift
+// Sources/Diffa/Optimization/HashCache.swift
 public class HashCache {
     private let database: SQLiteDatabase
 
@@ -101,7 +101,7 @@ CREATE INDEX idx_cached_at ON hash_cache(cached_at);
 - Prune: Remove entries for non-existent files after scan
 
 **Cache Location:**
-Default: `~/.diffalla/cache/<directory-hash>.db` (per-directory cache)
+Default: `~/.diffa/cache/<directory-hash>.db` (per-directory cache)
 
 **Tests:**
 - `testHashCacheLookup()` (cache hit returns hash)
@@ -125,7 +125,7 @@ Default: `~/.diffalla/cache/<directory-hash>.db` (per-directory cache)
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Snapshots/ScanOptions.swift
+// Sources/Diffa/Snapshots/ScanOptions.swift
 public struct ScanOptions {
     // ... existing options
 
@@ -133,11 +133,11 @@ public struct ScanOptions {
     /// Default: false (opt-in for Phase 4)
     public var useHashCache: Bool = false
 
-    /// Custom hash cache location (default: ~/.diffalla/cache/)
+    /// Custom hash cache location (default: ~/.diffa/cache/)
     public var hashCacheDirectory: URL? = nil
 }
 
-// Sources/Diffalla/Snapshots/SnapshotEngine.swift
+// Sources/Diffa/Snapshots/SnapshotEngine.swift
 extension SnapshotEngine {
     /// Create snapshot with hash cache support
     func createSnapshot(
@@ -223,7 +223,7 @@ extension SnapshotEngine {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Optimization/MoveDetector.swift
+// Sources/Diffa/Optimization/MoveDetector.swift
 public class MoveDetector {
     /// Detect moved/renamed files between snapshots
     ///
@@ -246,7 +246,7 @@ public struct DetectedMove {
     public let size: Int64
 }
 
-// Sources/Diffalla/Synchronization/SyncOptions.swift
+// Sources/Diffa/Synchronization/SyncOptions.swift
 extension SyncOptions {
     /// Enable move detection (rename files instead of copy+delete)
     /// Default: false (opt-in for Phase 4)
@@ -327,13 +327,13 @@ extension SyncPlanner {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Synchronization/SyncOperation.swift
+// Sources/Diffa/Synchronization/SyncOperation.swift
 extension SyncOperation {
     /// Move/rename a file (no copy needed)
     case moveFile(from: URL, to: URL, size: Int64)
 }
 
-// Sources/Diffalla/Synchronization/SyncExecutor.swift
+// Sources/Diffa/Synchronization/SyncExecutor.swift
 extension SyncExecutor {
     private func executeMoveFile(
         from source: URL,
@@ -425,7 +425,7 @@ struct BenchmarkRunner {
 
 **Unit Tests (Functional Only, Small Datasets):**
 ```swift
-// Tests/DiffallaTests/OptimizationTests.swift
+// Tests/DiffaTests/OptimizationTests.swift
 // ONLY functional correctness tests with small synthetic datasets
 
 final class OptimizationTests: XCTestCase {
@@ -509,7 +509,7 @@ NOTE: Exact timing varies by hardware. Focus on:
 
 **Functional Tests (NO Performance Assertions):**
 ```swift
-// Tests/DiffallaTests/OptimizationRegressionTests.swift
+// Tests/DiffaTests/OptimizationRegressionTests.swift
 final class OptimizationRegressionTests: XCTestCase {
     /// Verify optimizations don't break correctness
     func testHashCacheDoesNotChangeResults() async throws {
@@ -553,7 +553,7 @@ final class OptimizationRegressionTests: XCTestCase {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Comparison/Difference.swift
+// Sources/Diffa/Comparison/Difference.swift
 extension Difference {
     /// Fast path: Check if snapshots identical without full comparison
     public func isEmpty() throws -> Bool {
@@ -714,7 +714,7 @@ Once all steps complete, verify:
 
 The following features are intentionally deferred:
 
-- **CLI tool:** `diffalla` command-line interface
+- **CLI tool:** `diffa` command-line interface
 - **Filters:** Include/exclude patterns for sync
 - **Incremental sync:** Resume interrupted operations
 - **Compression:** Snapshot/patch compression
@@ -728,7 +728,7 @@ The following features are intentionally deferred:
 
 ## Open Questions (Resolve Before Starting)
 
-1. **Hash cache persistence:** Per-directory or global? → **Proposed: Per-directory (~/.diffalla/cache/<dir-hash>.db)**
+1. **Hash cache persistence:** Per-directory or global? → **Proposed: Per-directory (~/.diffa/cache/<dir-hash>.db)**
 2. **Parallel hashing threshold:** Min file size for parallel hashing? → **Proposed: >1 MB files only**
 3. **Move detection threshold:** Max hash collisions before giving up? → **Proposed: Match by hash+size, no limit**
 4. **Benchmark CI integration:** Run on every PR or nightly? → **Proposed: Nightly only (too slow for PR)**

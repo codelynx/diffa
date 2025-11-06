@@ -31,7 +31,7 @@ echo
 
 # Create reversible patch
 echo "📦 Creating reversible deployment patch..."
-if ! diffalla patch create "$PRODUCTION_DIR" "$NEW_VERSION_DIR" \
+if ! diffa patch create "$PRODUCTION_DIR" "$NEW_VERSION_DIR" \
     -o "$PATCH_FILE" --reversible; then
     echo "❌ Failed to create patch"
     exit 1
@@ -41,7 +41,7 @@ echo
 
 # Show what will be deployed (dry-run)
 echo "🔍 Deployment plan (dry-run):"
-diffalla patch apply "$PATCH_FILE" "$PRODUCTION_DIR" --dry-run
+diffa patch apply "$PATCH_FILE" "$PRODUCTION_DIR" --dry-run
 echo
 
 # Confirm deployment
@@ -55,11 +55,11 @@ fi
 
 # Apply patch
 echo "🚀 Deploying..."
-if ! diffalla patch apply "$PATCH_FILE" "$PRODUCTION_DIR"; then
+if ! diffa patch apply "$PATCH_FILE" "$PRODUCTION_DIR"; then
     echo "❌ Deployment failed!"
     echo
     echo "🔄 Rolling back..."
-    if diffalla patch revert "$PATCH_FILE" "$PRODUCTION_DIR"; then
+    if diffa patch revert "$PATCH_FILE" "$PRODUCTION_DIR"; then
         echo "✅ Rollback successful - production restored"
     else
         echo "❌ ROLLBACK FAILED - manual intervention required!"
@@ -74,17 +74,17 @@ echo
 
 # Validate deployment
 echo "🔍 Validating deployment..."
-diffalla snapshot "$NEW_VERSION_DIR" -o "$VALIDATION_SNAPSHOT"
-if diffalla verify "$PRODUCTION_DIR" "$VALIDATION_SNAPSHOT"; then
+diffa snapshot "$NEW_VERSION_DIR" -o "$VALIDATION_SNAPSHOT"
+if diffa verify "$PRODUCTION_DIR" "$VALIDATION_SNAPSHOT"; then
     echo "✅ Validation passed - production matches expected state"
     echo
     echo "📄 Rollback patch saved: $PATCH_FILE"
-    echo "   To rollback: diffalla patch revert $PATCH_FILE $PRODUCTION_DIR"
+    echo "   To rollback: diffa patch revert $PATCH_FILE $PRODUCTION_DIR"
 else
     echo "⚠️  Validation failed - production doesn't match expected state"
     echo
     echo "🔄 Rolling back..."
-    if diffalla patch revert "$PATCH_FILE" "$PRODUCTION_DIR"; then
+    if diffa patch revert "$PATCH_FILE" "$PRODUCTION_DIR"; then
         echo "✅ Rollback successful"
     else
         echo "❌ ROLLBACK FAILED - manual intervention required!"

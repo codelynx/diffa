@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Diffalla** is a Swift library and command-line tool for file system comparison, patching, and synchronization on Apple platforms and Linux. It provides snapshot-based directory comparison, patch creation/application, and folder synchronization with conflict resolution.
+**Diffa** is a Swift library and command-line tool for file system comparison, patching, and synchronization on Apple platforms and Linux. It provides snapshot-based directory comparison, patch creation/application, and folder synchronization with conflict resolution.
 
 **Dual Interface:**
 - **Library:** Swift Package for embedding in macOS/iOS apps
-- **CLI Tool:** `diffalla` command for macOS and Linux (Phase 5)
+- **CLI Tool:** `diffa` command for macOS and Linux (Phase 5)
 
 **Current Status:** Design phase complete. Custom SQLite wrapper implemented and production-ready (28 passing tests). Phase 1 implementation (Snapshots and Comparison) awaiting resolution of critical design questions.
 
@@ -51,7 +51,7 @@ swift build 2>&1 | grep -i warning
 
 ### Current Implementation (Phase 0: SQLite Wrapper)
 
-**Custom SQLite Wrapper** (`Sources/Diffalla/Database/`):
+**Custom SQLite Wrapper** (`Sources/Diffa/Database/`):
 - Zero external dependencies, cross-platform (macOS, iOS, Linux)
 - 5 core files (~525 lines total):
   - `SQLiteDatabase.swift` - Main database connection class
@@ -76,7 +76,7 @@ swift build 2>&1 | grep -i warning
 
 **Module Structure:**
 ```
-Sources/Diffalla/
+Sources/Diffa/
 ├── Database/           # ✅ Complete - SQLite wrapper
 ├── Core/               # Phase 1 - ItemProtocol, Metadata, FileSystemItem
 ├── Snapshots/          # Phase 1 - Snapshot creation, loading, comparison
@@ -145,7 +145,7 @@ Sources/Diffalla/
 ### Phase 5: Polish & CLI Tool (Future)
 **Depends on:** Phase 1-4 complete
 **Deliverables:**
-- **CLI Tool** (`diffalla` command) for macOS and Linux - PRIMARY GOAL
+- **CLI Tool** (`diffa` command) for macOS and Linux - PRIMARY GOAL
 - Complete documentation (API docs, man pages, guides)
 - Example projects (GUI app, integration examples)
 - Compression (optional)
@@ -223,8 +223,8 @@ CREATE TABLE schema_version (
 - `docs/optimization.md` - Optimization strategies spec
 
 **Current Implementation:**
-- `Sources/Diffalla/Database/README.md` - SQLite wrapper usage guide
-- `Tests/DiffallaTests/SQLiteDatabaseTests.swift` - 28 comprehensive tests
+- `Sources/Diffa/Database/README.md` - SQLite wrapper usage guide
+- `Tests/DiffaTests/SQLiteDatabaseTests.swift` - 28 comprehensive tests
 
 ## Important Conventions
 

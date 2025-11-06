@@ -13,7 +13,7 @@ Custom SQLite wrapper implemented with zero external dependencies. Ready for Pha
 ### Files Created
 
 ```
-Sources/Diffalla/Database/
+Sources/Diffa/Database/
 ├── SQLiteError.swift        # Error types (35 lines)
 ├── SQLiteValue.swift        # Type-safe value binding (78 lines)
 ├── SQLiteRow.swift          # Query result rows (155 lines)
@@ -21,7 +21,7 @@ Sources/Diffalla/Database/
 ├── SQLiteDatabase.swift     # Main database class (145 lines)
 └── README.md                # Comprehensive documentation
 
-Tests/DiffallaTests/
+Tests/DiffaTests/
 └── SQLiteDatabaseTests.swift  # 24 comprehensive tests (420 lines)
 
 Package.swift                # Updated with sqlite3 linking
@@ -133,7 +133,7 @@ try execute("PRAGMA foreign_keys = ON")
 ```
 
 **Rationale:**
-- Data integrity is critical for Diffalla
+- Data integrity is critical for Diffa
 - Prevents orphaned records in snapshot/patch databases
 - Modern SQLite best practice
 
@@ -205,7 +205,7 @@ Executed 24 tests, with 0 failures (0 unexpected) in 0.117 seconds
 | 1000 rows cached | ~200 KB | In-memory rows |
 | Query result (1000 rows) | ~180 KB | Copied data |
 
-**Conclusion:** Performance is excellent for Diffalla's use case.
+**Conclusion:** Performance is excellent for Diffa's use case.
 
 ## Integration with Phase 1
 

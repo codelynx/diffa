@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Diffalla will be documented in this file.
+All notable changes to Diffa will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Cross-platform hashing using Swift Crypto (replaces macOS-only CommonCrypto)
   - Full Linux compatibility (tested on Ubuntu)
   - Snap package support (snapcraft.yaml)
-  - Linux installation scripts (install-swift-linux.sh, install-diffalla.sh)
+  - Linux installation scripts (install-swift-linux.sh, install-diffa.sh)
 
 - **Enhanced Distribution**
   - Comprehensive distribution guide
@@ -94,6 +94,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [CLI Design](docs/cli-design.md)
 - [Architecture](docs/architecture.md)
 
-[Unreleased]: https://github.com/codelynx/Diffalla/compare/v0.10.0...HEAD
-[0.10.0]: https://github.com/codelynx/Diffalla/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/codelynx/Diffalla/releases/tag/v0.9.0
+[Unreleased]: https://github.com/codelynx/Diffa/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/codelynx/Diffa/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/codelynx/Diffa/releases/tag/v0.9.0

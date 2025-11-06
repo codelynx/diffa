@@ -28,7 +28,7 @@ Difference → Patch Creation → Patch (SQLite) → Apply/Revert → Directory
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Patching/PatchOperation.swift
+// Sources/Diffa/Patching/PatchOperation.swift
 enum PatchOperation: Codable, Equatable {
     case add(path: String, isFolder: Bool)
     case remove(path: String, isFolder: Bool)
@@ -36,7 +36,7 @@ enum PatchOperation: Codable, Equatable {
     case move(from: String, to: String, isFolder: Bool)
 }
 
-// Sources/Diffalla/Patching/PatchMetadata.swift
+// Sources/Diffa/Patching/PatchMetadata.swift
 struct PatchMetadata: Codable, Equatable {
     let version: Int                    // Patch format version
     let createdDate: Date              // When patch was created
@@ -64,7 +64,7 @@ struct PatchMetadata: Codable, Equatable {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Patching/PatchSchema.swift
+// Sources/Diffa/Patching/PatchSchema.swift
 enum PatchSchema {
     static let version = 1
 
@@ -133,7 +133,7 @@ CREATE TABLE revert_data (
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Patching/Patch.swift
+// Sources/Diffa/Patching/Patch.swift
 public struct Patch {
     let databaseURL: URL
     let metadata: PatchMetadata
@@ -153,7 +153,7 @@ public struct Patch {
     func loadOperations() throws -> [PatchOperation]
 }
 
-// Sources/Diffalla/Patching/PatchWriter.swift
+// Sources/Diffa/Patching/PatchWriter.swift
 class PatchWriter {
     func writeOperation(_ operation: PatchOperation, metadata: Metadata) throws
     func writeMetadata(_ metadata: PatchMetadata) throws
@@ -195,7 +195,7 @@ class PatchWriter {
     func writeOperation(_ operation: PatchOperation, metadata: Metadata, content: Data?) throws
 }
 
-// Sources/Diffalla/Patching/PatchReader.swift
+// Sources/Diffa/Patching/PatchReader.swift
 class PatchReader {
     func loadOperations() throws -> [(PatchOperation, Metadata, Data?)]
     func loadContent(for path: String) throws -> Data?
@@ -235,7 +235,7 @@ extension Patch {
     func apply(to targetDirectory: URL) async throws
 }
 
-// Sources/Diffalla/Patching/PatchApplicator.swift
+// Sources/Diffa/Patching/PatchApplicator.swift
 class PatchApplicator {
     func applyAdd(path: String, content: Data, metadata: Metadata, to: URL) throws
     func applyRemove(path: String, from: URL) throws
@@ -277,7 +277,7 @@ class PatchApplicator {
 // Patch.create already has sourceDirectory parameter (added in Step 3)
 // Now implement revert data capture when includeRevertData: true
 
-// Sources/Diffalla/Patching/RevertDataWriter.swift
+// Sources/Diffa/Patching/RevertDataWriter.swift
 class RevertDataWriter {
     func captureOriginalFile(
         path: String,
@@ -319,7 +319,7 @@ extension Patch {
     func revert(on targetDirectory: URL) async throws
 }
 
-// Sources/Diffalla/Patching/PatchReverter.swift
+// Sources/Diffa/Patching/PatchReverter.swift
 class PatchReverter {
     func revertAdd(path: String, from: URL) throws
     func revertRemove(path: String, content: Data, metadata: Metadata, to: URL) throws
@@ -418,7 +418,7 @@ Git-style diff with content changes (requires revert data)
 
 **Deliverables:**
 ```swift
-// Tests/DiffallaTests/PatchingIntegrationTests.swift
+// Tests/DiffaTests/PatchingIntegrationTests.swift
 class PatchingIntegrationTests: XCTestCase {
     func testFullPatchWorkflow()
     func testApplyAndRevertRoundTrip()
@@ -448,7 +448,7 @@ class PatchingIntegrationTests: XCTestCase {
 
 **Deliverables:**
 ```swift
-// Sources/Diffalla/Patching/PatchError.swift
+// Sources/Diffa/Patching/PatchError.swift
 enum PatchError: Error, CustomStringConvertible {
     case invalidPatch(reason: String)
     case applyFailed(operation: PatchOperation, reason: String)

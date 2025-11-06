@@ -15,7 +15,7 @@ All four feedback issues have been resolved with tests verifying the fixes.
 `deinit` used `sqlite3_close()` which can return `SQLITE_BUSY` if statements are still active. The error was silently ignored, potentially leaving the database handle open and WAL data unflushed.
 
 ### Solution
-**File:** `Sources/Diffalla/Database/SQLiteDatabase.swift:34-40`
+**File:** `Sources/Diffa/Database/SQLiteDatabase.swift:34-40`
 
 ```swift
 deinit {
@@ -67,7 +67,7 @@ public func close() throws {
 Swift strings can legally contain null bytes, causing truncation on both write and read.
 
 ### Solution (Write Path)
-**File:** `Sources/Diffalla/Database/SQLiteValue.swift:28-34`
+**File:** `Sources/Diffa/Database/SQLiteValue.swift:28-34`
 
 ```swift
 case .text(let value):
@@ -85,7 +85,7 @@ case .text(let value):
 3. Handle empty strings correctly
 
 ### Solution (Read Path)
-**File:** `Sources/Diffalla/Database/SQLiteRow.swift:38-51`
+**File:** `Sources/Diffa/Database/SQLiteRow.swift:38-51`
 
 ```swift
 case SQLITE_TEXT:
@@ -124,14 +124,14 @@ case SQLITE_TEXT:
 ## Issue 3: Build Warnings for README.md ✅
 
 ### Problem
-`Sources/Diffalla/Database/README.md` was included in the target without being marked as a resource or excluded, causing build warnings.
+`Sources/Diffa/Database/README.md` was included in the target without being marked as a resource or excluded, causing build warnings.
 
 ### Solution
 **File:** `Package.swift:20-22`
 
 ```swift
 .target(
-    name: "Diffalla",
+    name: "Diffa",
     dependencies: [],
     exclude: [
         "Database/README.md"
@@ -160,7 +160,7 @@ When a column name wasn't found, `SQLiteError.invalidColumnType` was thrown, mak
 ### Solution
 
 **1. New Error Case**
-**File:** `Sources/Diffalla/Database/SQLiteError.swift:12`
+**File:** `Sources/Diffa/Database/SQLiteError.swift:12`
 
 ```swift
 public enum SQLiteError: Error, CustomStringConvertible {
@@ -174,7 +174,7 @@ public enum SQLiteError: Error, CustomStringConvertible {
 ```
 
 **2. Updated SQLiteRow**
-**File:** `Sources/Diffalla/Database/SQLiteRow.swift:70-73, 144-156`
+**File:** `Sources/Diffa/Database/SQLiteRow.swift:70-73, 144-156`
 
 ```swift
 public func value(for columnName: String) throws -> SQLiteValue {
@@ -200,7 +200,7 @@ public func string(for columnName: String) throws -> String? {
 ```
 
 **3. Test Added**
-**File:** `Tests/DiffallaTests/SQLiteDatabaseTests.swift:266-280`
+**File:** `Tests/DiffaTests/SQLiteDatabaseTests.swift:266-280`
 
 ```swift
 func testMissingColumn() throws {
@@ -252,13 +252,13 @@ Executed 27 tests, with 0 failures (0 unexpected) in 0.147 (0.152) seconds
 ## Files Modified
 
 ```
-Sources/Diffalla/Database/
+Sources/Diffa/Database/
 ├── SQLiteDatabase.swift   # Issue 1: sqlite3_close_v2 in deinit
 ├── SQLiteValue.swift      # Issue 2: explicit length binding
 ├── SQLiteError.swift      # Issue 4: missingColumn error case
 └── SQLiteRow.swift        # Issue 4: use new error case
 
-Tests/DiffallaTests/
+Tests/DiffaTests/
 └── SQLiteDatabaseTests.swift  # Added 3 new tests
 
 Package.swift              # Issue 3: exclude README.md

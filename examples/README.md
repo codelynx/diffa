@@ -1,10 +1,10 @@
-# Diffalla Example Scripts
+# Diffa Example Scripts
 
-This directory contains example shell scripts demonstrating common workflows with the `diffalla` CLI tool.
+This directory contains example shell scripts demonstrating common workflows with the `diffa` CLI tool.
 
 ## Prerequisites
 
-- `diffalla` must be installed and in your PATH
+- `diffa` must be installed and in your PATH
 - Bash shell (macOS, Linux)
 - Appropriate file system permissions for target directories
 
@@ -143,27 +143,27 @@ Monitors directories for unauthorized changes using baseline snapshots.
 # In your CI pipeline
 - name: Verify Build Output
   run: |
-    diffalla snapshot expected-output/ -o expected.db
+    diffa snapshot expected-output/ -o expected.db
     make build
-    diffalla verify build/output/ expected.db
+    diffa verify build/output/ expected.db
 ```
 
 ### Backup Verification
 
 ```bash
 # Verify backup completeness
-diffalla snapshot /data -o /backups/data-baseline.db
+diffa snapshot /data -o /backups/data-baseline.db
 rsync -av /data /backups/data-copy/
-diffalla verify /backups/data-copy/ /backups/data-baseline.db
+diffa verify /backups/data-copy/ /backups/data-baseline.db
 ```
 
 ### Configuration Management
 
 ```bash
 # Detect configuration drift
-diffalla snapshot /etc -o /baselines/etc-$(date +%Y%m).db
+diffa snapshot /etc -o /baselines/etc-$(date +%Y%m).db
 # Later...
-diffalla compare /baselines/etc-202501.db /etc
+diffa compare /baselines/etc-202501.db /etc
 ```
 
 ## Tips

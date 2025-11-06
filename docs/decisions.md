@@ -14,7 +14,7 @@ This document records key design decisions made during development.
 **Date:** 2025-11-05
 **Status:** ✅ Decided
 
-**Question:** How should Diffalla handle symbolic links?
+**Question:** How should Diffa handle symbolic links?
 
 **Decision:** Follow symlinks by default, with opt-out flag
 
@@ -56,7 +56,7 @@ This document records key design decisions made during development.
 - Hidden files are legitimate data (configs, caches, .git)
 - Backup/sync tools should see everything by default
 - Explicit exclusion is safer than implicit (no surprises)
-- Ignore patterns (.diffallaignore) deferred to Phase 5
+- Ignore patterns (.diffaignore) deferred to Phase 5
 
 **Platform detection:**
 - Unix/macOS: Files starting with `.` prefix
@@ -147,16 +147,16 @@ func createSnapshot(
 **CLI commands:**
 ```bash
 # Defaults (most common)
-diffalla snapshot /path -o snap.sqlite
+diffa snapshot /path -o snap.sqlite
 
 # Store symlinks as-is
-diffalla snapshot /path -o snap.sqlite --no-follow-symlinks
+diffa snapshot /path -o snap.sqlite --no-follow-symlinks
 
 # Exclude hidden files
-diffalla snapshot /path -o snap.sqlite --no-hidden
+diffa snapshot /path -o snap.sqlite --no-hidden
 
 # System admin: capture ownership
-sudo diffalla snapshot /etc -o snap.sqlite --with-ownership
+sudo diffa snapshot /etc -o snap.sqlite --with-ownership
 ```
 
 ### SQLite Schema
@@ -199,19 +199,19 @@ func compare(source: Snapshot, destination: Snapshot) -> Difference {
 
 **Extended metadata levels:**
 ```bash
-diffalla snapshot /path --metadata full
+diffa snapshot /path --metadata full
 # Captures: + extended attributes + ACLs + creation time
 ```
 
 **Ignore patterns:**
 ```bash
-diffalla snapshot /path --ignore .diffallaignore
+diffa snapshot /path --ignore .diffaignore
 # Respect .gitignore-style patterns
 ```
 
 **Watch mode:**
 ```bash
-diffalla watch /path --baseline snap.sqlite
+diffa watch /path --baseline snap.sqlite
 # Alert on any changes
 ```
 

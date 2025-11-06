@@ -38,8 +38,8 @@ jobs:
 
       - name: Test CLI Installation
         run: |
-          .build/release/diffalla --version
-          .build/release/diffalla --help
+          .build/release/diffa --version
+          .build/release/diffa --help
 
   test-linux:
     name: Test on Linux
@@ -66,8 +66,8 @@ jobs:
 
       - name: Test CLI Installation
         run: |
-          .build/release/diffalla --version
-          .build/release/diffalla --help
+          .build/release/diffa --version
+          .build/release/diffa --help
 
   lint:
     name: SwiftLint

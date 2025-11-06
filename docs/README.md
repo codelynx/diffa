@@ -1,10 +1,10 @@
-# Diffalla Documentation
+# Diffa Documentation
 
-Detailed design documentation for the Diffalla library.
+Detailed design documentation for the Diffa library.
 
 ## Overview
 
-Diffalla is a Swift library for file system comparison, patching, and synchronization on Apple platforms.
+Diffa is a Swift library for file system comparison, patching, and synchronization on Apple platforms.
 
 **Scope:** Library/framework only - no UI components
 
@@ -15,7 +15,7 @@ Core types, protocols, and overall system architecture.
 
 **Contents:**
 - ItemProtocol and core types
-- Diffalla namespace structure
+- Diffa namespace structure
 - Module organization
 - Error handling
 - Threading model

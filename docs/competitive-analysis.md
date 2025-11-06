@@ -1,11 +1,11 @@
-# Competitive Analysis: Diffalla vs Existing Solutions
+# Competitive Analysis: Diffa vs Existing Solutions
 
 **Date:** 2025-11-05
 **Status:** Research phase - informing design decisions
 
 ## Executive Summary
 
-Diffalla occupies a unique position between traditional Unix tools (diff/patch, rsync) and version control systems (git). While existing tools excel in specific domains, Diffalla combines:
+Diffa occupies a unique position between traditional Unix tools (diff/patch, rsync) and version control systems (git). While existing tools excel in specific domains, Diffa combines:
 
 1. **Snapshot-based verification** (lightweight, no content storage)
 2. **Reversible patching** (like git, unlike rsync)
@@ -13,13 +13,13 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 4. **SQLite-powered queries** (efficient comparison at scale)
 5. **Local file system focus** (optimized for macOS/iOS/Linux, not network/cloud)
 
-**Key Differentiator:** Diffalla provides **both a native Swift library and a command-line tool**. The library enables embedding in applications with full programmatic control, while the CLI tool (`diffalla`) provides standalone functionality similar to rsync/git for users who don't need app integration.
+**Key Differentiator:** Diffa provides **both a native Swift library and a command-line tool**. The library enables embedding in applications with full programmatic control, while the CLI tool (`diffa`) provides standalone functionality similar to rsync/git for users who don't need app integration.
 
 ---
 
 ## Comparison Matrix
 
-| Feature | rsync | diff/patch | Git | Unison | rclone | **Diffalla** |
+| Feature | rsync | diff/patch | Git | Unison | rclone | **Diffa** |
 |---------|-------|------------|-----|--------|--------|--------------|
 | **Type** | CLI tool | CLI tools | VCS | CLI tool | CLI tool | **Library + CLI** |
 | **Primary Use Case** | File sync | Code patches | Version control | Bidirectional sync | Cloud sync | **App integration** |
@@ -67,9 +67,9 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 - ❌ CLI only, hard to embed in apps
 - ❌ No programmatic progress reporting
 
-**Diffalla vs rsync:**
+**Diffa vs rsync:**
 
-| Aspect | rsync | Diffalla |
+| Aspect | rsync | Diffa |
 |--------|-------|----------|
 | **Use Case** | Network file transfer | Local comparison & patching |
 | **Efficiency** | Block-level delta (better) | File-level (Phase 1) |
@@ -79,7 +79,7 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 | **API** | CLI only | ✅ Native Swift library |
 | **Historical** | None | ✅ Compare to old snapshots |
 
-**Lesson for Diffalla:** Consider block-level delta in Phase 5 for large file efficiency.
+**Lesson for Diffa:** Consider block-level delta in Phase 5 for large file efficiency.
 
 ---
 
@@ -106,9 +106,9 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 - ❌ No conflict resolution
 - ❌ Single directory comparison (not recursive well)
 
-**Diffalla vs diff/patch:**
+**Diffa vs diff/patch:**
 
-| Aspect | diff/patch | Diffalla |
+| Aspect | diff/patch | Diffa |
 |--------|------------|----------|
 | **Scope** | Text files, single patches | Files + directories (recursive) |
 | **Binary Support** | ❌ No (text only) | ✅ Full binary support |
@@ -118,7 +118,7 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 | **Export Formats** | Unified diff only | ✅ Text/JSON/HTML/diff |
 | **API** | CLI only | ✅ Swift library |
 
-**Lesson for Diffalla:** Support unified diff export format for compatibility (Phase 2 deliverable).
+**Lesson for Diffa:** Support unified diff export format for compatibility (Phase 2 deliverable).
 
 ---
 
@@ -146,9 +146,9 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 - ❌ Heavyweight for verification-only use cases
 - ❌ Poor performance with large binary files
 
-**Diffalla vs Git:**
+**Diffa vs Git:**
 
-| Aspect | Git | Diffalla |
+| Aspect | Git | Diffa |
 |--------|-----|----------|
 | **Purpose** | Version control & history | Comparison & sync |
 | **History** | Full commit history | ✅ Snapshots (no full history) |
@@ -159,7 +159,7 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 | **Large Files** | Git LFS (addon) | ✅ Native support |
 | **API** | libgit2 (C library) | ✅ Native Swift |
 
-**Lesson for Diffalla:**
+**Lesson for Diffa:**
 - Adopt content-addressed storage (SHA-256) ✅ Already in design
 - Support historical snapshots (not full history) ✅ Already in design
 - Keep API simple (unlike git's 100+ commands)
@@ -189,9 +189,9 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 - ❌ OCaml runtime dependency
 - ❌ Dated UI/UX
 
-**Diffalla vs Unison:**
+**Diffa vs Unison:**
 
-| Aspect | Unison | Diffalla |
+| Aspect | Unison | Diffa |
 |--------|--------|----------|
 | **Bidirectional** | ✅ Yes | ✅ Phase 3 |
 | **Conflict Resolution** | Manual only | ✅ Multiple strategies |
@@ -201,7 +201,7 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 | **Network** | ✅ Remote sync | ❌ Local first |
 | **Platform** | OCaml runtime | ✅ Native Swift (macOS/iOS) |
 
-**Lesson for Diffalla:** Support multiple conflict resolution strategies (Phase 3 deliverable).
+**Lesson for Diffa:** Support multiple conflict resolution strategies (Phase 3 deliverable).
 
 ---
 
@@ -228,9 +228,9 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 - ❌ Limited conflict resolution
 - ❌ Cloud-focused (not optimized for local)
 
-**Diffalla vs rclone:**
+**Diffa vs rclone:**
 
-| Aspect | rclone | Diffalla |
+| Aspect | rclone | Diffa |
 |--------|--------|----------|
 | **Primary Use** | Cloud sync | Local file systems |
 | **Network** | ✅ Cloud optimized | ❌ Local first |
@@ -240,11 +240,11 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 | **API** | ❌ CLI only | ✅ Native Swift |
 | **Providers** | 70+ cloud | Local FS (extensible) |
 
-**Lesson for Diffalla:** Keep focused on local file systems initially; cloud support is Phase 5+.
+**Lesson for Diffa:** Keep focused on local file systems initially; cloud support is Phase 5+.
 
 ---
 
-## Diffalla's Unique Value Propositions
+## Diffa's Unique Value Propositions
 
 ### 1. **Library + CLI Tool (Best of Both Worlds)**
 
@@ -365,11 +365,11 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 
 ---
 
-## What Diffalla Does NOT Do (By Design)
+## What Diffa Does NOT Do (By Design)
 
 ### 1. **Network/Remote Sync**
 - **Why:** Focus on local file systems first
-- **Alternative:** Use rsync/rclone for network, Diffalla for local verification/patching
+- **Alternative:** Use rsync/rclone for network, Diffa for local verification/patching
 - **Future:** Phase 5+ might add remote backends (FTP, S3)
 
 ### 2. **Block-Level Delta (Phase 1)**
@@ -380,11 +380,11 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 ### 3. **Version Control / Full History**
 - **Why:** Not competing with Git; focus on comparison & sync
 - **Alternative:** Use Git for source code version control
-- **Diffalla's Role:** Verify builds, deploy artifacts, sync data (not track history)
+- **Diffa's Role:** Verify builds, deploy artifacts, sync data (not track history)
 
 ### 4. **Real-Time Sync (File System Monitoring)**
 - **Why:** Out of scope for Phase 1-4
-- **Alternative:** Use file system events (FSEvents, inotify) + Diffalla
+- **Alternative:** Use file system events (FSEvents, inotify) + Diffa
 - **Future:** Phase 5+ might add watch mode
 
 ### 5. **Compression**
@@ -396,7 +396,7 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 
 ## Market Positioning
 
-### Diffalla's Sweet Spot
+### Diffa's Sweet Spot
 
 ```
                 Network/Cloud Sync
@@ -411,7 +411,7 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
           │             |             │
     Local Sync    Verification   Patching
           │             |             │
-          │        [DIFFALLA]         │
+          │        [DIFFA]         │
           │             |             │
           └─────────────┼─────────────┘
                         |
@@ -421,7 +421,7 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
                 Version Control (Git)
 ```
 
-**Diffalla occupies the intersection of:**
+**Diffa occupies the intersection of:**
 1. Local file system sync (like rsync, but bidirectional + reversible)
 2. Verification (like none, unique feature)
 3. Patching (like diff/patch, but binary + directories + reversible)
@@ -432,9 +432,9 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 - rclone (cloud storage integration)
 
 **Complementary to:**
-- Use rsync for initial large transfers, Diffalla for verification + rollback
-- Use Git for source code, Diffalla for deployment artifacts
-- Use rclone for cloud backup, Diffalla for local sync + verification
+- Use rsync for initial large transfers, Diffa for verification + rollback
+- Use Git for source code, Diffa for deployment artifacts
+- Use rclone for cloud backup, Diffa for local sync + verification
 
 ---
 
@@ -444,30 +444,30 @@ Diffalla occupies a unique position between traditional Unix tools (diff/patch, 
 1. ✅ Block-level delta is critical for large files → Consider for Phase 5
 2. ✅ Rolling checksums are efficient → Use SHA-256 for now, consider rolling in future
 3. ✅ Compression is valuable → Phase 5 feature
-4. ⚠️ CLI-only limits embedding → Diffalla's API is a key differentiator
+4. ⚠️ CLI-only limits embedding → Diffa's API is a key differentiator
 
 ### From diff/patch:
 1. ✅ Context-aware patching is powerful → Consider "fuzzy" patching in future
 2. ✅ Unified diff format is standard → Export format for compatibility
 3. ✅ Text-based format is human-readable → HTML export addresses this
-4. ⚠️ Text-only is limiting → Diffalla supports binary natively
+4. ⚠️ Text-only is limiting → Diffa supports binary natively
 
 ### From Git:
 1. ✅ Content-addressed storage (SHA-256) → Already in design ✅
 2. ✅ Snapshot-based is efficient → Already in design ✅
 3. ✅ Move detection is important → Phase 3 deliverable ✅
-4. ⚠️ Complexity is a barrier → Keep Diffalla simple (3-4 core operations)
-5. ⚠️ Memory usage is high → Diffalla uses SQLite for low memory ✅
+4. ⚠️ Complexity is a barrier → Keep Diffa simple (3-4 core operations)
+5. ⚠️ Memory usage is high → Diffa uses SQLite for low memory ✅
 
 ### From Unison:
 1. ✅ Bidirectional sync is valuable → Phase 3 deliverable ✅
 2. ✅ Conflict detection is critical → Phase 3 deliverable ✅
 3. ✅ Multiple resolution strategies needed → Already in design ✅
-4. ⚠️ Manual-only is limiting → Diffalla adds automated strategies
+4. ⚠️ Manual-only is limiting → Diffa adds automated strategies
 
 ### From rclone:
 1. ✅ Parallel operations are faster → Phase 4 deliverable ✅
-2. ✅ Progress reporting is important → Native callbacks in Diffalla ✅
+2. ✅ Progress reporting is important → Native callbacks in Diffa ✅
 3. ⚠️ Cloud focus can be done later → Keep Phase 1 local-only
 
 ---
@@ -521,9 +521,9 @@ Based on competitive analysis:
 
 ## Conclusion
 
-**Diffalla is not a replacement for rsync, Git, or other established tools.**
+**Diffa is not a replacement for rsync, Git, or other established tools.**
 
-Instead, Diffalla fills a gap:
+Instead, Diffa fills a gap:
 
 1. **For Applications:** Native Swift library (not CLI tool)
 2. **For Verification:** Lightweight snapshots (not full VCS)
@@ -549,7 +549,7 @@ Instead, Diffalla fills a gap:
 1. Resolve Phase 1 critical questions (symlinks, hidden files, metadata)
 2. Implement Phase 1 with competitive analysis insights
 3. Validate performance targets against rsync benchmarks
-4. Document clear use cases where Diffalla excels vs when to use rsync/Git
+4. Document clear use cases where Diffa excels vs when to use rsync/Git
 
 ---
 

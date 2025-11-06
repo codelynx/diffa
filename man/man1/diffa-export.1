@@ -1,0 +1,128 @@
+.TH DIFFA-EXPORT 1 "November 2025" "diffa 0.1.0" "User Commands"
+.SH NAME
+diffa\-export \- export patch in various formats
+.SH SYNOPSIS
+.B diffa export
+\fIPATCH\fR [\fB\-f\fR \fIFORMAT\fR] [\fB\-o\fR \fIOUTPUT\fR]
+.SH DESCRIPTION
+Exports a patch file to human-readable or machine-readable formats for reporting, documentation, or integration with other tools.
+.SH OPTIONS
+.TP
+.B \-f, \-\-format \fIFORMAT\fR
+Output format (default: text):
+.RS
+.IP \(bu 2
+.B text
+- Human-readable plain text summary
+.IP \(bu 2
+.B json
+- Machine-readable JSON structure
+.IP \(bu 2
+.B html
+- Styled HTML report (browser-friendly)
+.IP \(bu 2
+.B diff
+- Unix diff-style format
+.RE
+.TP
+.B \-o, \-\-output \fIPATH\fR
+Write output to file (default: stdout)
+.SH EXAMPLES
+.PP
+Export as text to stdout:
+.PP
+.RS
+.nf
+diffa export update.patch
+.fi
+.RE
+.PP
+Export as HTML report:
+.PP
+.RS
+.nf
+diffa export changes.patch \-f html \-o report.html
+.fi
+.RE
+.PP
+Export as JSON for processing:
+.PP
+.RS
+.nf
+diffa export data.patch \-f json | jq '.operations | length'
+.fi
+.RE
+.PP
+Export as unified diff:
+.PP
+.RS
+.nf
+diffa export update.patch \-f diff \-o changes.diff
+.fi
+.RE
+.SH OUTPUT FORMATS
+.SS TEXT
+Human-readable summary with operation counts and file listings.
+.SS JSON
+Structured data with operations array, metadata, and statistics. Schema:
+.PP
+.RS
+.nf
+{
+  "metadata": {
+    "created": "ISO8601 timestamp",
+    "operationCount": integer,
+    "reversible": boolean
+  },
+  "operations": [
+    {
+      "type": "add|remove|modify|move",
+      "path": "string",
+      "from": "string (move only)",
+      "size": integer
+    }
+  ],
+  "statistics": {
+    "added": integer,
+    "removed": integer,
+    "modified": integer,
+    "moved": integer
+  }
+}
+.fi
+.RE
+.SS HTML
+Styled HTML document with:
+.IP \(bu 2
+Color-coded operations (green=add, red=remove, yellow=modify)
+.IP \(bu 2
+Sortable tables
+.IP \(bu 2
+Summary statistics
+.IP \(bu 2
+Responsive design
+.SS DIFF
+Unix diff-style format compatible with standard diff tools.
+.SH EXIT STATUS
+.TP
+.B 0
+Success
+.TP
+.B 2
+Usage error (invalid format)
+.TP
+.B 3
+File system error (patch file not found)
+.SH USE CASES
+.IP \(bu 2
+Documentation: Generate HTML reports for deployment documentation
+.IP \(bu 2
+Automation: Parse JSON output in CI/CD pipelines
+.IP \(bu 2
+Code review: Generate diff-style output for review tools
+.IP \(bu 2
+Analysis: Export to JSON for statistical analysis
+.SH SEE ALSO
+.BR diffa (1),
+.BR diffa\-patch (1),
+.BR diffa\-compare (1)

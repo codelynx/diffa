@@ -10,7 +10,7 @@ final class CLIIntegrationTests: XCTestCase {
     override func setUp() async throws {
         // Create temporary directory for tests
         tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("diffalla-cli-tests-\(UUID().uuidString)")
+            .appendingPathComponent("diffa-cli-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         // Find CLI executable
@@ -32,7 +32,7 @@ final class CLIIntegrationTests: XCTestCase {
         let debugPath = currentDir
             .appendingPathComponent(".build")
             .appendingPathComponent("debug")
-            .appendingPathComponent("diffalla")
+            .appendingPathComponent("diffa")
 
         if FileManager.default.fileExists(atPath: debugPath.path) {
             return debugPath
@@ -42,7 +42,7 @@ final class CLIIntegrationTests: XCTestCase {
         let releasePath = currentDir
             .appendingPathComponent(".build")
             .appendingPathComponent("release")
-            .appendingPathComponent("diffalla")
+            .appendingPathComponent("diffa")
 
         if FileManager.default.fileExists(atPath: releasePath.path) {
             return releasePath

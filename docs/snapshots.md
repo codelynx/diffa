@@ -888,10 +888,10 @@ let parent = try snapshot.getParent(of: helper.id)
 
 ## API Integration
 
-### Snapshot in Diffalla Namespace
+### Snapshot in Diffa Namespace
 
 ```swift
-extension Diffalla {
+extension Diffa {
 	struct Snapshot {
 		let rootPath: String
 		let createdDate: Date
@@ -940,7 +940,7 @@ extension Diffalla {
 ```swift
 // Create snapshot - saves to SQLite database
 let snapshotDB = URL(fileURLWithPath: "/tmp/baseline.sqlite")
-let snapshot = try await Diffalla.Snapshot.create(
+let snapshot = try await Diffa.Snapshot.create(
 	from: directory,
 	saveTo: snapshotDB,
 	progress: { progress in
@@ -949,7 +949,7 @@ let snapshot = try await Diffalla.Snapshot.create(
 )
 
 // Compare later - loads from database
-let snapshot = try Diffalla.Snapshot.load(from: snapshotDB)
+let snapshot = try Diffa.Snapshot.load(from: snapshotDB)
 let diff = try await snapshot.compare(to: directory)
 
 if diff.hasChanges {
