@@ -26,6 +26,21 @@ public enum DiffallaError: Error, CustomStringConvertible {
     /// Invalid or corrupt patch file
     case invalidPatch(reason: String)
 
+    /// Patch apply operation failed
+    case applyFailed(operation: String, reason: String)
+
+    /// Patch revert operation failed
+    case revertFailed(operation: String, reason: String)
+
+    /// Missing revert data for patch operation
+    case missingRevertData(path: String)
+
+    /// Target directory is not empty (conflict detection)
+    case targetNotEmpty(path: String)
+
+    /// Checksum verification failed
+    case checksumMismatch(expected: String, actual: String)
+
     /// Database operation failed
     case databaseError(reason: String, underlying: Error?)
 
@@ -47,6 +62,16 @@ public enum DiffallaError: Error, CustomStringConvertible {
             return "Invalid snapshot: \(reason)"
         case .invalidPatch(let reason):
             return "Invalid patch: \(reason)"
+        case .applyFailed(let operation, let reason):
+            return "Patch apply failed for \(operation): \(reason)"
+        case .revertFailed(let operation, let reason):
+            return "Patch revert failed for \(operation): \(reason)"
+        case .missingRevertData(let path):
+            return "Missing revert data for: \(path)"
+        case .targetNotEmpty(let path):
+            return "Target directory is not empty: \(path)"
+        case .checksumMismatch(let expected, let actual):
+            return "Checksum mismatch: expected \(expected), got \(actual)"
         case .databaseError(let reason, let error):
             if let error = error {
                 return "Database error: \(reason) (\(error.localizedDescription))"

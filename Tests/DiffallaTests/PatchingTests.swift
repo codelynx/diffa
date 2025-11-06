@@ -1733,4 +1733,217 @@ final class PatchingTests: XCTestCase {
             XCTFail("Expected DiffallaError.invalidPatch, got \(error)")
         }
     }
+
+    // MARK: - Error Handling & Edge Cases (Step 10)
+
+    func testRevertWithoutRevertData() async throws {
+        // Create source and destination
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        try "original".write(to: sourceDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+        try "modified".write(to: destDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let engine = SnapshotEngine()
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch WITHOUT revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: false  // No revert data
+        )
+
+        // Apply patch to a target
+        let targetDir = tempDir.appendingPathComponent("target")
+        try fileManager.copyItem(at: sourceDir, to: targetDir)
+        try await patch.apply(to: targetDir)
+
+        // Attempt to revert should fail
+        do {
+            try await patch.revert(on: targetDir)
+            XCTFail("Should throw error when reverting without revert data")
+        } catch DiffallaError.invalidPatch(let reason) {
+            XCTAssertTrue(reason.contains("revert data"), "Error should mention missing revert data")
+        } catch {
+            XCTFail("Expected DiffallaError.invalidPatch, got \(error)")
+        }
+    }
+
+    func testApplyWithCorruptPatch() async throws {
+        // Create source and destination
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        try "original".write(to: sourceDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+        try "modified".write(to: destDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        // Create valid patch
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let engine = SnapshotEngine()
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        _ = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Corrupt the patch by deleting the operations table
+        let db = try SQLiteDatabase(path: patchURL.path)
+        try db.execute("DROP TABLE operations")
+        try db.close()
+
+        // Attempt to load operations from corrupted patch should fail
+        do {
+            let corruptedPatch = try Patch.open(at: patchURL)
+            _ = try corruptedPatch.loadOperations()
+            XCTFail("Should throw error when loading operations from corrupted patch")
+        } catch {
+            // Success - any error is acceptable for corrupted patch
+            XCTAssertTrue(true, "Corrupted patch correctly rejected")
+        }
+    }
+
+    func testRevertWithMissingRevertData() async throws {
+        // Create source and destination
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        try "original".write(to: sourceDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+        try "modified".write(to: destDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        // Create patch WITH revert data
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let engine = SnapshotEngine()
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Apply patch
+        let targetDir = tempDir.appendingPathComponent("target")
+        try fileManager.copyItem(at: sourceDir, to: targetDir)
+        try await patch.apply(to: targetDir)
+
+        // Manually delete revert data from the database
+        let db = try SQLiteDatabase(path: patchURL.path)
+        try db.execute("DELETE FROM revert_data")
+        try db.close()
+
+        // Reload patch and attempt to revert
+        let corruptedPatch = try Patch.open(at: patchURL)
+
+        do {
+            try await corruptedPatch.revert(on: targetDir)
+            XCTFail("Should throw error when revert data is missing")
+        } catch DiffallaError.invalidPatch(let reason) {
+            // Success - correct error thrown
+            XCTAssertTrue(reason.contains("revert data"), "Error should mention missing revert data")
+        } catch {
+            XCTFail("Expected DiffallaError.invalidPatch, got \(error)")
+        }
+    }
+
+    func testInvalidPatchDatabase() throws {
+        // Create a non-patch SQLite database
+        let fakePatchURL = tempDir.appendingPathComponent("fake.patch")
+        let db = try SQLiteDatabase(path: fakePatchURL.path)
+        try db.execute("CREATE TABLE fake_table (id INTEGER PRIMARY KEY)")
+        try db.close()
+
+        // Attempt to open as patch should fail
+        do {
+            _ = try Patch.open(at: fakePatchURL)
+            XCTFail("Should throw error when opening invalid patch database")
+        } catch {
+            // Success - any error is acceptable for invalid patch
+            XCTAssertTrue(true, "Invalid patch database correctly rejected")
+        }
+    }
+
+    func testApplyToReadOnlyFile() async throws {
+        // Create source and destination
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        try "original".write(to: sourceDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+        try "modified".write(to: destDir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+
+        // Create patch
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let engine = SnapshotEngine()
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Create target and make file read-only
+        let targetDir = tempDir.appendingPathComponent("target")
+        try fileManager.copyItem(at: sourceDir, to: targetDir)
+
+        let targetFile = targetDir.appendingPathComponent("file.txt")
+        try fileManager.setAttributes([.posixPermissions: 0o444], ofItemAtPath: targetFile.path)
+
+        // Attempt to apply patch should fail due to read-only file
+        do {
+            try await patch.apply(to: targetDir)
+            // If we reach here, cleanup the read-only permission for teardown
+            try? fileManager.setAttributes([.posixPermissions: 0o644], ofItemAtPath: targetFile.path)
+            XCTFail("Should throw error when applying to read-only file")
+        } catch {
+            // Cleanup read-only permission
+            try? fileManager.setAttributes([.posixPermissions: 0o644], ofItemAtPath: targetFile.path)
+            // Success - any error is acceptable for read-only file
+            XCTAssertTrue(true, "Read-only file correctly prevented modification")
+        }
+    }
 }
