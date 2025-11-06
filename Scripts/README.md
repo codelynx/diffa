@@ -64,7 +64,7 @@ curl -fsSL https://raw.githubusercontent.com/yourusername/Diffalla/main/Scripts/
 **Environment Variables:**
 - `PREFIX` - Installation prefix (default: `/usr/local`)
 - `VERSION` - Version to install (default: `latest`)
-- `REPO` - GitHub repository (default: `yourusername/Diffalla`)
+- `REPO` - GitHub repository (default: `codelynx/Diffalla`)
 
 ---
 
@@ -146,7 +146,7 @@ git push
 
 **Installing from Tap:**
 ```bash
-brew tap yourusername/tap
+brew tap codelynx/tap
 brew install diffalla
 ```
 

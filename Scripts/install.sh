@@ -15,7 +15,7 @@ set -euo pipefail
 
 # Configuration
 PREFIX="${PREFIX:-/usr/local}"
-REPO="${REPO:-yourusername/Diffalla}"
+REPO="${REPO:-codelynx/Diffalla}"
 VERSION="${VERSION:-latest}"
 
 echo "=== Diffalla Installer ==="

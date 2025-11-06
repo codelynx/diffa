@@ -113,7 +113,7 @@ jobs:
 
           **Homebrew (recommended):**
           \`\`\`bash
-          brew tap yourusername/tap
+          brew tap codelynx/tap
           brew install diffalla
           \`\`\`
 

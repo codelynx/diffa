@@ -68,7 +68,7 @@ Create lightweight snapshots capturing directory structure, hashes, and metadata
 Build the CLI tool:
 
 ```bash
-git clone https://github.com/yourusername/Diffalla.git
+git clone https://github.com/codelynx/Diffalla.git
 cd Diffalla
 swift build -c release
 ```
@@ -85,7 +85,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/yourusername/Diffalla.git", from: "1.0.0")
+    .package(url: "https://github.com/codelynx/Diffalla.git", from: "1.0.0")
 ]
 ```
 
