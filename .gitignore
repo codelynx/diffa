@@ -20,3 +20,5 @@ xcuserdata/
 *~
 .vscode/
 .idea/
+dist/
+.build/

@@ -1,0 +1,191 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+
+jobs:
+  build-macos:
+    name: Build macOS Release
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '5.9'
+
+      - name: Run Tests
+        run: swift test
+
+      - name: Build Release
+        run: |
+          VERSION=${{ github.ref_name }}
+          if [ -z "$VERSION" ] || [ "$VERSION" = "refs/heads/main" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          ./Scripts/build-release.sh "${VERSION#v}"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: diffalla-macos
+          path: dist/*.tar.gz*
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux Release
+    runs-on: ubuntu-latest
+    container:
+      image: swift:5.9
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          apt-get update
+          apt-get install -y libsqlite3-dev bc
+
+      - name: Run Tests
+        run: swift test
+
+      - name: Build Release
+        run: |
+          VERSION=${{ github.ref_name }}
+          if [ -z "$VERSION" ] || [ "$VERSION" = "refs/heads/main" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          ./Scripts/build-release.sh "${VERSION#v}"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: diffalla-linux
+          path: dist/*.tar.gz*
+          if-no-files-found: error
+
+  create-release:
+    name: Create Release
+    needs: [build-macos, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: diffalla-macos
+          path: dist/
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: diffalla-linux
+          path: dist/
+
+      - name: Generate Release Notes
+        id: release-notes
+        run: |
+          VERSION=${{ github.ref_name }}
+          if [ -z "$VERSION" ] || [ "$VERSION" = "refs/heads/main" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          VERSION="${VERSION#v}"
+
+          cat > release-notes.md << EOF
+          # Diffalla v${VERSION}
+
+          ## Installation
+
+          ### macOS
+
+          **Homebrew (recommended):**
+          \`\`\`bash
+          brew tap yourusername/tap
+          brew install diffalla
+          \`\`\`
+
+          **Manual installation:**
+          \`\`\`bash
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/v${VERSION}/diffalla-${VERSION}-macos.tar.gz | tar -xz
+          cd diffalla-${VERSION}-macos
+          sudo ./install.sh
+          \`\`\`
+
+          ### Linux
+
+          \`\`\`bash
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/v${VERSION}/diffalla-${VERSION}-linux.tar.gz | tar -xz
+          cd diffalla-${VERSION}-linux
+          sudo ./install.sh
+          \`\`\`
+
+          ## Verification
+
+          Verify checksums:
+          \`\`\`bash
+          shasum -a 256 -c diffalla-${VERSION}-*.tar.gz.sha256
+          \`\`\`
+
+          ## Changes
+
+          See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
+
+          ## Documentation
+
+          - [CLI Documentation](docs/cli-design.md)
+          - Man pages: \`man diffalla\`
+          - Examples: See \`examples/\` directory in package
+
+          ---
+
+          Built with [Claude Code](https://claude.com/claude-code)
+          EOF
+
+          echo "notes-file=release-notes.md" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          body_path: ${{ steps.release-notes.outputs.notes-file }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew Formula
+        if: ${{ !contains(github.ref_name, 'alpha') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'rc') }}
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION="${VERSION#v}"
+
+          # Calculate SHA256 of macOS tarball
+          MACOS_SHA256=$(shasum -a 256 dist/diffalla-${VERSION}-macos.tar.gz | awk '{print $1}')
+
+          # Update formula
+          sed -i.bak \
+            -e "s|url \".*\"|url \"https://github.com/${{ github.repository }}/archive/refs/tags/v${VERSION}.tar.gz\"|" \
+            -e "s|sha256 \".*\"|sha256 \"${MACOS_SHA256}\"|" \
+            Formula/diffalla.rb
+
+          rm Formula/diffalla.rb.bak
+
+          echo "Updated Homebrew formula with version ${VERSION}"
+          echo "SHA256: ${MACOS_SHA256}"
+          echo
+          echo "Next steps:"
+          echo "1. Review Formula/diffalla.rb changes"
+          echo "2. Commit and push to tap repository"
