@@ -207,6 +207,32 @@ public struct Patch {
         return try reader.loadContent(for: path)
     }
 
+    /// Apply this patch to a target directory
+    /// - Parameter targetDirectory: Directory to apply the patch to
+    public func apply(to targetDirectory: URL) async throws {
+        let applicator = PatchApplicator()
+
+        // Load all operations with content and metadata
+        let operations = try loadOperationsWithContent()
+
+        // Apply operations in sequence order
+        for (operation, metadata, content) in operations {
+            switch operation {
+            case .add(let path, let isFolder):
+                try applicator.applyAdd(path: path, isFolder: isFolder, content: content, metadata: metadata, to: targetDirectory)
+
+            case .remove(let path, _):
+                try applicator.applyRemove(path: path, from: targetDirectory)
+
+            case .modify(let path, let isFolder):
+                try applicator.applyModify(path: path, isFolder: isFolder, content: content, metadata: metadata, to: targetDirectory)
+
+            case .move(let from, let to, _):
+                try applicator.applyMove(from: from, to: to, in: targetDirectory)
+            }
+        }
+    }
+
     /// Convert SnapshotItem to Metadata
     private static func convertToMetadata(_ item: SnapshotItem) -> Metadata {
         return Metadata(

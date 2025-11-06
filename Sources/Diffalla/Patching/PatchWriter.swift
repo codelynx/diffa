@@ -4,10 +4,6 @@ import Foundation
 class PatchWriter {
     private let database: SQLiteDatabase
 
-    /// Maximum size for inline content storage (1 MB)
-    /// Files larger than this are not stored inline (deferred to Phase 4 external cache)
-    private let inlineThreshold: Int64 = 1_048_576  // 1 MB
-
     init(database: SQLiteDatabase) {
         self.database = database
     }
@@ -18,7 +14,6 @@ class PatchWriter {
     ///   - metadata: File metadata associated with the operation
     ///   - sequenceOrder: Sequence order for the operation
     ///   - content: Optional file content (for add/modify operations)
-    /// - Note: Files larger than 1MB are not stored inline (content will be NULL)
     func writeOperation(_ operation: PatchOperation, metadata: Metadata, sequenceOrder: Int, content: Data? = nil) throws {
         // Serialize metadata to JSON
         let encoder = JSONEncoder()
@@ -29,19 +24,6 @@ class PatchWriter {
         let type = operation.operationType
         let path = operation.path
         let isFolder = operation.isFolder ? 1 : 0
-
-        // Apply inline threshold - only store content if below 1MB
-        let contentToStore: Data?
-        if let content = content {
-            if Int64(content.count) <= inlineThreshold {
-                contentToStore = content
-            } else {
-                // File too large for inline storage - will need external cache (Phase 4)
-                contentToStore = nil
-            }
-        } else {
-            contentToStore = nil
-        }
 
         // Handle move operation (has path_to, no content)
         if case .move(let from, let to, _) = operation {
@@ -60,7 +42,7 @@ class PatchWriter {
                 ]
             )
         } else {
-            // Regular operations (add, remove, modify) - may have content (if below threshold)
+            // Regular operations (add, remove, modify) - may have content
             try database.run(
                 """
                 INSERT INTO operations (sequence_order, type, path, path_to, is_folder, content_blob, metadata_json)
@@ -71,7 +53,7 @@ class PatchWriter {
                     .text(type),
                     .text(path),
                     .integer(Int64(isFolder)),
-                    contentToStore.map { .blob($0) } ?? .null,
+                    content.map { .blob($0) } ?? .null,
                     .text(metadataJson)
                 ]
             )

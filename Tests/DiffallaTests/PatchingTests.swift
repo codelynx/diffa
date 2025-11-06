@@ -652,7 +652,7 @@ final class PatchingTests: XCTestCase {
         try createDirectory(at: "dir1")
         try createDirectory(at: "dir2")
 
-        // Generate 1.5 MB of content (above 1MB threshold)
+        // Generate 1.5 MB of content
         let largeContent = String(repeating: "A", count: 1_500_000)
         try createFile(at: "dir2/large.txt", content: largeContent)
 
@@ -674,11 +674,24 @@ final class PatchingTests: XCTestCase {
             saveTo: patchURL
         )
 
-        // Large files (>= 1MB) are NOT stored inline (content should be NULL)
-        // This prevents patch databases from ballooning
-        // External cache support will be added in Phase 4
+        // Step 4: All file content is stored inline (no size threshold)
+        // External cache support will be added in Phase 4 as an optimization
         let loadedContent = try patch.loadContent(for: "large.txt")
-        XCTAssertNil(loadedContent, "Files >= 1MB should not be stored inline")
+        XCTAssertNotNil(loadedContent, "Large files should be stored inline")
+        XCTAssertEqual(loadedContent?.count, largeContent.utf8.count, "Content size should match")
+
+        // Apply patch to verify large files work correctly
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+
+        try await patch.apply(to: targetDir)
+
+        // Verify the large file was created correctly
+        let appliedFile = targetDir.appendingPathComponent("large.txt")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: appliedFile.path))
+
+        let appliedContent = try String(contentsOf: appliedFile, encoding: .utf8)
+        XCTAssertEqual(appliedContent, largeContent, "Applied content should match original")
     }
 
     func testStoreBinaryContent() async throws {
@@ -800,5 +813,230 @@ final class PatchingTests: XCTestCase {
 
         let loadedContent = String(data: addOp!.2!, encoding: .utf8)
         XCTAssertEqual(loadedContent, originalContent)
+    }
+
+    // MARK: - Apply Patch Tests (Step 5)
+
+    func testApplyAddOperation() async throws {
+        // Create source (empty) and destination (with files) directories
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "dest/newfile.txt", content: "Hello, World!")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL
+        )
+
+        // Apply patch to a new target directory
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+
+        try await patch.apply(to: targetDir)
+
+        // Verify file was created
+        let createdFile = targetDir.appendingPathComponent("newfile.txt")
+        XCTAssertTrue(fileManager.fileExists(atPath: createdFile.path))
+
+        // Verify content
+        let content = try String(contentsOf: createdFile, encoding: .utf8)
+        XCTAssertEqual(content, "Hello, World!")
+    }
+
+    func testApplyRemoveOperation() async throws {
+        // Create source (with file) and destination (empty) directories
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "source/oldfile.txt", content: "To be removed")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL
+        )
+
+        // Apply patch to a target directory that has the file
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+        try createFile(at: "target/oldfile.txt", content: "To be removed")
+
+        try await patch.apply(to: targetDir)
+
+        // Verify file was removed
+        let removedFile = targetDir.appendingPathComponent("oldfile.txt")
+        XCTAssertFalse(fileManager.fileExists(atPath: removedFile.path))
+    }
+
+    func testApplyModifyOperation() async throws {
+        // Create source and destination directories with different content
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "source/file.txt", content: "Original content")
+        try createFile(at: "dest/file.txt", content: "Modified content")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL
+        )
+
+        // Apply patch to target with original content
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+        try createFile(at: "target/file.txt", content: "Original content")
+
+        try await patch.apply(to: targetDir)
+
+        // Verify content was modified
+        let modifiedFile = targetDir.appendingPathComponent("file.txt")
+        let content = try String(contentsOf: modifiedFile, encoding: .utf8)
+        XCTAssertEqual(content, "Modified content")
+    }
+
+    func testApplyMoveOperation() async throws {
+        // This test would require move detection, which is deferred to Phase 4
+        // For now, we'll test that we can apply a manually created move operation
+        // Skip this test for now since we don't have move detection yet
+        // TODO: Implement when move detection is added in Phase 4
+    }
+
+    func testApplyFullPatch() async throws {
+        // Create complex source and destination directories
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+
+        // Source: file1.txt, old.txt
+        try createFile(at: "source/file1.txt", content: "original")
+        try createFile(at: "source/old.txt", content: "to delete")
+
+        // Dest: file1.txt (modified), new.txt (added), old.txt deleted
+        try createFile(at: "dest/file1.txt", content: "modified")
+        try createFile(at: "dest/new.txt", content: "added")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL
+        )
+
+        // Apply to target (copy of source)
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+        try createFile(at: "target/file1.txt", content: "original")
+        try createFile(at: "target/old.txt", content: "to delete")
+
+        try await patch.apply(to: targetDir)
+
+        // Verify transformations
+        let file1 = targetDir.appendingPathComponent("file1.txt")
+        let newFile = targetDir.appendingPathComponent("new.txt")
+        let oldFile = targetDir.appendingPathComponent("old.txt")
+
+        XCTAssertTrue(fileManager.fileExists(atPath: file1.path))
+        XCTAssertTrue(fileManager.fileExists(atPath: newFile.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: oldFile.path))
+
+        XCTAssertEqual(try String(contentsOf: file1, encoding: .utf8), "modified")
+        XCTAssertEqual(try String(contentsOf: newFile, encoding: .utf8), "added")
+    }
+
+    func testApplyPreservesMetadata() async throws {
+        // Create source and destination with different permissions
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+        try createFile(at: "dest/file.txt", content: "content")
+
+        // Set specific permissions on destination file
+        let destFile = tempDir.appendingPathComponent("dest/file.txt")
+        try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destFile.path)
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL
+        )
+
+        // Apply to target
+        let targetDir = tempDir.appendingPathComponent("target")
+        try createDirectory(at: "target")
+
+        try await patch.apply(to: targetDir)
+
+        // Verify permissions were preserved
+        let targetFile = targetDir.appendingPathComponent("file.txt")
+        let attributes = try fileManager.attributesOfItem(atPath: targetFile.path)
+        let permissions = attributes[.posixPermissions] as? NSNumber
+        XCTAssertEqual(permissions?.uint16Value, 0o600)
     }
 }
