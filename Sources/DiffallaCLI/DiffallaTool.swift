@@ -2,6 +2,7 @@ import Foundation
 import ArgumentParser
 import Diffalla
 
+@available(macOS 14.0, *)
 struct DiffallaTool: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "diffalla",
