@@ -1522,4 +1522,215 @@ final class PatchingTests: XCTestCase {
         permissions = attributes[.posixPermissions] as? NSNumber
         XCTAssertEqual(permissions?.uint16Value, 0o600)
     }
+
+    // MARK: - Step 8: Patch Export Functions Tests
+
+    func testExportAsText() async throws {
+        // Create source and destination with different changes
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+
+        try createFile(at: "source/removed.txt", content: "content")
+        try createFile(at: "source/modified.txt", content: "original")
+        try createFile(at: "dest/modified.txt", content: "new")
+        try createFile(at: "dest/added.txt", content: "content")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL
+        )
+
+        // Export as text
+        let text = try patch.exportAsText()
+
+        // Verify text format
+        XCTAssertTrue(text.contains("Patch:"))
+        XCTAssertTrue(text.contains("Created:"))
+        XCTAssertTrue(text.contains("Operations:"))
+        XCTAssertTrue(text.contains("+ added.txt"))
+        XCTAssertTrue(text.contains("- removed.txt"))
+        XCTAssertTrue(text.contains("M modified.txt"))
+    }
+
+    func testExportAsJSON() async throws {
+        // Create source and destination
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+
+        try createFile(at: "dest/added.txt", content: "content")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL
+        )
+
+        // Export as JSON
+        let json = try patch.exportAsJSON()
+
+        // Verify JSON structure
+        XCTAssertTrue(json.contains("\"version\":"))
+        XCTAssertTrue(json.contains("\"created\":"))
+        XCTAssertTrue(json.contains("\"operationCount\":"))
+        XCTAssertTrue(json.contains("\"operations\":"))
+        XCTAssertTrue(json.contains("\"type\": \"add\""))
+        XCTAssertTrue(json.contains("\"path\": \"added.txt\""))
+
+        // Verify valid JSON structure
+        XCTAssertTrue(json.hasPrefix("{"))
+        XCTAssertTrue(json.hasSuffix("}"))
+    }
+
+    func testExportAsHTML() async throws {
+        // Create source and destination
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+
+        try createFile(at: "source/file.txt", content: "content")
+        try createFile(at: "dest/file.txt", content: "new content")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL
+        )
+
+        // Export as HTML
+        let html = try patch.exportAsHTML()
+
+        // Verify HTML structure
+        XCTAssertTrue(html.contains("<!DOCTYPE html>"))
+        XCTAssertTrue(html.contains("<html>"))
+        XCTAssertTrue(html.contains("<style>"))
+        XCTAssertTrue(html.contains("operation modify"))
+        XCTAssertTrue(html.contains("file.txt"))
+    }
+
+    func testExportAsDetailedDiff() async throws {
+        // Create source and destination with different changes
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+
+        try createFile(at: "source/removed.txt", content: "removed content")
+        try createFile(at: "source/modified.txt", content: "original content")
+        try createFile(at: "dest/modified.txt", content: "new content")
+        try createFile(at: "dest/added.txt", content: "added content")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch WITH revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: true
+        )
+
+        // Export as detailed diff
+        let diff = try patch.exportAsDetailedDiff()
+
+        // Verify diff format
+        XCTAssertTrue(diff.contains("diff --diffalla"))
+        XCTAssertTrue(diff.contains("new file"))
+        XCTAssertTrue(diff.contains("deleted file"))
+        XCTAssertTrue(diff.contains("--- a/"))
+        XCTAssertTrue(diff.contains("+++ b/"))
+        XCTAssertTrue(diff.contains("+added content"))
+        XCTAssertTrue(diff.contains("-removed content"))
+        XCTAssertTrue(diff.contains("-original content"))
+        XCTAssertTrue(diff.contains("+new content"))
+    }
+
+    func testExportAsDetailedDiffWithoutRevertData() async throws {
+        // Create patch WITHOUT revert data
+        let sourceDir = tempDir.appendingPathComponent("source")
+        let destDir = tempDir.appendingPathComponent("dest")
+        try createDirectory(at: "source")
+        try createDirectory(at: "dest")
+
+        try createFile(at: "dest/added.txt", content: "content")
+
+        // Create snapshots
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.snapshot")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.snapshot")
+        let options = ScanOptions()
+
+        let snapshot1 = try await engine.createSnapshot(from: sourceDir, saveTo: snapshot1URL, options: options)
+        let snapshot2 = try await engine.createSnapshot(from: destDir, saveTo: snapshot2URL, options: options)
+
+        // Create patch WITHOUT revert data
+        let difference = try Difference.compare(source: snapshot1, destination: snapshot2)
+        let patchURL = tempDir.appendingPathComponent("test.patch")
+        let patch = try Patch.create(
+            from: difference,
+            sourceDirectory: sourceDir,
+            destinationDirectory: destDir,
+            saveTo: patchURL,
+            includeRevertData: false
+        )
+
+        // Attempt to export as detailed diff should fail
+        do {
+            _ = try patch.exportAsDetailedDiff()
+            XCTFail("Should throw error when revert data is missing")
+        } catch DiffallaError.invalidPatch(let reason) {
+            XCTAssertTrue(reason.contains("revert data"), "Error should mention missing revert data")
+        } catch {
+            XCTFail("Expected DiffallaError.invalidPatch, got \(error)")
+        }
+    }
 }

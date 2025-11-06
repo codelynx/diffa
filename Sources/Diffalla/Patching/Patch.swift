@@ -363,3 +363,264 @@ public struct Patch {
         )
     }
 }
+
+// MARK: - Export Functions
+
+extension Patch {
+    /// Export patch as simple text format (diff-style)
+    /// - Returns: Text representation with operation symbols (+ add, - remove, M modify, R move)
+    public func exportAsText() throws -> String {
+        let operations = try loadOperations()
+        var lines: [String] = []
+
+        // Header
+        lines.append("Patch: \(databaseURL.lastPathComponent)")
+        lines.append("Created: \(metadata.createdDate)")
+        lines.append("Operations: \(metadata.operationCount)")
+        lines.append("")
+
+        // Operations
+        for operation in operations {
+            switch operation {
+            case .add(let path, let isFolder):
+                let marker = isFolder ? "+ (dir)" : "+"
+                lines.append("\(marker) \(path)")
+            case .remove(let path, let isFolder):
+                let marker = isFolder ? "- (dir)" : "-"
+                lines.append("\(marker) \(path)")
+            case .modify(let path, let isFolder):
+                let marker = isFolder ? "M (dir)" : "M"
+                lines.append("\(marker) \(path)")
+            case .move(let from, let to, let isFolder):
+                let marker = isFolder ? "R (dir)" : "R"
+                lines.append("\(marker) \(from) -> \(to)")
+            }
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    /// Export patch as JSON format
+    /// - Returns: JSON string with patch metadata and operations
+    public func exportAsJSON() throws -> String {
+        let operations = try loadOperations()
+
+        // Build JSON structure manually for control over format
+        var json = "{\n"
+        json += "  \"version\": \(metadata.version),\n"
+
+        // Format date as ISO 8601
+        let formatter = ISO8601DateFormatter()
+        let dateString = formatter.string(from: metadata.createdDate)
+        json += "  \"created\": \"\(dateString)\",\n"
+
+        if let sourceChecksum = metadata.sourceChecksum {
+            json += "  \"sourceChecksum\": \"\(sourceChecksum)\",\n"
+        }
+
+        if let targetChecksum = metadata.targetChecksum {
+            json += "  \"targetChecksum\": \"\(targetChecksum)\",\n"
+        }
+
+        json += "  \"operationCount\": \(metadata.operationCount),\n"
+        json += "  \"operations\": [\n"
+
+        for (index, operation) in operations.enumerated() {
+            let isLast = index == operations.count - 1
+
+            json += "    {"
+            switch operation {
+            case .add(let path, let isFolder):
+                json += "\"type\": \"add\", \"path\": \"\(escapeJSON(path))\", \"isFolder\": \(isFolder)"
+            case .remove(let path, let isFolder):
+                json += "\"type\": \"remove\", \"path\": \"\(escapeJSON(path))\", \"isFolder\": \(isFolder)"
+            case .modify(let path, let isFolder):
+                json += "\"type\": \"modify\", \"path\": \"\(escapeJSON(path))\", \"isFolder\": \(isFolder)"
+            case .move(let from, let to, let isFolder):
+                json += "\"type\": \"move\", \"from\": \"\(escapeJSON(from))\", \"to\": \"\(escapeJSON(to))\", \"isFolder\": \(isFolder)"
+            }
+            json += "}"
+            json += isLast ? "\n" : ",\n"
+        }
+
+        json += "  ]\n"
+        json += "}"
+
+        return json
+    }
+
+    /// Export patch as HTML format
+    /// - Returns: HTML string with styled patch display
+    public func exportAsHTML() throws -> String {
+        let operations = try loadOperations()
+
+        var html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Patch: \(escapeHTML(databaseURL.lastPathComponent))</title>
+            <style>
+                body { font-family: 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+                .header { margin-bottom: 20px; }
+                .header h1 { color: #569cd6; }
+                .header .meta { color: #808080; }
+                .operation { margin: 5px 0; padding: 5px; border-radius: 3px; }
+                .add { background: #1e3a1e; color: #4ec9b0; }
+                .remove { background: #3a1e1e; color: #f48771; }
+                .modify { background: #3a3a1e; color: #dcdcaa; }
+                .move { background: #1e2a3a; color: #9cdcfe; }
+                .symbol { font-weight: bold; margin-right: 10px; }
+                .path { color: #ce9178; }
+                .folder { font-style: italic; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Patch: \(escapeHTML(databaseURL.lastPathComponent))</h1>
+                <div class="meta">Created: \(metadata.createdDate)</div>
+                <div class="meta">Operations: \(metadata.operationCount)</div>
+            </div>
+            <div class="operations">
+
+        """
+
+        for operation in operations {
+            switch operation {
+            case .add(let path, let isFolder):
+                let folderClass = isFolder ? " folder" : ""
+                html += "        <div class=\"operation add\"><span class=\"symbol\">+</span><span class=\"path\(folderClass)\">\(escapeHTML(path))</span>\(isFolder ? " <span class=\"folder\">(directory)</span>" : "")</div>\n"
+            case .remove(let path, let isFolder):
+                let folderClass = isFolder ? " folder" : ""
+                html += "        <div class=\"operation remove\"><span class=\"symbol\">-</span><span class=\"path\(folderClass)\">\(escapeHTML(path))</span>\(isFolder ? " <span class=\"folder\">(directory)</span>" : "")</div>\n"
+            case .modify(let path, let isFolder):
+                let folderClass = isFolder ? " folder" : ""
+                html += "        <div class=\"operation modify\"><span class=\"symbol\">M</span><span class=\"path\(folderClass)\">\(escapeHTML(path))</span>\(isFolder ? " <span class=\"folder\">(directory)</span>" : "")</div>\n"
+            case .move(let from, let to, let isFolder):
+                let folderClass = isFolder ? " folder" : ""
+                html += "        <div class=\"operation move\"><span class=\"symbol\">R</span><span class=\"path\(folderClass)\">\(escapeHTML(from)) → \(escapeHTML(to))</span>\(isFolder ? " <span class=\"folder\">(directory)</span>" : "")</div>\n"
+            }
+        }
+
+        html += """
+            </div>
+        </body>
+        </html>
+        """
+
+        return html
+    }
+
+    /// Export patch as detailed diff format (requires revert data)
+    /// - Returns: Git-style diff with before/after content
+    /// - Throws: Error if patch doesn't have revert data
+    public func exportAsDetailedDiff() throws -> String {
+        // Check if patch has revert data
+        guard try hasRevertData() else {
+            throw DiffallaError.invalidPatch(
+                reason: "Cannot export detailed diff: patch does not contain revert data. Patch must be created with includeRevertData: true"
+            )
+        }
+
+        let operations = try loadOperationsWithContent()
+        var lines: [String] = []
+
+        // Header
+        lines.append("diff --diffalla \(databaseURL.lastPathComponent)")
+        lines.append("Created: \(metadata.createdDate)")
+        lines.append("Operations: \(metadata.operationCount)")
+        lines.append("")
+
+        // Process operations
+        for (operation, newMetadata, newContent) in operations {
+            switch operation {
+            case .add(let path, let isFolder):
+                lines.append("diff --diffalla a/\(path) b/\(path)")
+                lines.append("new file \(isFolder ? "directory" : "mode \(String(format: "%o", newMetadata.permissions.posix))")")
+                if !isFolder, let content = newContent, let text = String(data: content, encoding: .utf8) {
+                    lines.append("--- /dev/null")
+                    lines.append("+++ b/\(path)")
+                    for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+                        lines.append("+\(line)")
+                    }
+                }
+                lines.append("")
+
+            case .remove(let path, let isFolder):
+                lines.append("diff --diffalla a/\(path) b/\(path)")
+
+                // Get original content from revert data
+                if let revertData = try loadRevertData(for: path) {
+                    lines.append("deleted file \(isFolder ? "directory" : "mode \(String(format: "%o", revertData.metadata.permissions.posix))")")
+
+                    if !isFolder, let content = revertData.content, let text = String(data: content, encoding: .utf8) {
+                        lines.append("--- a/\(path)")
+                        lines.append("+++ /dev/null")
+                        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+                            lines.append("-\(line)")
+                        }
+                    }
+                }
+                lines.append("")
+
+            case .modify(let path, let isFolder):
+                lines.append("diff --diffalla a/\(path) b/\(path)")
+
+                // Get original content from revert data
+                if let revertData = try loadRevertData(for: path) {
+                    if !isFolder {
+                        lines.append("--- a/\(path)")
+                        lines.append("+++ b/\(path)")
+
+                        // Show original content
+                        if let originalContent = revertData.content, let originalText = String(data: originalContent, encoding: .utf8) {
+                            for line in originalText.split(separator: "\n", omittingEmptySubsequences: false) {
+                                lines.append("-\(line)")
+                            }
+                        }
+
+                        // Show new content
+                        if let content = newContent, let text = String(data: content, encoding: .utf8) {
+                            for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+                                lines.append("+\(line)")
+                            }
+                        }
+                    } else {
+                        lines.append("metadata change (directory)")
+                    }
+                }
+                lines.append("")
+
+            case .move(let from, let to, _):
+                lines.append("diff --diffalla a/\(from) b/\(to)")
+                lines.append("rename from \(from)")
+                lines.append("rename to \(to)")
+                lines.append("")
+            }
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    // MARK: - Helper Functions
+
+    /// Escape string for JSON
+    private func escapeJSON(_ string: String) -> String {
+        return string
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
+    }
+
+    /// Escape string for HTML
+    private func escapeHTML(_ string: String) -> String {
+        return string
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
+    }
+}
