@@ -2,7 +2,7 @@ import Foundation
 import ArgumentParser
 import Diffalla
 
-@available(macOS 14.0, *)
+@available(macOS 13.0, *)
 struct SnapshotCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "snapshot",
@@ -127,6 +127,7 @@ enum CLIError: LocalizedError {
     case invalidDirectory(String)
     case snapshotNotFound(String)
     case patchNotFound(String)
+    case invalidFormat(String, validFormats: [String])
 
     var errorDescription: String? {
         switch self {
@@ -136,6 +137,8 @@ enum CLIError: LocalizedError {
             return "Snapshot file not found: \(path)"
         case .patchNotFound(let path):
             return "Patch file not found: \(path)"
+        case .invalidFormat(let format, let validFormats):
+            return "Invalid format '\(format)'. Valid formats: \(validFormats.joined(separator: ", "))"
         }
     }
 }

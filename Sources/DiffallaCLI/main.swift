@@ -1,5 +1,5 @@
-if #available(macOS 14.0, *) {
+if #available(macOS 13.0, *) {
     DiffallaTool.main()
 } else {
-    fatalError("This tool requires macOS 14.0 or later")
+    fatalError("This tool requires macOS 13.0 or later")
 }
