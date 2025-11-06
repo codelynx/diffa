@@ -22,12 +22,15 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0")
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
+        .package(url: "https://github.com/apple/swift-crypto", from: "3.0.0")
     ],
     targets: [
         .target(
             name: "Diffalla",
-            dependencies: [],
+            dependencies: [
+                .product(name: "Crypto", package: "swift-crypto")
+            ],
             exclude: [
                 "Database/README.md",
                 "Core/README.md",

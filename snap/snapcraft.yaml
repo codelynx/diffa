@@ -1,0 +1,63 @@
+name: diffalla
+base: core22
+version: '0.9.0'
+summary: Fast file system comparison, patching, and synchronization
+description: |
+  Diffalla is a Swift library and command-line tool for file system comparison,
+  patching, and synchronization on Apple platforms and Linux. It provides 
+  snapshot-based directory comparison, patch creation/application, and folder
+  synchronization with conflict resolution.
+  
+  Features:
+  - Create lightweight snapshots of directories
+  - Compare directories or snapshots to find differences
+  - Create patches from differences
+  - Apply or revert patches
+  - Synchronize directories (unidirectional and bidirectional)
+  - Export differences in multiple formats (text, JSON, HTML, diff)
+  
+  Optimized for large file systems with minimal memory usage.
+
+grade: stable
+confinement: classic  # Needed for file system access
+
+architectures:
+  - build-on: amd64
+  - build-on: arm64
+
+parts:
+  diffalla:
+    plugin: nil
+    source: .
+    build-packages:
+      - git
+      - curl
+      - libsqlite3-dev
+      - libncurses5-dev
+      - libxml2-dev
+      - libz-dev
+      - pkg-config
+    override-build: |
+      # Install Swift if not present
+      if ! command -v swift &> /dev/null; then
+        curl -L https://download.swift.org/swift-5.9.2-release/ubuntu2204/swift-5.9.2-RELEASE/swift-5.9.2-RELEASE-ubuntu22.04.tar.gz | tar xz
+        export PATH="$PWD/swift-5.9.2-RELEASE-ubuntu22.04/usr/bin:$PATH"
+      fi
+      
+      # Build the project
+      swift build -c release
+      
+      # Install binary
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp .build/release/diffalla $SNAPCRAFT_PART_INSTALL/bin/
+    stage-packages:
+      - libsqlite3-0
+      - libncurses5
+      - libxml2
+      - zlib1g
+
+apps:
+  diffalla:
+    command: bin/diffalla
+    environment:
+      LD_LIBRARY_PATH: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET:$LD_LIBRARY_PATH

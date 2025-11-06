@@ -1,9 +1,5 @@
 import Foundation
-#if canImport(CommonCrypto)
-import CommonCrypto
-#elseif canImport(Crypto)
 import Crypto
-#endif
 
 /// Progress information during directory scanning
 public struct SnapshotProgress {
@@ -620,18 +616,7 @@ public class SnapshotEngine {
 extension Data {
     /// Compute SHA-256 hash and return as hex string
     func sha256Hex() -> String {
-        #if canImport(CommonCrypto)
-        var digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
-        self.withUnsafeBytes { bufferPointer in
-            _ = CC_SHA256(bufferPointer.baseAddress, CC_LONG(self.count), &digest)
-        }
-        return digest.map { String(format: "%02x", $0) }.joined()
-        #elseif canImport(Crypto)
         let hash = SHA256.hash(data: self)
-        return hash.compactMap { String(format: "%02x", $0) }.joined()
-        #else
-        // Fallback: simple string hash (not cryptographic)
-        return String(self.hashValue, radix: 16)
-        #endif
+        return hash.map { String(format: "%02x", $0) }.joined()
     }
 }
