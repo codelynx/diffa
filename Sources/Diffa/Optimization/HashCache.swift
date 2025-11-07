@@ -13,7 +13,7 @@ import Foundation
 ///
 /// **Storage:**
 /// Each cache is stored in a separate SQLite database file, typically in
-/// ~/.diffa/cache/<directory-hash>.db
+/// ~/.diffa/cache/<directory-hash>.diffa
 public class HashCache {
     private let database: SQLiteDatabase
     private let dateFormatter: ISO8601DateFormatter

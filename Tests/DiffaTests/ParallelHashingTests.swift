@@ -48,8 +48,8 @@ final class ParallelHashingTests: XCTestCase {
     func testParallelHashingWithHashCacheReportsHits() async throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let sourceDir = tempDir.appendingPathComponent("source")
-        let snapshotOne = tempDir.appendingPathComponent("snapshot1.db")
-        let snapshotTwo = tempDir.appendingPathComponent("snapshot2.db")
+        let snapshotOne = tempDir.appendingPathComponent("snapshot1.diffa")
+        let snapshotTwo = tempDir.appendingPathComponent("snapshot2.diffa")
         let cacheDir = tempDir.appendingPathComponent("cache")
         try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }

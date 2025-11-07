@@ -1,4 +1,4 @@
-.TH DIFFA 1 "November 2025" "diffa 0.1.0" "User Commands"
+.TH DIFFA 1 "November 2025" "diffa 0.11.0" "User Commands"
 .SH NAME
 diffa \- snapshot, compare, patch, and sync directories
 .SH SYNOPSIS
@@ -41,7 +41,7 @@ Create a snapshot of a directory:
 .PP
 .RS
 .nf
-diffa snapshot /path/to/dir \-o snapshot.db
+diffa snapshot /path/to/dir \-o snapshot.diffa
 .fi
 .RE
 .PP
@@ -75,7 +75,7 @@ Verify directory integrity:
 .PP
 .RS
 .nf
-diffa verify /path/to/dir baseline.db
+diffa verify /path/to/dir baseline.diffa
 .fi
 .RE
 .SH EXIT STATUS
@@ -93,8 +93,11 @@ Usage error (invalid arguments)
 File system error (permission denied, not found, etc.)
 .SH FILES
 .TP
-.I *.db, *.sqlite
-Snapshot and patch files (SQLite databases)
+.I *.diffa
+Snapshot files (SQLite databases)
+.TP
+.I *.patch
+Patch files (SQLite databases)
 .TP
 .I ~/.cache/diffa/
 Cache directory for large file content (patches with files ≥1MB)

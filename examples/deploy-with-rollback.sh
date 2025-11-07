@@ -16,7 +16,7 @@ PRODUCTION_DIR="${1:?Usage: $0 <production-dir> <new-version-dir>}"
 NEW_VERSION_DIR="${2:?Usage: $0 <production-dir> <new-version-dir>}"
 
 PATCH_FILE="/tmp/deployment-patch-$(date +%Y%m%d-%H%M%S).patch"
-VALIDATION_SNAPSHOT="/tmp/validation-$$.db"
+VALIDATION_SNAPSHOT="/tmp/validation-$$.diffa"
 
 cleanup() {
     rm -f "$VALIDATION_SNAPSHOT"

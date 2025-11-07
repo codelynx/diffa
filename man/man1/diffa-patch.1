@@ -1,4 +1,4 @@
-.TH DIFFA-PATCH 1 "November 2025" "diffa 0.1.0" "User Commands"
+.TH DIFFA-PATCH 1 "November 2025" "diffa 0.11.0" "User Commands"
 .SH NAME
 diffa\-patch \- create, apply, or revert patches
 .SH SYNOPSIS
@@ -121,11 +121,14 @@ Usage error
 File system error
 .SH FILES
 .TP
-.I *.patch, *.db
-Patch files (SQLite databases)
+.I *.patch
+Patch files (SQLite databases containing file changes and operations)
+.TP
+.I *.diffa
+Snapshot files used as input to patch create
 .TP
 .I ~/.cache/diffa/
-Cache directory for large file content
+Cache directory for large file content (files ≥1MB in patches)
 .SH NOTES
 .PP
 Reversible patches store original file content, significantly increasing patch size. Use only when rollback is required.

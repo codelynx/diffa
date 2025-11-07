@@ -50,7 +50,7 @@ final class PatchingTests: XCTestCase {
     func testCreateEmptyPatch() throws {
         // Create a temporary database
         let tempDir = FileManager.default.temporaryDirectory
-        let dbURL = tempDir.appendingPathComponent("test_patch_\(UUID().uuidString).db")
+        let dbURL = tempDir.appendingPathComponent("test_patch_\(UUID().uuidString).diffa")
 
         // Ensure cleanup
         defer {
@@ -71,7 +71,7 @@ final class PatchingTests: XCTestCase {
     func testSchemaVersion() throws {
         // Create a temporary database
         let tempDir = FileManager.default.temporaryDirectory
-        let dbURL = tempDir.appendingPathComponent("test_patch_\(UUID().uuidString).db")
+        let dbURL = tempDir.appendingPathComponent("test_patch_\(UUID().uuidString).diffa")
 
         // Ensure cleanup
         defer {
@@ -94,7 +94,7 @@ final class PatchingTests: XCTestCase {
     func testTablesExist() throws {
         // Create a temporary database
         let tempDir = FileManager.default.temporaryDirectory
-        let dbURL = tempDir.appendingPathComponent("test_patch_\(UUID().uuidString).db")
+        let dbURL = tempDir.appendingPathComponent("test_patch_\(UUID().uuidString).diffa")
 
         // Ensure cleanup
         defer {

@@ -504,14 +504,14 @@ enum DiffaError: Error, CustomStringConvertible {
 
    let snap1 = try await SnapshotEngine().createSnapshot(
        from: dirURL,
-       saveTo: URL(fileURLWithPath: "snap1.sqlite"),
+       saveTo: URL(fileURLWithPath: "snap1.diffa"),
        options: options
    )
 
    // Later...
    let snap2 = try await SnapshotEngine().createSnapshot(
        from: dirURL,
-       saveTo: URL(fileURLWithPath: "snap2.sqlite"),
+       saveTo: URL(fileURLWithPath: "snap2.diffa"),
        options: options
    )
 

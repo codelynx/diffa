@@ -111,7 +111,7 @@ class Diffa < Formula
         diffa --help
         
       Create your first snapshot:
-        diffa snapshot /path/to/directory -o snapshot.sqlite
+        diffa snapshot /path/to/directory -o snapshot.diffa
         
       Documentation available at:
         https://github.com/codelynx/Diffa
@@ -128,10 +128,10 @@ class Diffa < Formula
       (Pathname(dir)/"test.txt").write("hello")
       
       # Create snapshot
-      system "#{bin}/diffa", "snapshot", dir, "-o", "test.sqlite"
+      system "#{bin}/diffa", "snapshot", dir, "-o", "test.diffa"
       
       # Verify snapshot was created
-      assert_predicate Pathname("test.sqlite"), :exist?
+      assert_predicate Pathname("test.diffa"), :exist?
     end
   end
 end

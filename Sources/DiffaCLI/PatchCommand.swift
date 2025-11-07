@@ -158,7 +158,7 @@ struct CreatePatch: ParsableCommand {
             }
 
             let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("diffa-\(label)-\(UUID().uuidString).db")
+                .appendingPathComponent("diffa-\(label)-\(UUID().uuidString).diffa")
 
             print("Creating temporary snapshot for \(label)...")
             let engine = SnapshotEngine()
@@ -168,7 +168,7 @@ struct CreatePatch: ParsableCommand {
     }
 
     func isSnapshotFile(_ path: String) -> Bool {
-        return path.hasSuffix(".db") || path.hasSuffix(".sqlite")
+        return path.hasSuffix(".diffa")
     }
 }
 

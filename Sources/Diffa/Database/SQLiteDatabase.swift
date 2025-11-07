@@ -26,9 +26,6 @@ public final class SQLiteDatabase {
 
         // Set busy timeout (5 seconds) - prevents "database is locked" errors
         sqlite3_busy_timeout(db, 5000)
-
-        // Enable Write-Ahead Logging for better concurrency
-        try? execute("PRAGMA journal_mode = WAL")
     }
 
     deinit {

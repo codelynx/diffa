@@ -63,7 +63,7 @@ struct VerifyCommand: ParsableCommand {
         // Create temporary snapshot of current directory
         print("Creating snapshot of \(directory)...")
         let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("diffa-verify-\(UUID().uuidString).db")
+            .appendingPathComponent("diffa-verify-\(UUID().uuidString).diffa")
 
         defer {
             try? FileManager.default.removeItem(at: tempURL)

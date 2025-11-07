@@ -11,8 +11,8 @@ Traditional:
   Directory A (in memory) + Directory B (in memory) → Compare → Difference
 
 Snapshot-based:
-  Directory A → Snapshot A (.sqlite)
-  Directory B → Snapshot B (.sqlite)
+  Directory A → Snapshot A (.diffa)
+  Directory B → Snapshot B (.diffa)
   Difference (references A + B) → Query via SQL
 ```
 
@@ -22,8 +22,8 @@ Snapshot-based:
 ┌─────────────────────────────────┐
 │  Difference<T> struct           │
 │  ┌──────────────────────────┐   │
-│  │ sourceSnapshot: Snapshot │ ──┼──→ snapshot_a.sqlite (7 MB on disk)
-│  │ destSnapshot: Snapshot   │ ──┼──→ snapshot_b.sqlite (8 MB on disk)
+│  │ sourceSnapshot: Snapshot │ ──┼──→ snapshot_a.diffa (7 MB on disk)
+│  │ destSnapshot: Snapshot   │ ──┼──→ snapshot_b.diffa (8 MB on disk)
 │  │                          │   │
 │  │ cachedAdded: [T]?        │   │    Computed lazily via SQL
 │  │ cachedRemoved: [T]?      │   │    Cached for reuse
@@ -46,19 +46,19 @@ Snapshot-based:
 
 **Option A: Use existing snapshots**
 ```swift
-let snapA = try Snapshot.load(from: URL(fileURLWithPath: "snapshot_a.sqlite"))
-let snapB = try Snapshot.load(from: URL(fileURLWithPath: "snapshot_b.sqlite"))
+let snapA = try Snapshot.load(from: URL(fileURLWithPath: "snapshot_a.diffa"))
+let snapB = try Snapshot.load(from: URL(fileURLWithPath: "snapshot_b.diffa"))
 ```
 
 **Option B: Create snapshots from directories**
 ```swift
 let snapA = try await Snapshot.create(
     from: directoryA,
-    saveTo: URL(fileURLWithPath: "/tmp/snapshot_a.sqlite")
+    saveTo: URL(fileURLWithPath: "/tmp/snapshot_a.diffa")
 )
 let snapB = try await Snapshot.create(
     from: directoryB,
-    saveTo: URL(fileURLWithPath: "/tmp/snapshot_b.sqlite")
+    saveTo: URL(fileURLWithPath: "/tmp/snapshot_b.diffa")
 )
 ```
 
@@ -96,7 +96,7 @@ let added = diff.added  // First access - triggers SQL query
 
 2. **Attach destination database**
    ```sql
-   ATTACH DATABASE '/path/to/snapshot_b.sqlite' AS dest;
+   ATTACH DATABASE '/path/to/snapshot_b.diffa' AS dest;
    ```
 
 3. **Query added items**
@@ -209,8 +209,8 @@ let diff3 = compare(snapA, snapC)  // SQL query only
 let diff = compare(oldDir, currentDir)  // Old dir may be deleted!
 
 // Snapshot-based: Load old snapshot
-let oldSnapshot = try Snapshot.load(from: "baseline-2023.sqlite")
-let currentSnapshot = try await Snapshot.create(from: currentDir, saveTo: "current.sqlite")
+let oldSnapshot = try Snapshot.load(from: "baseline-2023.diffa")
+let currentSnapshot = try await Snapshot.create(from: currentDir, saveTo: "current.diffa")
 let diff = try Difference.compare(source: oldSnapshot, destination: currentSnapshot)
 // Compare to historical state anytime!
 ```

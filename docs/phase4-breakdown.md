@@ -101,7 +101,7 @@ CREATE INDEX idx_cached_at ON hash_cache(cached_at);
 - Prune: Remove entries for non-existent files after scan
 
 **Cache Location:**
-Default: `~/.diffa/cache/<directory-hash>.db` (per-directory cache)
+Default: `~/.diffa/cache/<directory-hash>.diffa` (per-directory cache)
 
 **Tests:**
 - `testHashCacheLookup()` (cache hit returns hash)
@@ -728,7 +728,7 @@ The following features are intentionally deferred:
 
 ## Open Questions (Resolve Before Starting)
 
-1. **Hash cache persistence:** Per-directory or global? → **Proposed: Per-directory (~/.diffa/cache/<dir-hash>.db)**
+1. **Hash cache persistence:** Per-directory or global? → **Proposed: Per-directory (~/.diffa/cache/<dir-hash>.diffa)**
 2. **Parallel hashing threshold:** Min file size for parallel hashing? → **Proposed: >1 MB files only**
 3. **Move detection threshold:** Max hash collisions before giving up? → **Proposed: Match by hash+size, no limit**
 4. **Benchmark CI integration:** Run on every PR or nightly? → **Proposed: Nightly only (too slow for PR)**

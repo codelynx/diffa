@@ -147,16 +147,16 @@ func createSnapshot(
 **CLI commands:**
 ```bash
 # Defaults (most common)
-diffa snapshot /path -o snap.sqlite
+diffa snapshot /path -o snap.diffa
 
 # Store symlinks as-is
-diffa snapshot /path -o snap.sqlite --no-follow-symlinks
+diffa snapshot /path -o snap.diffa --no-follow-symlinks
 
 # Exclude hidden files
-diffa snapshot /path -o snap.sqlite --no-hidden
+diffa snapshot /path -o snap.diffa --no-hidden
 
 # System admin: capture ownership
-sudo diffa snapshot /etc -o snap.sqlite --with-ownership
+sudo diffa snapshot /etc -o snap.diffa --with-ownership
 ```
 
 ### SQLite Schema
@@ -211,7 +211,7 @@ diffa snapshot /path --ignore .diffaignore
 
 **Watch mode:**
 ```bash
-diffa watch /path --baseline snap.sqlite
+diffa watch /path --baseline snap.diffa
 # Alert on any changes
 ```
 

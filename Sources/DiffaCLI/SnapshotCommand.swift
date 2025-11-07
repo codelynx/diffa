@@ -67,7 +67,7 @@ struct SnapshotCommand: ParsableCommand {
             outputPath = output
         } else {
             let dirName = directoryURL.lastPathComponent
-            outputPath = "\(dirName).db"
+            outputPath = "\(dirName).diffa"
         }
         let outputURL = URL(fileURLWithPath: outputPath)
 

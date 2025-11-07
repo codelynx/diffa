@@ -3,16 +3,16 @@
 #
 # Usage:
 #   # Create baseline
-#   ./integrity-monitoring.sh init /etc /root/baselines/etc.db
+#   ./integrity-monitoring.sh init /etc /root/baselines/etc.diffa
 #
 #   # Check for changes
-#   ./integrity-monitoring.sh check /etc /root/baselines/etc.db
+#   ./integrity-monitoring.sh check /etc /root/baselines/etc.diffa
 #
 #   # Update baseline (after authorized changes)
-#   ./integrity-monitoring.sh update /etc /root/baselines/etc.db
+#   ./integrity-monitoring.sh update /etc /root/baselines/etc.diffa
 #
 # Use with cron:
-#   */30 * * * * /usr/local/bin/integrity-monitoring.sh check /etc /root/baselines/etc.db
+#   */30 * * * * /usr/local/bin/integrity-monitoring.sh check /etc /root/baselines/etc.diffa
 
 set -euo pipefail
 

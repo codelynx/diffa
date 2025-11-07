@@ -20,7 +20,7 @@ final class HashCacheIntegrationTests: XCTestCase {
         try "Content 2".write(to: file2, atomically: true, encoding: .utf8)
 
         // Create snapshot with cache enabled (stored outside scan directory)
-        let snapshotURL = tempRoot.appendingPathComponent("snapshot.db")
+        let snapshotURL = tempRoot.appendingPathComponent("snapshot.diffa")
         let cacheDir = tempRoot.appendingPathComponent("cache")
 
         var options = ScanOptions()
@@ -53,7 +53,7 @@ final class HashCacheIntegrationTests: XCTestCase {
         try "Content 1".write(to: file1, atomically: true, encoding: .utf8)
 
         // Create snapshot with cache disabled (default, stored outside scan directory)
-        let snapshotURL = tempRoot.appendingPathComponent("snapshot.db")
+        let snapshotURL = tempRoot.appendingPathComponent("snapshot.diffa")
         let cacheDir = tempRoot.appendingPathComponent("cache")
 
         var options = ScanOptions()
@@ -87,8 +87,8 @@ final class HashCacheIntegrationTests: XCTestCase {
         try "Content 1".write(to: file1, atomically: true, encoding: .utf8)
         try "Content 2".write(to: file2, atomically: true, encoding: .utf8)
 
-        let snapshot1URL = tempRoot.appendingPathComponent("snapshot1.db")
-        let snapshot2URL = tempRoot.appendingPathComponent("snapshot2.db")
+        let snapshot1URL = tempRoot.appendingPathComponent("snapshot1.diffa")
+        let snapshot2URL = tempRoot.appendingPathComponent("snapshot2.diffa")
         let cacheDir = tempRoot.appendingPathComponent("cache")
 
         var options = ScanOptions()
@@ -147,8 +147,8 @@ final class HashCacheIntegrationTests: XCTestCase {
         let file1 = scanDir.appendingPathComponent("file1.txt")
         try "Content 1".write(to: file1, atomically: true, encoding: .utf8)
 
-        let snapshot1URL = tempRoot.appendingPathComponent("snapshot1.db")
-        let snapshot2URL = tempRoot.appendingPathComponent("snapshot2.db")
+        let snapshot1URL = tempRoot.appendingPathComponent("snapshot1.diffa")
+        let snapshot2URL = tempRoot.appendingPathComponent("snapshot2.diffa")
         let cacheDir = tempRoot.appendingPathComponent("cache")
 
         var options = ScanOptions()
@@ -198,8 +198,8 @@ final class HashCacheIntegrationTests: XCTestCase {
         try "Content 1".write(to: file1, atomically: true, encoding: .utf8)
         try "Content 2".write(to: file2, atomically: true, encoding: .utf8)
 
-        let snapshot1URL = tempRoot.appendingPathComponent("snapshot1.db")
-        let snapshot2URL = tempRoot.appendingPathComponent("snapshot2.db")
+        let snapshot1URL = tempRoot.appendingPathComponent("snapshot1.diffa")
+        let snapshot2URL = tempRoot.appendingPathComponent("snapshot2.diffa")
         let cacheDir = tempRoot.appendingPathComponent("cache")
 
         var options = ScanOptions()
@@ -239,7 +239,7 @@ final class HashCacheIntegrationTests: XCTestCase {
         // Open the cache database and verify file2 is not present
         let directoryPath = scanDir.path
         let pathHash = directoryPath.data(using: .utf8)!.sha256Hex()
-        let cacheURL = cacheDir.appendingPathComponent("\(pathHash).db")
+        let cacheURL = cacheDir.appendingPathComponent("\(pathHash).diffa")
 
         let cache = try HashCache(at: cacheURL)
 

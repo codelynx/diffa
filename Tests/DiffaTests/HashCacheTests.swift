@@ -8,7 +8,7 @@ final class HashCacheTests: XCTestCase {
     func testHashCacheLookup() throws {
         // Create temporary cache database
         let tempDir = FileManager.default.temporaryDirectory
-        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".db")
+        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".diffa")
         defer { try? FileManager.default.removeItem(at: cacheURL) }
 
         let cache = try HashCache(at: cacheURL)
@@ -29,7 +29,7 @@ final class HashCacheTests: XCTestCase {
     func testHashCacheMiss() throws {
         // Create temporary cache database
         let tempDir = FileManager.default.temporaryDirectory
-        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".db")
+        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".diffa")
         defer { try? FileManager.default.removeItem(at: cacheURL) }
 
         let cache = try HashCache(at: cacheURL)
@@ -59,7 +59,7 @@ final class HashCacheTests: XCTestCase {
     func testHashCacheStore() throws {
         // Create temporary cache database
         let tempDir = FileManager.default.temporaryDirectory
-        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".db")
+        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".diffa")
         defer { try? FileManager.default.removeItem(at: cacheURL) }
 
         let cache = try HashCache(at: cacheURL)
@@ -93,7 +93,7 @@ final class HashCacheTests: XCTestCase {
     func testHashCachePrune() throws {
         // Create temporary cache database
         let tempDir = FileManager.default.temporaryDirectory
-        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".db")
+        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".diffa")
         defer { try? FileManager.default.removeItem(at: cacheURL) }
 
         let cache = try HashCache(at: cacheURL)
@@ -121,7 +121,7 @@ final class HashCacheTests: XCTestCase {
     func testHashCacheClear() throws {
         // Create temporary cache database
         let tempDir = FileManager.default.temporaryDirectory
-        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".db")
+        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".diffa")
         defer { try? FileManager.default.removeItem(at: cacheURL) }
 
         let cache = try HashCache(at: cacheURL)
@@ -144,5 +144,27 @@ final class HashCacheTests: XCTestCase {
         XCTAssertNil(try cache.lookup(path: "/file1.txt", size: 100, modificationDate: modDate))
         XCTAssertNil(try cache.lookup(path: "/file2.txt", size: 200, modificationDate: modDate))
         XCTAssertNil(try cache.lookup(path: "/file3.txt", size: 300, modificationDate: modDate))
+    }
+
+    func testHashCacheFileExtension() throws {
+        // Test that .diffa extension works correctly
+        let tempDir = FileManager.default.temporaryDirectory
+        let cacheURL = tempDir.appendingPathComponent(UUID().uuidString + ".diffa")
+        defer { try? FileManager.default.removeItem(at: cacheURL) }
+
+        let cache = try HashCache(at: cacheURL)
+
+        // Store and retrieve a hash
+        let modDate = Date()
+        try cache.store(path: "/test.txt", size: 100, modificationDate: modDate, hash: "test-hash")
+        let result = try cache.lookup(path: "/test.txt", size: 100, modificationDate: modDate)
+
+        XCTAssertEqual(result, "test-hash", "Hash cache should work with .diffa extension")
+
+        // Verify the file was actually created with .diffa extension
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path),
+                     "Cache file should exist at path with .diffa extension")
+        XCTAssertTrue(cacheURL.lastPathComponent.hasSuffix(".diffa"),
+                     "Cache filename should end with .diffa extension")
     }
 }

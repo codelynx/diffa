@@ -1,4 +1,4 @@
-.TH DIFFA-SNAPSHOT 1 "November 2025" "diffa 0.1.0" "User Commands"
+.TH DIFFA-SNAPSHOT 1 "November 2025" "diffa 0.11.0" "User Commands"
 .SH NAME
 diffa\-snapshot \- create a snapshot of a directory
 .SH SYNOPSIS
@@ -19,7 +19,7 @@ Patch creation without requiring both directories
 .SH OPTIONS
 .TP
 .B \-o, \-\-output \fIPATH\fR
-Output snapshot file path (required). Convention: use .db or .sqlite extension
+Output snapshot file path (required). Use .diffa extension
 .TP
 .B \-\-follow\-symlinks
 Follow symbolic links instead of storing them as-is (default: don't follow)
@@ -38,7 +38,7 @@ Create a basic snapshot:
 .PP
 .RS
 .nf
-diffa snapshot /path/to/dir \-o snapshot.db
+diffa snapshot /path/to/dir \-o snapshot.diffa
 .fi
 .RE
 .PP
@@ -55,7 +55,7 @@ Fast snapshot with parallel hashing:
 .PP
 .RS
 .nf
-diffa snapshot /large\-dir \-o large.db \-\-parallel \-\-use\-cache
+diffa snapshot /large\-dir \-o large.diffa \-\-parallel \-\-use\-cache
 .fi
 .RE
 .SH OUTPUT
@@ -78,7 +78,7 @@ Usage error (missing required argument)
 File system error (directory not found, permission denied)
 .SH FILES
 .TP
-.I OUTPUT.db
+.I OUTPUT.diffa
 SQLite database containing directory structure, file metadata, and content hashes
 .SH PERFORMANCE
 .PP

@@ -1,4 +1,4 @@
-.TH DIFFA-VERIFY 1 "November 2025" "diffa 0.1.0" "User Commands"
+.TH DIFFA-VERIFY 1 "November 2025" "diffa 0.11.0" "User Commands"
 .SH NAME
 diffa\-verify \- verify a directory matches a snapshot
 .SH SYNOPSIS
@@ -26,7 +26,7 @@ Basic verification:
 .PP
 .RS
 .nf
-diffa verify /etc baseline.db
+diffa verify /etc baseline.diffa
 .fi
 .RE
 .PP
@@ -34,7 +34,7 @@ Verify with detailed output on failure:
 .PP
 .RS
 .nf
-diffa verify /var/www production\-baseline.db \-\-show\-diff
+diffa verify /var/www production\-baseline.diffa \-\-show\-diff
 .fi
 .RE
 .PP
@@ -42,7 +42,7 @@ Use in scripts:
 .PP
 .RS
 .nf
-if diffa verify /critical/dir baseline.db; then
+if diffa verify /critical/dir baseline.diffa; then
   echo "Directory unchanged"
 else
   echo "Changes detected!"
@@ -105,7 +105,7 @@ Create baseline snapshot of critical directories:
 .PP
 .RS
 .nf
-diffa snapshot /etc \-o /root/etc\-baseline.db
+diffa snapshot /etc \-o /root/etc\-baseline.diffa
 .fi
 .RE
 .PP
@@ -113,7 +113,7 @@ Periodically verify (e.g., via cron):
 .PP
 .RS
 .nf
-diffa verify /etc /root/etc\-baseline.db || \\
+diffa verify /etc /root/etc\-baseline.diffa || \\
   mail \-s "System changes detected" admin@example.com
 .fi
 .RE
@@ -122,7 +122,7 @@ Capture expected build output:
 .PP
 .RS
 .nf
-diffa snapshot /build/expected \-o expected\-output.db
+diffa snapshot /build/expected \-o expected\-output.diffa
 .fi
 .RE
 .PP
@@ -131,7 +131,7 @@ Verify actual build:
 .RS
 .nf
 make build
-diffa verify /build/actual expected\-output.db
+diffa verify /build/actual expected\-output.diffa
 .fi
 .RE
 .SS Deployment Validation
@@ -139,7 +139,7 @@ Snapshot production before deployment:
 .PP
 .RS
 .nf
-diffa snapshot /var/www \-o pre\-deploy.db
+diffa snapshot /var/www \-o pre\-deploy.diffa
 .fi
 .RE
 .PP
@@ -147,7 +147,7 @@ After deployment, verify expected changes:
 .PP
 .RS
 .nf
-diffa verify /var/www expected\-state.db
+diffa verify /var/www expected\-state.diffa
 .fi
 .RE
 .SH NOTES

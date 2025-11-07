@@ -20,7 +20,7 @@ final class MoveDetectorTests: XCTestCase {
         try "Test content for move detection".write(to: file1, atomically: true, encoding: .utf8)
 
         // Create snapshot of dir1
-        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.db")
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.diffa")
         let engine = SnapshotEngine()
         let snapshot1 = try await engine.createSnapshot(
             from: dir1,
@@ -33,7 +33,7 @@ final class MoveDetectorTests: XCTestCase {
         try "Test content for move detection".write(to: file2, atomically: true, encoding: .utf8)
 
         // Create snapshot of dir2
-        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.db")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.diffa")
         let snapshot2 = try await engine.createSnapshot(
             from: dir2,
             saveTo: snapshot2URL,
@@ -72,7 +72,7 @@ final class MoveDetectorTests: XCTestCase {
         try "Move to subdirectory test".write(to: file1, atomically: true, encoding: .utf8)
 
         // Create snapshot of dir1
-        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.db")
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.diffa")
         let engine = SnapshotEngine()
         let snapshot1 = try await engine.createSnapshot(
             from: dir1,
@@ -87,7 +87,7 @@ final class MoveDetectorTests: XCTestCase {
         try "Move to subdirectory test".write(to: file2, atomically: true, encoding: .utf8)
 
         // Create snapshot of dir2
-        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.db")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.diffa")
         let snapshot2 = try await engine.createSnapshot(
             from: dir2,
             saveTo: snapshot2URL,
@@ -128,7 +128,7 @@ final class MoveDetectorTests: XCTestCase {
         try "Content C".write(to: file1c, atomically: true, encoding: .utf8)
 
         // Create snapshot of dir1
-        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.db")
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.diffa")
         let engine = SnapshotEngine()
         let snapshot1 = try await engine.createSnapshot(
             from: dir1,
@@ -145,7 +145,7 @@ final class MoveDetectorTests: XCTestCase {
         try "Content C".write(to: file2c, atomically: true, encoding: .utf8)
 
         // Create snapshot of dir2
-        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.db")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.diffa")
         let snapshot2 = try await engine.createSnapshot(
             from: dir2,
             saveTo: snapshot2URL,
@@ -190,7 +190,7 @@ final class MoveDetectorTests: XCTestCase {
         try "Content 1".write(to: file1, atomically: true, encoding: .utf8)
 
         // Create snapshot of dir1
-        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.db")
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.diffa")
         let engine = SnapshotEngine()
         let snapshot1 = try await engine.createSnapshot(
             from: dir1,
@@ -203,7 +203,7 @@ final class MoveDetectorTests: XCTestCase {
         try "Content 2".write(to: file2, atomically: true, encoding: .utf8)
 
         // Create snapshot of dir2
-        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.db")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.diffa")
         let snapshot2 = try await engine.createSnapshot(
             from: dir2,
             saveTo: snapshot2URL,
@@ -245,7 +245,7 @@ final class MoveDetectorTests: XCTestCase {
         try "Shared content".write(to: file1, atomically: true, encoding: .utf8)
 
         // Create snapshot of dir1
-        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.db")
+        let snapshot1URL = tempDir.appendingPathComponent("snapshot1.diffa")
         let engine = SnapshotEngine()
         let snapshot1 = try await engine.createSnapshot(
             from: dir1,
@@ -260,7 +260,7 @@ final class MoveDetectorTests: XCTestCase {
         try "Shared content".write(to: file2, atomically: true, encoding: .utf8)
 
         // Create snapshot of dir2
-        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.db")
+        let snapshot2URL = tempDir.appendingPathComponent("snapshot2.diffa")
         let snapshot2 = try await engine.createSnapshot(
             from: dir2,
             saveTo: snapshot2URL,

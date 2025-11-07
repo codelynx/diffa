@@ -9,7 +9,7 @@ final class SQLiteDatabaseTests: XCTestCase {
         super.setUp()
         tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("sqlite")
+            .appendingPathExtension("diffa")
         db = try! SQLiteDatabase(path: tempURL.path)
     }
 

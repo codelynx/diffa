@@ -147,7 +147,7 @@ diffa unknown-command     # Shows error + help
 
 **Syntax:**
 ```bash
-diffa snapshot <directory> -o <output.sqlite> [options]
+diffa snapshot <directory> -o <output.diffa> [options]
 ```
 
 **Deliverables:**
@@ -196,16 +196,16 @@ struct SnapshotCommand: AsyncParsableCommand {
 **Tests:**
 ```bash
 # Basic snapshot
-diffa snapshot /tmp/test -o test.sqlite
+diffa snapshot /tmp/test -o test.diffa
 
 # With progress
-diffa snapshot /tmp/test -o test.sqlite --progress
+diffa snapshot /tmp/test -o test.diffa --progress
 
 # Exclude hidden
-diffa snapshot /tmp/test -o test.sqlite --no-hidden
+diffa snapshot /tmp/test -o test.diffa --no-hidden
 
 # Error: directory doesn't exist
-diffa snapshot /nonexistent -o test.sqlite  # Exit 3
+diffa snapshot /nonexistent -o test.diffa  # Exit 3
 
 # Error: no output file
 diffa snapshot /tmp/test  # Exit 2 (usage error)
@@ -283,7 +283,7 @@ struct CompareCommand: AsyncParsableCommand {
 diffa compare /dir-a /dir-b
 
 # Compare snapshots (fast)
-diffa compare a.sqlite b.sqlite
+diffa compare a.diffa b.diffa
 
 # Summary only
 diffa compare /dir-a /dir-b --summary
@@ -312,9 +312,9 @@ diffa compare /identical-a /identical-b && echo "No diff"
 
 **Syntax:**
 ```bash
-diffa patch create <source> <dest> -o <patch.sqlite> [options]
-diffa patch apply <patch.sqlite> <target-dir> [options]
-diffa patch revert <patch.sqlite> <target-dir> [options]
+diffa patch create <source> <dest> -o <patch-file> [options]
+diffa patch apply <patch-file> <target-dir> [options]
+diffa patch revert <patch-file> <target-dir> [options]
 ```
 
 **Deliverables:**
@@ -457,12 +457,12 @@ diffa sync /source /dest --delete
 
 **Export Syntax:**
 ```bash
-diffa export <patch.sqlite> -f <format> -o <output>
+diffa export <patch-file> -f <format> -o <output>
 ```
 
 **Verify Syntax:**
 ```bash
-diffa verify <directory> <snapshot.sqlite>
+diffa verify <directory> <snapshot.diffa>
 ```
 
 **Deliverables:**
@@ -488,10 +488,10 @@ struct VerifyCommand: AsyncParsableCommand {
 diffa export update.patch -f html -o report.html
 
 # Verify
-diffa verify /etc baseline.sqlite  # Exit 0 if match
+diffa verify /etc baseline.diffa  # Exit 0 if match
 
 # Verify with diff
-diffa verify /etc baseline.sqlite --show-diff
+diffa verify /etc baseline.diffa --show-diff
 ```
 
 **Exit Criteria:**

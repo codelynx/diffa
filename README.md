@@ -84,15 +84,15 @@ Download the latest release for your platform:
 
 **macOS (Universal: arm64 + x86_64):**
 ```bash
-curl -fsSL https://github.com/codelynx/Diffa/releases/latest/download/diffa-0.10.0-macos.tar.gz | tar -xz
-cd diffa-0.10.0-macos
+curl -fsSL https://github.com/codelynx/Diffa/releases/latest/download/diffa-0.11.0-macos.tar.gz | tar -xz
+cd diffa-0.11.0-macos
 sudo ./install.sh
 ```
 
 **Linux (x86_64):**
 ```bash
-curl -fsSL https://github.com/codelynx/Diffa/releases/latest/download/diffa-0.10.0-linux.tar.gz | tar -xz
-cd diffa-0.10.0-linux
+curl -fsSL https://github.com/codelynx/Diffa/releases/latest/download/diffa-0.11.0-linux.tar.gz | tar -xz
+cd diffa-0.11.0-linux
 sudo ./install.sh
 ```
 
@@ -123,7 +123,7 @@ To use Diffa as a library in your Swift project, add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/codelynx/Diffa.git", from: "0.10.0")
+    .package(url: "https://github.com/codelynx/Diffa.git", from: "0.11.0")
 ]
 ```
 
@@ -137,7 +137,7 @@ dependencies: [
 
 **Create a snapshot:**
 ```bash
-diffa snapshot /path/to/dir -o snapshot.db
+diffa snapshot /path/to/dir -o snapshot.diffa
 ```
 
 **Compare two directories:**
@@ -162,7 +162,7 @@ diffa sync /dir-a /dir-b --bidirectional --conflict-resolution newest
 
 **Verify directory integrity:**
 ```bash
-diffa verify /path/to/dir baseline.db
+diffa verify /path/to/dir baseline.diffa
 ```
 
 ### Common Workflows
@@ -170,13 +170,13 @@ diffa verify /path/to/dir baseline.db
 **Test Installer Impact:**
 ```bash
 # Before install
-diffa snapshot /Applications -o before.db
+diffa snapshot /Applications -o before.diffa
 
 # After install
-diffa snapshot /Applications -o after.db
+diffa snapshot /Applications -o after.diffa
 
 # Compare
-diffa compare before.db after.db --show-diff
+diffa compare before.diffa after.diffa --show-diff
 ```
 
 **Deployment with Rollback:**
@@ -194,10 +194,10 @@ diffa patch revert deploy.patch /production
 **Integrity Monitoring:**
 ```bash
 # Create baseline
-diffa snapshot /etc -o etc-baseline.db
+diffa snapshot /etc -o etc-baseline.diffa
 
 # Verify periodically (e.g., via cron)
-diffa verify /etc etc-baseline.db || echo "Changes detected!"
+diffa verify /etc etc-baseline.diffa || echo "Changes detected!"
 ```
 
 ### Documentation

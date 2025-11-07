@@ -49,7 +49,7 @@ diffa --version
 
 ### 1. Snapshots
 
-A **snapshot** is a database file (`.db`) that captures the complete state of a directory at a point in time:
+A **snapshot** is a database file (`.diffa`) that captures the complete state of a directory at a point in time:
 
 - File paths and names
 - File sizes and modification times
@@ -93,16 +93,16 @@ Patches can be applied to directories and optionally reverted.
 
 ```bash
 # Day 1: Create initial snapshot
-diffa snapshot ~/projects/myapp -o snapshots/day1.db
+diffa snapshot ~/projects/myapp -o snapshots/day1.diffa
 
 # Day 2: Create another snapshot
-diffa snapshot ~/projects/myapp -o snapshots/day2.db
+diffa snapshot ~/projects/myapp -o snapshots/day2.diffa
 
 # Compare what changed
-diffa compare snapshots/day1.db snapshots/day2.db
+diffa compare snapshots/day1.diffa snapshots/day2.diffa
 
 # See detailed diff
-diffa compare snapshots/day1.db snapshots/day2.db --format diff
+diffa compare snapshots/day1.diffa snapshots/day2.diffa --format diff
 ```
 
 ### Workflow 2: Backup and Verify
@@ -111,13 +111,13 @@ diffa compare snapshots/day1.db snapshots/day2.db --format diff
 
 ```bash
 # Create snapshot of source
-diffa snapshot ~/important-files -o source.db
+diffa snapshot ~/important-files -o source.diffa
 
 # Create backup
 cp -r ~/important-files ~/backup/
 
 # Verify backup matches
-diffa verify source.db ~/backup/
+diffa verify source.diffa ~/backup/
 
 # Or compare in detail
 diffa compare ~/important-files ~/backup/ --summary
@@ -161,16 +161,16 @@ Compare local development with production server:
 
 ```bash
 # Snapshot local site
-diffa snapshot ~/sites/mywebsite -o local.db
+diffa snapshot ~/sites/mywebsite -o local.diffa
 
 # Snapshot production (via SSH mount or rsync)
-diffa snapshot /mnt/production/mywebsite -o production.db
+diffa snapshot /mnt/production/mywebsite -o production.diffa
 
 # See what will change
-diffa compare local.db production.db --summary
+diffa compare local.diffa production.diffa --summary
 
 # Create deployment patch
-diffa patch create production.db local.db -o deploy.patch
+diffa patch create production.diffa local.diffa -o deploy.patch
 
 # Apply to production
 diffa patch apply deploy.patch /mnt/production/mywebsite
@@ -182,13 +182,13 @@ Track server configuration changes:
 
 ```bash
 # Daily snapshot of /etc
-diffa snapshot /etc -o /backup/etc-$(date +%Y%m%d).db
+diffa snapshot /etc -o /backup/etc-$(date +%Y%m%d).diffa
 
 # Compare with yesterday
-diffa compare /backup/etc-20250105.db /backup/etc-20250106.db
+diffa compare /backup/etc-20250105.diffa /backup/etc-20250106.diffa
 
 # See exactly what changed
-diffa compare /backup/etc-20250105.db /backup/etc-20250106.db \
+diffa compare /backup/etc-20250105.diffa /backup/etc-20250106.diffa \
   --format diff > changes.diff
 ```
 
@@ -198,15 +198,15 @@ Prepare release packages:
 
 ```bash
 # Create snapshots for each version
-diffa snapshot v1.0/ -o snapshots/v1.0.db
-diffa snapshot v1.1/ -o snapshots/v1.1.db
-diffa snapshot v1.2/ -o snapshots/v1.2.db
+diffa snapshot v1.0/ -o snapshots/v1.0.diffa
+diffa snapshot v1.1/ -o snapshots/v1.1.diffa
+diffa snapshot v1.2/ -o snapshots/v1.2.diffa
 
 # Create upgrade patches
-diffa patch create snapshots/v1.0.db snapshots/v1.1.db \
+diffa patch create snapshots/v1.0.diffa snapshots/v1.1.diffa \
   -o patches/upgrade-1.0-to-1.1.patch --reversible
 
-diffa patch create snapshots/v1.1.db snapshots/v1.2.db \
+diffa patch create snapshots/v1.1.diffa snapshots/v1.2.diffa \
   -o patches/upgrade-1.1-to-1.2.patch --reversible
 
 # Users can apply incremental updates
@@ -220,17 +220,17 @@ Migrate files between systems with verification:
 
 ```bash
 # Source system
-diffa snapshot /data/archives -o archives-source.db
+diffa snapshot /data/archives -o archives-source.diffa
 
 # Transfer files and snapshot
 rsync -av /data/archives remote:/data/archives
-scp archives-source.db remote:
+scp archives-source.diffa remote:
 
 # Destination system - verify transfer
-diffa verify archives-source.db /data/archives
+diffa verify archives-source.diffa /data/archives
 
 # Or compare for any differences
-diffa compare archives-source.db /data/archives --summary
+diffa compare archives-source.diffa /data/archives --summary
 ```
 
 ### Use Case 5: Development Environment Setup
@@ -239,13 +239,13 @@ Standardize development environments:
 
 ```bash
 # Create "golden" environment snapshot
-diffa snapshot ~/dev-environment -o golden-env.db
+diffa snapshot ~/dev-environment -o golden-env.diffa
 
 # New team member sets up their environment
-diffa snapshot ~/my-environment -o my-env.db
+diffa snapshot ~/my-environment -o my-env.diffa
 
 # See what's missing
-diffa compare golden-env.db my-env.db --summary
+diffa compare golden-env.diffa my-env.diffa --summary
 
 # Sync to match golden environment
 diffa sync ~/dev-environment ~/my-environment
@@ -256,7 +256,7 @@ diffa sync ~/dev-environment ~/my-environment
 ### Snapshot Command
 
 ```bash
-diffa snapshot <directory> -o <output.db> [options]
+diffa snapshot <directory> -o <output.diffa> [options]
 ```
 
 **Options:**
@@ -269,16 +269,16 @@ diffa snapshot <directory> -o <output.db> [options]
 
 ```bash
 # Basic snapshot
-diffa snapshot ~/Documents -o documents.db
+diffa snapshot ~/Documents -o documents.diffa
 
 # Fast snapshot with parallel hashing
-diffa snapshot ~/large-project -o project.db --parallel
+diffa snapshot ~/large-project -o project.diffa --parallel
 
 # With hash cache for repeated snapshots
-diffa snapshot ~/project -o daily.db --hash-cache ~/.cache/diffa
+diffa snapshot ~/project -o daily.diffa --hash-cache ~/.cache/diffa
 
 # Skip hidden files and don't follow symlinks
-diffa snapshot ~/code -o code.db \
+diffa snapshot ~/code -o code.diffa \
   --exclude-hidden --no-follow-symlinks
 ```
 
@@ -300,32 +300,32 @@ diffa compare <source> <destination> [options]
 diffa compare ~/old-version ~/new-version
 
 # Compare snapshots
-diffa compare old.db new.db --summary
+diffa compare old.diffa new.diffa --summary
 
 # Export as JSON
-diffa compare source.db dest.db --format json -o changes.json
+diffa compare source.diffa dest.diffa --format json -o changes.json
 
 # Export as HTML report
-diffa compare v1.db v2.db --format html -o report.html
+diffa compare v1.diffa v2.diffa --format html -o report.html
 
 # Unix-style diff output
-diffa compare v1.db v2.db --format diff -o changes.diff
+diffa compare v1.diffa v2.diffa --format diff -o changes.diff
 ```
 
 ### Verify Command
 
 ```bash
-diffa verify <snapshot.db> <directory>
+diffa verify <snapshot.diffa> <directory>
 ```
 
 **Examples:**
 
 ```bash
 # Verify backup matches snapshot
-diffa verify original.db ~/backup/
+diffa verify original.diffa ~/backup/
 
 # Verify with detailed output
-diffa verify source.db /mnt/remote/ --show-diff
+diffa verify source.diffa /mnt/remote/ --show-diff
 ```
 
 ### Patch Command
@@ -333,7 +333,7 @@ diffa verify source.db /mnt/remote/ --show-diff
 #### Create Patch
 
 ```bash
-diffa patch create <source> <destination> -o <patch.db> [options]
+diffa patch create <source> <destination> -o <patch-file> [options]
 ```
 
 **Options:**
@@ -346,16 +346,16 @@ diffa patch create <source> <destination> -o <patch.db> [options]
 diffa patch create v1.0/ v2.0/ -o upgrade.patch
 
 # Create reversible patch
-diffa patch create old.db new.db -o update.patch --reversible
+diffa patch create old.diffa new.diffa -o update.patch --reversible
 
 # From snapshots
-diffa patch create snapshot1.db snapshot2.db -o changes.patch
+diffa patch create snapshot1.diffa snapshot2.diffa -o changes.patch
 ```
 
 #### Apply Patch
 
 ```bash
-diffa patch apply <patch.db> <target-directory> [options]
+diffa patch apply <patch-file> <target-directory> [options]
 ```
 
 **Options:**
@@ -378,7 +378,7 @@ diffa patch apply risky.patch ~/data/ --force
 #### Revert Patch
 
 ```bash
-diffa patch revert <patch.db> <target-directory> [options]
+diffa patch revert <patch-file> <target-directory> [options]
 ```
 
 **Options:**
@@ -443,13 +443,13 @@ diffa export <source> <destination> --format <type> -o <output>
 
 ```bash
 # Export comparison as JSON
-diffa export v1.db v2.db --format json -o changes.json
+diffa export v1.diffa v2.diffa --format json -o changes.json
 
 # Export as HTML report
 diffa export old/ new/ --format html -o report.html
 
 # Export as diff
-diffa export snapshot1.db snapshot2.db --format diff -o changes.diff
+diffa export snapshot1.diffa snapshot2.diffa --format diff -o changes.diff
 ```
 
 ## Tips and Best Practices
@@ -459,9 +459,9 @@ diffa export snapshot1.db snapshot2.db --format diff -o changes.diff
 1. **Use snapshots for repeated comparisons**
    ```bash
    # Good: Compare snapshots (fast)
-   diffa snapshot dir1 -o s1.db
-   diffa snapshot dir2 -o s2.db
-   diffa compare s1.db s2.db  # Multiple times
+   diffa snapshot dir1 -o s1.diffa
+   diffa snapshot dir2 -o s2.diffa
+   diffa compare s1.diffa s2.diffa  # Multiple times
 
    # Avoid: Re-scanning directories each time
    diffa compare dir1 dir2  # Rescans every time
@@ -469,30 +469,30 @@ diffa export snapshot1.db snapshot2.db --format diff -o changes.diff
 
 2. **Enable parallel hashing for large directories**
    ```bash
-   diffa snapshot ~/large-project -o snapshot.db --parallel
+   diffa snapshot ~/large-project -o snapshot.diffa --parallel
    ```
 
 3. **Use hash cache for directories scanned frequently**
    ```bash
    # First scan is slower, subsequent scans are much faster
-   diffa snapshot ~/project -o daily.db \
+   diffa snapshot ~/project -o daily.diffa \
      --hash-cache ~/.cache/diffa
    ```
 
 4. **Store snapshots outside the directory being snapshotted**
    ```bash
    # Good: Store elsewhere
-   diffa snapshot ~/project -o ~/snapshots/project.db
+   diffa snapshot ~/project -o ~/snapshots/project.diffa
 
    # Bad: Creates self-reference
-   diffa snapshot ~/project -o ~/project/snapshot.db
+   diffa snapshot ~/project -o ~/project/snapshot.diffa
    ```
 
 ### Workflow Tips
 
 1. **Name snapshots with timestamps**
    ```bash
-   diffa snapshot ~/data -o snapshots/$(date +%Y%m%d-%H%M%S).db
+   diffa snapshot ~/data -o snapshots/$(date +%Y%m%d-%H%M%S).diffa
    ```
 
 2. **Use dry-run before destructive operations**
@@ -530,10 +530,10 @@ diffa export snapshot1.db snapshot2.db --format diff -o changes.diff
 
 3. **Keep snapshots for rollback**
    ```bash
-   diffa snapshot ~/app -o pre-update.db
+   diffa snapshot ~/app -o pre-update.diffa
    diffa patch apply update.patch ~/app/
    # If issues occur:
-   diffa patch create post-update.db pre-update.db -o rollback.patch
+   diffa patch create post-update.diffa pre-update.diffa -o rollback.patch
    ```
 
 ## Troubleshooting
@@ -544,17 +544,17 @@ diffa export snapshot1.db snapshot2.db --format diff -o changes.diff
 
 1. Enable parallel hashing:
    ```bash
-   diffa snapshot dir -o out.db --parallel
+   diffa snapshot dir -o out.diffa --parallel
    ```
 
 2. Use hash cache for repeated snapshots:
    ```bash
-   diffa snapshot dir -o out.db --hash-cache ~/.cache/diffa
+   diffa snapshot dir -o out.diffa --hash-cache ~/.cache/diffa
    ```
 
 3. Exclude unnecessary files:
    ```bash
-   diffa snapshot dir -o out.db --exclude-hidden
+   diffa snapshot dir -o out.diffa --exclude-hidden
    ```
 
 ### Problem: "Permission denied" errors
@@ -563,10 +563,10 @@ diffa export snapshot1.db snapshot2.db --format diff -o changes.diff
 
 ```bash
 # Skip permission errors gracefully (they're logged but don't stop the snapshot)
-diffa snapshot /restricted -o snapshot.db
+diffa snapshot /restricted -o snapshot.diffa
 
 # Or run with appropriate permissions
-sudo diffa snapshot /etc -o etc-snapshot.db
+sudo diffa snapshot /etc -o etc-snapshot.diffa
 ```
 
 ### Problem: Patch won't apply
@@ -576,7 +576,7 @@ sudo diffa snapshot /etc -o etc-snapshot.db
 1. **Target directory has been modified**
    ```bash
    # Check current state vs expected state
-   diffa verify expected-state.db target-dir/
+   diffa verify expected-state.diffa target-dir/
    ```
 
 2. **Force apply (use carefully)**
@@ -647,13 +647,13 @@ Extended attributes and platform-specific features are not tracked by default.
 DATE=$(date +%Y%m%d)
 SOURCE="$HOME/important-data"
 SNAPSHOT_DIR="$HOME/snapshots"
-SNAPSHOT="$SNAPSHOT_DIR/snapshot-$DATE.db"
+SNAPSHOT="$SNAPSHOT_DIR/snapshot-$DATE.diffa"
 
 # Create snapshot
 diffa snapshot "$SOURCE" -o "$SNAPSHOT" --parallel
 
 # Keep only last 30 days
-find "$SNAPSHOT_DIR" -name "snapshot-*.db" -mtime +30 -delete
+find "$SNAPSHOT_DIR" -name "snapshot-*.diffa" -mtime +30 -delete
 
 echo "Snapshot created: $SNAPSHOT"
 ```
@@ -664,8 +664,8 @@ echo "Snapshot created: $SNAPSHOT"
 #!/bin/bash
 # monitor-changes.sh
 
-BASELINE="baseline.db"
-CURRENT="current.db"
+BASELINE="baseline.diffa"
+CURRENT="current.diffa"
 
 # Create current snapshot
 diffa snapshot /watched/directory -o "$CURRENT"
@@ -685,7 +685,7 @@ Process comparison results programmatically:
 
 ```bash
 # Export to JSON
-diffa compare old.db new.db --format json -o changes.json
+diffa compare old.diffa new.diffa --format json -o changes.json
 
 # Process with jq
 jq '.added | length' changes.json  # Count added files
@@ -703,7 +703,7 @@ Monitor backup integrity:
 
 SOURCE="/data/important"
 BACKUP="/backup/important"
-SNAPSHOT="/backup/snapshots/latest.db"
+SNAPSHOT="/backup/snapshots/latest.diffa"
 
 # Create fresh snapshot
 diffa snapshot "$SOURCE" -o "$SNAPSHOT"

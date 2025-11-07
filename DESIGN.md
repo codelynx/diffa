@@ -167,15 +167,15 @@ print("Removed: \(diff.removed.count)")
 print("Modified: \(diff.modified.count)")
 
 // Option 2: Compare existing snapshots (reusable, lightweight)
-let snapA = try Snapshot.load(from: "snapshot_a.sqlite")
-let snapB = try Snapshot.load(from: "snapshot_b.sqlite")
+let snapA = try Snapshot.load(from: "snapshot_a.diffa")
+let snapB = try Snapshot.load(from: "snapshot_b.diffa")
 let diff = try Diffa.Difference.compare(source: snapA, destination: snapB)
 // Comparison is just SQL queries - very fast!
 
 // Option 3: Multiple comparisons with snapshot reuse
-let snapA = try await Snapshot.create(from: dirA, saveTo: "a.sqlite")
-let snapB = try await Snapshot.create(from: dirB, saveTo: "b.sqlite")
-let snapC = try await Snapshot.create(from: dirC, saveTo: "c.sqlite")
+let snapA = try await Snapshot.create(from: dirA, saveTo: "a.diffa")
+let snapB = try await Snapshot.create(from: dirB, saveTo: "b.diffa")
+let snapC = try await Snapshot.create(from: dirC, saveTo: "c.diffa")
 
 let diffAB = try Diffa.Difference.compare(source: snapA, destination: snapB)
 let diffBC = try Diffa.Difference.compare(source: snapB, destination: snapC)

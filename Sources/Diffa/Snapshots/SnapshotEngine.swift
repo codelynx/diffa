@@ -240,7 +240,7 @@ public class SnapshotEngine {
         // Generate cache database name from directory path hash
         let directoryPath = directory.path
         let pathHash = directoryPath.data(using: .utf8)!.sha256Hex()
-        let cacheURL = cacheDir.appendingPathComponent("\(pathHash).db")
+        let cacheURL = cacheDir.appendingPathComponent("\(pathHash).diffa")
 
         // Open or create cache
         return try HashCache(at: cacheURL)

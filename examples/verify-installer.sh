@@ -11,8 +11,8 @@ TARGET_DIR="${1:?Usage: $0 <directory> <installer-command>}"
 shift
 INSTALLER_CMD="$@"
 
-BEFORE_SNAPSHOT="/tmp/diffa-before-$$.db"
-AFTER_SNAPSHOT="/tmp/diffa-after-$$.db"
+BEFORE_SNAPSHOT="/tmp/diffa-before-$$.diffa"
+AFTER_SNAPSHOT="/tmp/diffa-after-$$.diffa"
 
 cleanup() {
     rm -f "$BEFORE_SNAPSHOT" "$AFTER_SNAPSHOT"

@@ -44,25 +44,25 @@ Create a lightweight snapshot of a directory.
 
 **Syntax:**
 ```bash
-diffa snapshot <directory> -o <output.sqlite> [options]
+diffa snapshot <directory> -o <output.diffa> [options]
 ```
 
 **Examples:**
 ```bash
 # Create snapshot
-diffa snapshot /path/to/dir -o snapshot.sqlite
+diffa snapshot /path/to/dir -o snapshot.diffa
 
 # Create with progress
-diffa snapshot /path/to/dir -o snapshot.sqlite --progress
+diffa snapshot /path/to/dir -o snapshot.diffa --progress
 
 # Exclude hidden files
-diffa snapshot /path/to/dir -o snapshot.sqlite --no-hidden
+diffa snapshot /path/to/dir -o snapshot.diffa --no-hidden
 
 # Store symlinks as-is (don't follow)
-diffa snapshot /path/to/dir -o snapshot.sqlite --no-follow-symlinks
+diffa snapshot /path/to/dir -o snapshot.diffa --no-follow-symlinks
 
 # Capture ownership (requires sudo to restore later)
-sudo diffa snapshot /etc -o snapshot.sqlite --with-ownership
+sudo diffa snapshot /etc -o snapshot.diffa --with-ownership
 ```
 
 **Options:**
@@ -79,7 +79,7 @@ sudo diffa snapshot /etc -o snapshot.sqlite --with-ownership
 ```
 Creating snapshot of /path/to/dir...
 [████████████████████] 10,000 files (100%)
-Snapshot saved to snapshot.sqlite (5.2 MB)
+Snapshot saved to snapshot.diffa (5.2 MB)
 ```
 
 ---
@@ -99,10 +99,10 @@ diffa compare <source> <destination> [options]
 diffa compare /path/a /path/b
 
 # Compare existing snapshots (fast)
-diffa compare snapshot-a.sqlite snapshot-b.sqlite
+diffa compare snapshot-a.diffa snapshot-b.diffa
 
 # Compare directory to snapshot
-diffa compare /path/a snapshot-b.sqlite
+diffa compare /path/a snapshot-b.diffa
 
 # Output to JSON
 diffa compare /path/a /path/b --format json -o result.json
@@ -131,7 +131,7 @@ Added (5):
 
 Removed (3):
   - old-file.txt
-  - data/cache.db
+  - data/cache.diffa
   ...
 
 Modified (12):
@@ -160,7 +160,7 @@ Create, apply, or revert patches.
 
 **Syntax:**
 ```bash
-diffa patch create <source> <destination> -o <patch.sqlite> [options]
+diffa patch create <source> <destination> -o <patch-file> [options]
 ```
 
 **Examples:**
@@ -169,7 +169,7 @@ diffa patch create <source> <destination> -o <patch.sqlite> [options]
 diffa patch create /old /new -o update.patch
 
 # Create from snapshots (fast)
-diffa patch create old.sqlite new.sqlite -o update.patch
+diffa patch create old.diffa new.diffa -o update.patch
 
 # Include revert data
 diffa patch create /old /new -o update.patch --with-revert
@@ -191,7 +191,7 @@ diffa patch create /old /new -o update.patch --cache-dir /tmp/cache
 
 **Syntax:**
 ```bash
-diffa patch apply <patch.sqlite> <target-directory> [options]
+diffa patch apply <patch-file> <target-directory> [options]
 ```
 
 **Examples:**
@@ -228,7 +228,7 @@ Applied successfully:
 
 **Syntax:**
 ```bash
-diffa patch revert <patch.sqlite> <target-directory> [options]
+diffa patch revert <patch-file> <target-directory> [options]
 ```
 
 **Examples:**
@@ -302,7 +302,7 @@ Export comparison results in various formats.
 
 **Syntax:**
 ```bash
-diffa export <patch.sqlite> -f <format> -o <output> [options]
+diffa export <patch-file> -f <format> -o <output> [options]
 ```
 
 **Examples:**
@@ -333,19 +333,19 @@ Verify a directory against a snapshot.
 
 **Syntax:**
 ```bash
-diffa verify <directory> <snapshot.sqlite> [options]
+diffa verify <directory> <snapshot.diffa> [options]
 ```
 
 **Examples:**
 ```bash
 # Verify directory matches snapshot
-diffa verify /path/to/dir snapshot.sqlite
+diffa verify /path/to/dir snapshot.diffa
 
 # Show differences if any
-diffa verify /path/to/dir snapshot.sqlite --show-diff
+diffa verify /path/to/dir snapshot.diffa --show-diff
 
 # Quiet (exit code only)
-diffa verify /path/to/dir snapshot.sqlite --quiet
+diffa verify /path/to/dir snapshot.diffa --quiet
 ```
 
 **Options:**
@@ -354,7 +354,7 @@ diffa verify /path/to/dir snapshot.sqlite --quiet
 
 **Output:**
 ```
-Verifying /path/to/dir against snapshot.sqlite...
+Verifying /path/to/dir against snapshot.diffa...
 ✓ Verification passed: No changes detected
 ```
 
@@ -456,16 +456,16 @@ Optional configuration file: `~/.diffarc` (JSON format)
 
 ```bash
 # Before install
-diffa snapshot /Applications -o before.sqlite
+diffa snapshot /Applications -o before.diffa
 
 # Run installer
 ./installer.pkg
 
 # After install
-diffa snapshot /Applications -o after.sqlite
+diffa snapshot /Applications -o after.diffa
 
 # See what changed
-diffa compare before.sqlite after.sqlite
+diffa compare before.diffa after.diffa
 ```
 
 ---
@@ -501,13 +501,13 @@ diffa sync ~/Documents /mnt/desktop/Documents --bidirectional --dry-run
 
 ```bash
 # Create baseline snapshot
-diffa snapshot /etc -o baseline.sqlite
+diffa snapshot /etc -o baseline.diffa
 
 # Later, verify no unauthorized changes
-diffa verify /etc baseline.sqlite
+diffa verify /etc baseline.diffa
 
 # If changes detected, show what changed
-diffa verify /etc baseline.sqlite --show-diff
+diffa verify /etc baseline.diffa --show-diff
 ```
 
 ---
@@ -677,7 +677,7 @@ Consistent exit codes across all commands:
 
 **Phase 6+ potential additions:**
 
-1. **Watch mode:** `diffa watch <dir> --snapshot baseline.sqlite --alert`
+1. **Watch mode:** `diffa watch <dir> --snapshot baseline.diffa --alert`
 2. **Remote sync:** `diffa sync local-dir user@host:/remote-dir`
 3. **Compression:** `diffa snapshot --compress zstd`
 4. **Ignore patterns:** `diffa snapshot --ignore .diffaignore`

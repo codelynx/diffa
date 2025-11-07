@@ -74,7 +74,7 @@ let destination = URL(fileURLWithPath: "/path/to/B")
 ```swift
 let snapshotA = try await Snapshot.create(
     from: source,
-    saveTo: temporaryDirectory().appendingPathComponent("snapshot_a.sqlite"),
+    saveTo: temporaryDirectory().appendingPathComponent("snapshot_a.diffa"),
     progress: { progress in
         reportProgress(.scanning(directory: "A", progress: progress))
     }
@@ -82,7 +82,7 @@ let snapshotA = try await Snapshot.create(
 
 let snapshotB = try await Snapshot.create(
     from: destination,
-    saveTo: temporaryDirectory().appendingPathComponent("snapshot_b.sqlite"),
+    saveTo: temporaryDirectory().appendingPathComponent("snapshot_b.diffa"),
     progress: { progress in
         reportProgress(.scanning(directory: "B", progress: progress))
     }
@@ -222,8 +222,8 @@ let conflictResolution: ConflictResolution = .newest
 **Step 1: Create snapshots**
 
 ```swift
-let snapshotA = try await Snapshot.create(from: dirA, saveTo: "a.sqlite")
-let snapshotB = try await Snapshot.create(from: dirB, saveTo: "b.sqlite")
+let snapshotA = try await Snapshot.create(from: dirA, saveTo: "a.diffa")
+let snapshotB = try await Snapshot.create(from: dirB, saveTo: "b.diffa")
 ```
 
 **Step 2: Compare both directions**

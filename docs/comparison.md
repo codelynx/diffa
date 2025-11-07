@@ -9,16 +9,16 @@ Find differences between two folders to identify what files and folders differ b
 **Memory-efficient approach using snapshots:**
 
 Instead of loading both directories into memory and comparing, we:
-1. Take snapshot of A → `snapshot_a.sqlite`
-2. Take snapshot of B → `snapshot_b.sqlite`
+1. Take snapshot of A → `snapshot_a.diffa`
+2. Take snapshot of B → `snapshot_b.diffa`
 3. Create Difference that **references both snapshots**
 4. Query differences on-demand using SQL
 
 **Architecture:**
 ```
-Directory A → Snapshot A (.sqlite file)
+Directory A → Snapshot A (.diffa file)
                     ↓
-Directory B → Snapshot B (.sqlite file)
+Directory B → Snapshot B (.diffa file)
                     ↓
             Difference (references both)
                     ↓
@@ -85,8 +85,8 @@ struct Difference<T: ItemProtocol> {
 ┌────────────────────────────────────┐
 │ Difference<T> struct               │
 │  ┌──────────────────────────────┐  │
-│  │ sourceSnapshot: Snapshot     │ ─┼──→ snapshot_a.sqlite (7 MB)
-│  │ destinationSnapshot: Snapshot│ ─┼──→ snapshot_b.sqlite (8 MB)
+│  │ sourceSnapshot: Snapshot     │ ─┼──→ snapshot_a.diffa (7 MB)
+│  │ destinationSnapshot: Snapshot│ ─┼──→ snapshot_b.diffa (8 MB)
 │  │                              │  │
 │  │ added: [T]      (lazy/cache) │  │
 │  │ removed: [T]    (lazy/cache) │  │
@@ -112,8 +112,8 @@ From both snapshots:
 
 **Step 1: Create snapshots**
 ```swift
-let snapshotA = try await Snapshot.create(from: directoryA, saveTo: "a.sqlite")
-let snapshotB = try await Snapshot.create(from: directoryB, saveTo: "b.sqlite")
+let snapshotA = try await Snapshot.create(from: directoryA, saveTo: "a.diffa")
+let snapshotB = try await Snapshot.create(from: directoryB, saveTo: "b.diffa")
 ```
 - Each directory scanned once
 - Data saved to SQLite databases
@@ -132,7 +132,7 @@ Uses SQLite `ATTACH DATABASE` to query both snapshots:
 
 ```sql
 -- Open source snapshot database
-ATTACH DATABASE '/path/to/snapshot_b.sqlite' AS dest;
+ATTACH DATABASE '/path/to/snapshot_b.diffa' AS dest;
 
 -- Find added items (in destination, not in source)
 SELECT path, sha256, size FROM dest.items
@@ -164,7 +164,7 @@ WHERE main.sha256 != dest.sha256
 // Step 1: Create snapshots
 let snapshotA = try await Snapshot.create(
 	from: URL(fileURLWithPath: "/directory/before"),
-	saveTo: URL(fileURLWithPath: "/tmp/snapshot_before.sqlite"),
+	saveTo: URL(fileURLWithPath: "/tmp/snapshot_before.diffa"),
 	progress: { progress in
 		print("Scanning A: \(progress.filesProcessed) files")
 	}
@@ -172,7 +172,7 @@ let snapshotA = try await Snapshot.create(
 
 let snapshotB = try await Snapshot.create(
 	from: URL(fileURLWithPath: "/directory/after"),
-	saveTo: URL(fileURLWithPath: "/tmp/snapshot_after.sqlite"),
+	saveTo: URL(fileURLWithPath: "/tmp/snapshot_after.diffa"),
 	progress: { progress in
 		print("Scanning B: \(progress.filesProcessed) files")
 	}
@@ -205,9 +205,9 @@ for item in diff.modified {
 
 ```swift
 // Create snapshots once
-let snapshotA = try await Snapshot.create(from: dirA, saveTo: "a.sqlite")
-let snapshotB = try await Snapshot.create(from: dirB, saveTo: "b.sqlite")
-let snapshotC = try await Snapshot.create(from: dirC, saveTo: "c.sqlite")
+let snapshotA = try await Snapshot.create(from: dirA, saveTo: "a.diffa")
+let snapshotB = try await Snapshot.create(from: dirB, saveTo: "b.diffa")
+let snapshotC = try await Snapshot.create(from: dirC, saveTo: "c.diffa")
 
 // Compare multiple times without re-scanning
 let diffAB = try Difference.compare(source: snapshotA, destination: snapshotB)
@@ -223,8 +223,8 @@ print("A → C: \(diffAC.added.count) added, \(diffAC.removed.count) removed")
 
 ```swift
 // Load old snapshots from disk
-let baseline = try Snapshot.load(from: URL(fileURLWithPath: "baseline-2023.sqlite"))
-let current = try Snapshot.load(from: URL(fileURLWithPath: "current-2024.sqlite"))
+let baseline = try Snapshot.load(from: URL(fileURLWithPath: "baseline-2023.diffa"))
+let current = try Snapshot.load(from: URL(fileURLWithPath: "current-2024.diffa"))
 
 // Compare without re-scanning directories
 let diff = try Difference.compare(source: baseline, destination: current)
@@ -327,7 +327,7 @@ let diff2 = compare(snapA, snapC)  // Just SQL queries
 ```sql
 -- Open source snapshot
 -- Attach destination snapshot
-ATTACH DATABASE '/path/to/destination.sqlite' AS dest;
+ATTACH DATABASE '/path/to/destination.diffa' AS dest;
 
 -- Find added items (in dest, not in main)
 SELECT dest.path, dest.sha256, dest.size, dest.modification_date

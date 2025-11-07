@@ -20,7 +20,7 @@ A lightweight, type-safe SQLite wrapper for Swift with zero external dependencie
 import Diffa
 
 // Create or open database
-let db = try SQLiteDatabase(path: "/path/to/database.sqlite")
+let db = try SQLiteDatabase(path: "/path/to/database.diffa")
 ```
 
 ### Creating Tables
@@ -306,24 +306,16 @@ try db.transaction {
 try db.execute("CREATE INDEX idx_users_email ON users(email)")
 ```
 
-### 4. Enable WAL Mode (Enabled by Default)
-
-Write-Ahead Logging improves concurrency:
-```swift
-// Already enabled by default in SQLiteDatabase init
-try db.execute("PRAGMA journal_mode = WAL")
-```
-
 ## Thread Safety
 
 **Important:** A single `SQLiteDatabase` instance is not thread-safe. Each thread should have its own connection.
 
 ```swift
 // Thread 1
-let db1 = try SQLiteDatabase(path: "db.sqlite")
+let db1 = try SQLiteDatabase(path: "db.diffa")
 
 // Thread 2
-let db2 = try SQLiteDatabase(path: "db.sqlite")
+let db2 = try SQLiteDatabase(path: "db.diffa")
 
 // Both can safely access the same database file
 ```
@@ -348,7 +340,7 @@ The Package.swift already includes the correct linker settings for all platforms
 import Diffa
 
 // Setup
-let db = try SQLiteDatabase(path: "app.sqlite")
+let db = try SQLiteDatabase(path: "app.diffa")
 
 try db.execute("""
     CREATE TABLE IF NOT EXISTS todos (

@@ -24,7 +24,7 @@ Revert → Restore A from B
 ┌─────────────────────────────────────────────────┐
 │  Patch (SQLite-based)                           │
 │  ┌────────────────────────────────────────────┐ │
-│  │ Database: patch.sqlite                     │ │
+│  │ Database: update.patch                     │ │
 │  │                                            │ │
 │  │ Table: operations                          │ │
 │  │   - sequence_order                         │ │
@@ -420,7 +420,7 @@ try await patch.revert(on: target)
 
 **Storage structure:**
 ```
-Patch file: deploy.patch.sqlite (self-contained database)
+Patch file: deploy.patch (self-contained database)
 ├── operations table (all patch operations)
 │   ├── Indexed by sequence_order
 │   ├── Efficient queries
@@ -854,7 +854,7 @@ extension Patch {
 
 ```swift
 // Load patch from SQLite
-let patch = try Patch.load(from: "deploy.patch.sqlite")
+let patch = try Patch.load(from: "deploy.patch")
 
 // Quick overview (text)
 print(try patch.exportAsText())
@@ -894,12 +894,12 @@ try patch.exportAsHTML(to: "patch-review.html")
 
 ```swift
 struct Patch {
-    let databaseURL: URL  // Path to .sqlite file
+    let databaseURL: URL  // Path to .patch file
 
     // Create patch from difference
     static func create(
         from difference: Difference<T>,
-        saveTo url: URL,  // Where to save .sqlite file
+        saveTo url: URL,  // Where to save .patch file
         includeRevertData: Bool = true
     ) async throws -> Patch
 
@@ -987,14 +987,14 @@ struct PatchStatistics: Codable {
 
 ```swift
 // Create patch for deployment
-let before = try await Snapshot.create(from: production, saveTo: "before.sqlite")
-let after = try await Snapshot.create(from: staging, saveTo: "after.sqlite")
+let before = try await Snapshot.create(from: production, saveTo: "before.diffa")
+let after = try await Snapshot.create(from: staging, saveTo: "after.diffa")
 let diff = try Difference.compare(source: before, destination: after)
 
 // Create patch (SQLite format)
 let patch = try await Patch.create(
     from: diff,
-    saveTo: URL(fileURLWithPath: "deploy-v2.0.patch.sqlite"),
+    saveTo: URL(fileURLWithPath: "deploy-v2.0.patch"),
     includeRevertData: true
 )
 
@@ -1008,7 +1008,7 @@ print(try patch.exportAsText())
 // ...
 
 // On production server
-let patch = try Patch.load(from: "deploy-v2.0.patch.sqlite")
+let patch = try Patch.load(from: "deploy-v2.0.patch")
 try await patch.apply(to: production)
 
 // Verify deployment
@@ -1019,7 +1019,7 @@ print("Deployed successfully!")
 
 ```swift
 // Installation
-let patch = try Patch.load(from: "installer.patch.sqlite")
+let patch = try Patch.load(from: "installer.patch")
 
 // Inspect what will be installed
 print(try patch.exportAsText())
@@ -1036,7 +1036,7 @@ try await patch.revert(on: installLocation)
 
 ```swift
 // Load patch for inspection
-let patch = try Patch.load(from: "update.patch.sqlite")
+let patch = try Patch.load(from: "update.patch")
 
 // Quick summary (terminal)
 print(try patch.exportAsText())

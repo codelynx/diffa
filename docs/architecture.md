@@ -128,8 +128,8 @@ let diff = try await Diffa.Difference.compare(
 )
 
 // Option 2: Compare existing snapshots (lightweight)
-let snapA = try Snapshot.load(from: "a.sqlite")
-let snapB = try Snapshot.load(from: "b.sqlite")
+let snapA = try Snapshot.load(from: "a.diffa")
+let snapB = try Snapshot.load(from: "b.diffa")
 let diff = try Diffa.Difference.compare(
 	source: snapA,
 	destination: snapB
@@ -449,7 +449,7 @@ CREATE INDEX idx_items_parent_id ON items(parent_id);
 
 **Key implementation notes:**
 - **Snapshot object is just a reference to a SQLite database file (~200 bytes)**
-- All snapshot data lives in the .sqlite file on disk, not in memory
+- All snapshot data lives in the .diffa file on disk, not in memory
 - Snapshot is always file-based (SQLite database)
 - Stream items to database incrementally (INSERT per item)
 - Hierarchical structure with parent-child relationships

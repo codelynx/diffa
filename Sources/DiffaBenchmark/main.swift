@@ -142,7 +142,7 @@ struct BenchmarkRunner {
     }
 
     static func measureSnapshot(directory: URL, label: String) async throws -> SnapshotMetrics {
-        let snapshotURL = FileManager.default.temporaryDirectory.appendingPathComponent("bench-\(label).db")
+        let snapshotURL = FileManager.default.temporaryDirectory.appendingPathComponent("bench-\(label).diffa")
         defer { try? FileManager.default.removeItem(at: snapshotURL) }
 
         let engine = SnapshotEngine()
@@ -220,7 +220,7 @@ struct BenchmarkRunner {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         let cacheDir = homeDir.appendingPathComponent(".diffa/cache")
         let pathHash = sha256Hex(data: data)
-        return cacheDir.appendingPathComponent("\(pathHash).db")
+        return cacheDir.appendingPathComponent("\(pathHash).diffa")
     }
 
     static func sha256Hex(data: Data) -> String {

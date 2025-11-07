@@ -153,7 +153,7 @@ diffa --version
 diffa --help
 
 # Create a test snapshot
-diffa snapshot /tmp -o test.sqlite
+diffa snapshot /tmp -o test.diffa
 ```
 
 ## Updating
