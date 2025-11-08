@@ -1,5 +1,27 @@
 # Phase 2 Implementation Breakdown
 
+> **⚠️ ARCHIVED - PHASE 2 (PATCHING) SKIPPED**
+>
+> **Status:** Not Implementing
+> **Date:** 2025-11-07 (archived)
+>
+> This implementation plan described how to build the patching system.
+> Phase 2 has been dropped from the roadmap.
+>
+> **Revised phases:**
+> - Phase 1: Snapshots + Comparison ✅
+> - ~~Phase 2: Patching~~ ❌ (skipped, use direct transfer instead)
+> - Phase 2 (new): File Transfer + Sync
+> - Phase 3: Optimization
+> - Phase 4: CLI Polish
+> - Phase 5: S3 Support (future)
+>
+> See `docs/efficient-sync.md` for revised roadmap.
+
+---
+
+## Original Plan (Archived)
+
 **Goal:** Working patch creation, apply, and revert system
 **Duration:** 2-3 weeks (broken into 8-10 incremental steps)
 

@@ -1,5 +1,19 @@
 # Operation Review: Patching (Create, Apply, Revert)
 
+> **⚠️ ARCHIVED - PATCHING NOT IMPLEMENTED**
+>
+> **Status:** Not Implementing
+> **Date:** 2025-11-07 (archived)
+>
+> This operation review described patch creation, application, and revert logic.
+> Patches have been dropped from the roadmap in favor of direct file transfer.
+>
+> See `docs/efficient-sync.md` for current approach.
+
+---
+
+## Original Design (Archived)
+
 This document reviews the patching operation which creates transformation descriptions and executes them.
 
 ## Core Concept

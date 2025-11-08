@@ -1,5 +1,34 @@
 # Patching (Objectives 2 & 3)
 
+> **⚠️ ARCHIVED - FEATURE DROPPED FROM ROADMAP**
+>
+> **Status:** Not Implementing
+> **Date:** 2025-11-07 (archived)
+> **Reason:** Unnecessary complexity for core mission
+>
+> **Original vision:**
+> - Create patch.db files with deltas
+> - Store RevertData for rollback
+> - Inline small files, external cache for large files
+> - Export to text/JSON/HTML formats
+>
+> **Decision:** Direct file transfer is simpler and sufficient.
+> - Diff = list of changed files (hash+size comparison)
+> - Transfer those files directly (no intermediate patch storage)
+> - No cache management, no staleness issues
+> - Snapshot comparison IS the "patch"
+>
+> **Current approach:** See `docs/efficient-sync.md`
+> - Compare snapshots → get file list
+> - Transfer files directly
+> - Apply metadata per-path
+>
+> Preserved for historical context.
+
+---
+
+## Original Design (Archived)
+
 ## Goals
 
 ### Objective 2: Create Patches
