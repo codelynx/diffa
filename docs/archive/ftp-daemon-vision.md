@@ -1,10 +1,33 @@
 # Diffa as Modern FTP Replacement
 
-**Status:** Proposal / Future Vision
-**Date:** 2025-11-07
-**Depends on:** Phase 6 (Remote Sync via Snapshot Exchange)
+> **⚠️ ARCHIVED - NOT CURRENT ROADMAP**
+>
+> **Status:** Shelved / Future Research Only
+> **Date:** 2025-11-07 (archived 2025-11-07)
+> **Reason:** Deemed overkill for Diffa's core mission
+>
+> This document described a full FTP daemon replacement with:
+> - Daemon mode (diffad server)
+> - Ad-hoc file operations (ls, get, put)
+> - Multi-user ACLs, quotas, audit logs
+> - REST/GraphQL APIs
+> - Web UI
+> - Content-addressable storage with hash-based queries
+>
+> **Decision:** Focus on efficient two-directory sync instead.
+> - ACLs/quotas belong to host OS (not Diffa's responsibility)
+> - File identity = MD5+size (not metadata)
+> - Simple file transfer protocol (not full daemon)
+> - Deduplication during transfer (not CAS infrastructure)
+>
+> **Current scope:** Snapshot-based sync between two endpoints (local or S3).
+> See `docs/remote-sync-proposal.md` for actual roadmap.
+>
+> This document preserved for historical context only.
 
-## Vision Statement
+---
+
+## Original Vision Statement (Archived)
 
 Position Diffa as a **modern FTP/SFTP replacement** with Git-like snapshot intelligence. Like FTP, but with incremental sync, content deduplication, move detection, and snapshot history.
 
