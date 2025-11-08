@@ -1,8 +1,32 @@
 # Remote Sync Metadata & Protocol Hardening Plan
 
-**Status:** Proposal  
-**Author:** Codex (GPT-5)  
-**Date:** 2025-11-07  
+> **⚠️ ARCHIVED - PROTOCOL PARTS NO LONGER NEEDED**
+>
+> **Status:** Partially Obsolete
+> **Date:** 2025-11-07 (archived 2025-11-07)
+>
+> **Why archived:**
+> This document addressed metadata negotiation for a custom network protocol (`HELLO`/`CAPABILITIES` handshake, blob sidecars, etc.) that we're not building.
+>
+> **What's still relevant:**
+> - Metadata levels (minimal, standard, full) → See `docs/cross-platform-metadata.md`
+> - Filesystem compatibility → See `docs/cross-platform-metadata.md`
+> - Owner/permission fallback → See `docs/cross-platform-metadata.md`
+>
+> **What's obsolete:**
+> - Protocol handshake (no daemon/server)
+> - Blob metadata sidecars (direct transfer instead)
+> - Session/chunking (use existing protocols - rsync, S3 SDK)
+>
+> Preserved for metadata design ideas.
+
+---
+
+## Original Proposal (Archived)
+
+**Status:** Proposal
+**Author:** Codex (GPT-5)
+**Date:** 2025-11-07
 **Scope:** Address metadata alignment, security, and blob-transfer gaps in `docs/remote-sync-proposal.md`
 
 ---

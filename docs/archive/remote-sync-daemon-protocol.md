@@ -1,5 +1,33 @@
 # Remote Synchronization via Snapshot Exchange
 
+> **⚠️ ARCHIVED - SUPERSEDED BY SIMPLIFIED DESIGN**
+>
+> **Status:** Shelved / Reference Only
+> **Date:** 2025-11-07 (archived 2025-11-07)
+> **Superseded by:** `docs/efficient-sync.md`
+>
+> **Why archived:**
+> This document described a daemon-based network protocol requiring:
+> - Server mode (`diffa serve`)
+> - Patch system (Phase 2 dependency)
+> - Content-addressable storage with `.blob` + `.meta` sidecars
+> - TLS/authentication infrastructure
+> - Multi-phase rollout (6a, 6b, 6c)
+>
+> **Decision:** Too complex for core mission.
+> - No daemon - use storage abstraction instead (local now, S3 later)
+> - No patches - direct file transfer simpler
+> - No custom protocol - use existing (SSH for local, S3 SDK for cloud)
+> - Deduplication during transfer (not storage infrastructure)
+>
+> **Current approach:** See `docs/efficient-sync.md`
+>
+> Preserved for protocol design ideas and historical context.
+
+---
+
+## Original Proposal (Archived)
+
 **Status:** Future feature proposal (Phase 6+)
 **Depends on:** Phase 1-5 complete (especially Phase 4 move detection)
 **Date:** 2025-11-07
