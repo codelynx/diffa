@@ -22,3 +22,7 @@ xcuserdata/
 .idea/
 dist/
 .build/
+
+# Benchmark datasets
+/tmp/diffa-benchmarks/
+Tests/Fixtures/Benchmarks/

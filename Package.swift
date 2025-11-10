@@ -36,7 +36,10 @@ let package = Package(
                 "Database/README.md",
                 "Core/README.md",
                 "Snapshots/README.md",
-                "Comparison/README.md"
+                "Comparison/README.md",
+                "EfficientSync/Core/README.md",
+                "EfficientSync/Snapshots/README.md",
+                "EfficientSync/Comparison/README.md"
             ],
             linkerSettings: [
                 .linkedLibrary("sqlite3", .when(platforms: [.macOS, .iOS, .linux]))
