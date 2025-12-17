@@ -84,15 +84,15 @@ Download the latest release for your platform:
 
 **macOS (Universal: arm64 + x86_64):**
 ```bash
-curl -fsSL https://github.com/codelynx/Diffa/releases/latest/download/diffa-0.11.0-macos.tar.gz | tar -xz
-cd diffa-0.11.0-macos
+curl -fsSL https://github.com/codelynx/Diffa/releases/latest/download/diffa-0.12.0-macos.tar.gz | tar -xz
+cd diffa-0.12.0-macos
 sudo ./install.sh
 ```
 
 **Linux (x86_64):**
 ```bash
-curl -fsSL https://github.com/codelynx/Diffa/releases/latest/download/diffa-0.11.0-linux.tar.gz | tar -xz
-cd diffa-0.11.0-linux
+curl -fsSL https://github.com/codelynx/Diffa/releases/latest/download/diffa-0.12.0-linux.tar.gz | tar -xz
+cd diffa-0.12.0-linux
 sudo ./install.sh
 ```
 
@@ -123,13 +123,15 @@ To use Diffa as a library in your Swift project, add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/codelynx/Diffa.git", from: "0.11.0")
+    .package(url: "https://github.com/codelynx/Diffa.git", from: "0.12.0")
 ]
 ```
 
 ## Documentation
 
-📚 **[Getting Started Guide](GETTING_STARTED.md)** - Comprehensive user guide with practical examples, workflows, and troubleshooting
+📚 **[Getting Started Guide](GETTING_STARTED.md)** - CLI user guide with practical examples, workflows, and troubleshooting
+
+🔧 **[Swift Programming Guide](SWIFT_PROGRAMMING_GUIDE.md)** - API guide for embedding Diffa in your Swift apps
 
 ## CLI Quick Start
 
@@ -158,6 +160,18 @@ diffa sync /source /destination
 
 # Bidirectional (merge changes)
 diffa sync /dir-a /dir-b --bidirectional --conflict-resolution newest
+```
+
+**Network sync (remote machines):**
+```bash
+# Start server on remote machine
+diffa serve --path /path/to/sync --port 8080
+
+# Push local files to remote server
+diffa push /local/path host:port
+
+# Pull remote files to local
+diffa pull /local/path host:port
 ```
 
 **Verify directory integrity:**
@@ -209,5 +223,8 @@ diffa verify /etc etc-baseline.diffa || echo "Changes detected!"
 - `man diffa-sync` - Synchronization
 - `man diffa-export` - Export formats
 - `man diffa-verify` - Verification
+- `diffa serve --help` - Network sync server
+- `diffa push --help` - Push to remote
+- `diffa pull --help` - Pull from remote
 
 See `docs/cli-design.md` for complete CLI specification.
