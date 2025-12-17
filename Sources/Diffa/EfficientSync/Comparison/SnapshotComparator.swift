@@ -4,7 +4,7 @@ import Foundation
 ///
 /// **Design:**
 /// - Mode-aware: push/pull/sync affect deletion behavior
-/// - No move detection here (that's Step 11)
+/// - Move detection: pairs add+delete with same hash into moves
 /// - Returns operations needed to make dest match source
 ///
 /// **Modes:**
@@ -21,6 +21,8 @@ import Foundation
 /// }
 /// ```
 public struct SnapshotComparator {
+    private let moveDetector = SyncMoveDetector()
+
     public init() {}
 
     /// Compare two snapshots and generate operations
@@ -117,6 +119,9 @@ public struct SnapshotComparator {
             // Dest-only files are kept as-is
             break
         }
+
+        // Detect moves (pairs add+delete with same hash)
+        moveDetector.detectMoves(source: source, dest: dest, operations: &operations)
 
         // Sort by path for determinism
         operations.sort { $0.path < $1.path }

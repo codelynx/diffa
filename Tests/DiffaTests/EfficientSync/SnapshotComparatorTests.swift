@@ -27,7 +27,10 @@ final class SnapshotComparatorTests: XCTestCase {
     }
 
     private func createFile(_ dir: URL, _ name: String, _ content: String) throws {
-        try content.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        let file = dir.appendingPathComponent(name)
+        // Create parent directories if needed
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try content.write(to: file, atomically: true, encoding: .utf8)
     }
 
     // MARK: - Identical Snapshots
@@ -211,6 +214,94 @@ final class SnapshotComparatorTests: XCTestCase {
         XCTAssertEqual(actions["new.txt"], .add)
         XCTAssertEqual(actions["modified.txt"], .modify)
         XCTAssertEqual(actions["deleted.txt"], .delete)
+    }
+
+    // MARK: - Move Detection
+
+    func testDetectSimpleRename() throws {
+        let source = try createDir("source")
+        let dest = try createDir("dest")
+
+        // Same content, different path = move
+        try createFile(source, "new-name.txt", "same content")
+        try createFile(dest, "old-name.txt", "same content")
+
+        let srcSnap = try SQLiteSyncSnapshot.create(at: source)
+        let destSnap = try SQLiteSyncSnapshot.create(at: dest)
+
+        let ops = comparator.compare(source: srcSnap, dest: destSnap, mode: .push)
+
+        XCTAssertEqual(ops.count, 1)
+        if case .move(let from) = ops[0].action {
+            XCTAssertEqual(from, "old-name.txt")
+            XCTAssertEqual(ops[0].path, "new-name.txt")
+        } else {
+            XCTFail("Expected move operation, got \(ops[0].action)")
+        }
+    }
+
+    func testDetectMultipleMovesWithSameHash() throws {
+        let source = try createDir("source")
+        let dest = try createDir("dest")
+
+        // Multiple files with same content
+        let content = "duplicate content"
+        try createFile(source, "dir1/file.txt", content)
+        try createFile(source, "dir2/file.txt", content)
+        try createFile(dest, "old1.txt", content)
+        try createFile(dest, "old2.txt", content)
+
+        let srcSnap = try SQLiteSyncSnapshot.create(at: source)
+        let destSnap = try SQLiteSyncSnapshot.create(at: dest)
+
+        let ops = comparator.compare(source: srcSnap, dest: destSnap, mode: .push)
+
+        // Should have 2 moves (deterministic pairing)
+        XCTAssertEqual(ops.count, 2)
+        let moveOps = ops.filter { if case .move = $0.action { return true } else { return false } }
+        XCTAssertEqual(moveOps.count, 2)
+    }
+
+    func testMoveWithUnmatchedCounts() throws {
+        let source = try createDir("source")
+        let dest = try createDir("dest")
+
+        // 2 adds, 1 delete with same hash
+        let content = "same content"
+        try createFile(source, "new1.txt", content)
+        try createFile(source, "new2.txt", content)
+        try createFile(dest, "old.txt", content)
+
+        let srcSnap = try SQLiteSyncSnapshot.create(at: source)
+        let destSnap = try SQLiteSyncSnapshot.create(at: dest)
+
+        let ops = comparator.compare(source: srcSnap, dest: destSnap, mode: .push)
+
+        // Should have 1 move + 1 add (min pairing)
+        let moveOps = ops.filter { if case .move = $0.action { return true } else { return false } }
+        let addOps = ops.filter { $0.action == .add }
+        XCTAssertEqual(moveOps.count, 1)
+        XCTAssertEqual(addOps.count, 1)
+    }
+
+    func testNoMoveForDifferentContent() throws {
+        let source = try createDir("source")
+        let dest = try createDir("dest")
+
+        // Different content = no move
+        try createFile(source, "new.txt", "new content")
+        try createFile(dest, "old.txt", "old content")
+
+        let srcSnap = try SQLiteSyncSnapshot.create(at: source)
+        let destSnap = try SQLiteSyncSnapshot.create(at: dest)
+
+        let ops = comparator.compare(source: srcSnap, dest: destSnap, mode: .push)
+
+        // Should be add + delete, not move
+        XCTAssertEqual(ops.count, 2)
+        let actions = ops.map(\.action)
+        XCTAssertTrue(actions.contains(.add))
+        XCTAssertTrue(actions.contains(.delete))
     }
 
     // MARK: - Deterministic Ordering
