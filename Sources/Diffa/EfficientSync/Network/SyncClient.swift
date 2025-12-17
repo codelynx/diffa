@@ -35,6 +35,9 @@ public final class SyncClient {
     // MARK: - Core Sync
 
     private func sync(localPath: URL, host: String, port: UInt16, mode: NetworkSyncMode) throws {
+        // Reset receive buffer for new sync
+        receiveBuffer = Data()
+
         log("Connecting to \(host):\(port)...")
 
         // Create connection
@@ -44,13 +47,16 @@ public final class SyncClient {
         let semaphore = DispatchSemaphore(value: 0)
         var connectionError: Error?
 
-        connection.stateUpdateHandler = { state in
+        connection.stateUpdateHandler = { [weak self] state in
+            self?.log("Connection state: \(state)")
             switch state {
             case .ready:
                 semaphore.signal()
             case .failed(let error):
                 connectionError = error
                 semaphore.signal()
+            case .waiting(let error):
+                self?.log("Waiting: \(error)")
             case .cancelled:
                 semaphore.signal()
             default:
@@ -58,10 +64,18 @@ public final class SyncClient {
             }
         }
 
+        log("Starting connection...")
         connection.start(queue: .global())
-        semaphore.wait()
+
+        log("Waiting for connection...")
+        let timeout = DispatchTime.now() + .seconds(10)
+        if semaphore.wait(timeout: timeout) == .timedOut {
+            connection.cancel()
+            throw SyncProtocolError.timeout
+        }
 
         if let error = connectionError {
+            log("Connection error: \(error)")
             throw SyncProtocolError.connectionFailed(host: host, port: Int(port))
         }
 
@@ -272,64 +286,87 @@ public final class SyncClient {
         semaphore.wait()
     }
 
+    /// Receive buffer for handling partial reads
+    private var receiveBuffer = Data()
+
     private func receiveMessageSync(_ connection: NWConnection) throws -> SyncMessage {
-        let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<SyncMessage, Error>?
-
-        // Read up to 10MB at a time
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 10 * 1024 * 1024) { data, _, _, error in
-            if let error = error {
-                result = .failure(error)
-                semaphore.signal()
-                return
-            }
-
-            guard let data = data, !data.isEmpty else {
-                result = .failure(SyncProtocolError.incompletePayload)
-                semaphore.signal()
-                return
-            }
-
-            // Parse header
-            guard let headerEnd = data.firstIndex(of: 0x0A) else {
-                result = .failure(SyncProtocolError.invalidHeader)
-                semaphore.signal()
-                return
-            }
-
-            let headerData = data[..<headerEnd]
-            guard let header = String(data: headerData, encoding: .utf8) else {
-                result = .failure(SyncProtocolError.invalidHeader)
-                semaphore.signal()
-                return
-            }
-
-            let parts = header.split(separator: " ", maxSplits: 1)
-            guard parts.count == 2,
-                  let type = SyncMessageType(rawValue: String(parts[0])),
-                  let length = Int(parts[1]) else {
-                result = .failure(SyncProtocolError.invalidHeader)
-                semaphore.signal()
-                return
-            }
-
-            let payloadStart = data.index(after: headerEnd)
-            let payload = Data(data[payloadStart...].prefix(length))
-
-            result = .success(SyncMessage(type: type, payload: payload))
-            semaphore.signal()
-        }
-
-        semaphore.wait()
-
-        switch result {
-        case .success(let message):
+        // Try to parse from existing buffer first
+        if let message = tryParseMessageFromBuffer() {
             return message
-        case .failure(let error):
-            throw error
-        case .none:
-            throw SyncProtocolError.timeout
         }
+
+        // Need to read more data
+        while true {
+            let semaphore = DispatchSemaphore(value: 0)
+            var readResult: Result<Data, Error>?
+
+            // Read more data (up to 64KB at a time)
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, _, error in
+                if let error = error {
+                    readResult = .failure(error)
+                } else if let data = data, !data.isEmpty {
+                    readResult = .success(data)
+                } else {
+                    readResult = .failure(SyncProtocolError.incompletePayload)
+                }
+                semaphore.signal()
+            }
+
+            let timeout = DispatchTime.now() + .seconds(30)
+            if semaphore.wait(timeout: timeout) == .timedOut {
+                throw SyncProtocolError.timeout
+            }
+
+            switch readResult {
+            case .success(let data):
+                receiveBuffer.append(data)
+            case .failure(let error):
+                throw error
+            case .none:
+                throw SyncProtocolError.timeout
+            }
+
+            // Try to parse again
+            if let message = tryParseMessageFromBuffer() {
+                return message
+            }
+            // Loop to read more
+        }
+    }
+
+    private func tryParseMessageFromBuffer() -> SyncMessage? {
+        // Find header end (newline)
+        guard let headerEnd = receiveBuffer.firstIndex(of: 0x0A) else {
+            return nil
+        }
+
+        let headerData = receiveBuffer[..<headerEnd]
+        guard let header = String(data: headerData, encoding: .utf8) else {
+            return nil
+        }
+
+        let parts = header.split(separator: " ", maxSplits: 1)
+        guard parts.count == 2,
+              let type = SyncMessageType(rawValue: String(parts[0])),
+              let length = Int(parts[1]) else {
+            return nil
+        }
+
+        let payloadStart = receiveBuffer.index(after: headerEnd)
+        let availablePayload = receiveBuffer.count - (payloadStart - receiveBuffer.startIndex)
+
+        guard availablePayload >= length else {
+            return nil  // Not enough payload data yet
+        }
+
+        // Extract payload
+        let payloadEnd = receiveBuffer.index(payloadStart, offsetBy: length)
+        let payload = Data(receiveBuffer[payloadStart..<payloadEnd])
+
+        // Remove consumed data from buffer
+        receiveBuffer = Data(receiveBuffer[payloadEnd...])
+
+        return SyncMessage(type: type, payload: payload)
     }
 
     private func log(_ message: String) {

@@ -19,6 +19,10 @@ public final class SyncServer {
     private var listener: NWListener?
     private var isRunning = false
 
+    /// Per-connection receive buffers (keyed by connection object identifier)
+    private var connectionBuffers: [ObjectIdentifier: Data] = [:]
+    private let bufferLock = NSLock()
+
     /// Callback for logging
     public var onLog: ((String) -> Void)?
 
@@ -35,8 +39,7 @@ public final class SyncServer {
         listener?.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                self?.log("Server listening on port \(self?.port ?? 0)")
-                self?.log("Serving: \(self?.rootPath.path ?? "")")
+                self?.printServerInfo()
             case .failed(let error):
                 self?.log("Server failed: \(error)")
             case .cancelled:
@@ -68,7 +71,13 @@ public final class SyncServer {
 
     private func handleConnection(_ connection: NWConnection) {
         let clientEndpoint = connection.endpoint
+        let connectionId = ObjectIdentifier(connection)
         log("Client connected: \(clientEndpoint)")
+
+        // Initialize buffer for this connection
+        bufferLock.lock()
+        connectionBuffers[connectionId] = Data()
+        bufferLock.unlock()
 
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
@@ -76,14 +85,22 @@ public final class SyncServer {
                 self?.processClient(connection)
             case .failed(let error):
                 self?.log("Connection failed: \(error)")
+                self?.cleanupConnection(connectionId)
             case .cancelled:
                 self?.log("Client disconnected: \(clientEndpoint)")
+                self?.cleanupConnection(connectionId)
             default:
                 break
             }
         }
 
         connection.start(queue: .global())
+    }
+
+    private func cleanupConnection(_ connectionId: ObjectIdentifier) {
+        bufferLock.lock()
+        connectionBuffers.removeValue(forKey: connectionId)
+        bufferLock.unlock()
     }
 
     private func processClient(_ connection: NWConnection) {
@@ -268,8 +285,69 @@ public final class SyncServer {
     }
 
     private func receiveMessage(_ connection: NWConnection, completion: @escaping (Result<SyncMessage, Error>) -> Void) {
-        // Read header (up to newline)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 1024) { [weak self] data, _, _, error in
+        let connectionId = ObjectIdentifier(connection)
+
+        // Get current buffer
+        bufferLock.lock()
+        var buffer = connectionBuffers[connectionId] ?? Data()
+        bufferLock.unlock()
+
+        // Try to parse a complete message from buffer
+        if let message = tryParseMessage(from: &buffer) {
+            // Save remaining buffer
+            bufferLock.lock()
+            connectionBuffers[connectionId] = buffer
+            bufferLock.unlock()
+            completion(.success(message))
+            return
+        }
+
+        // Need more data
+        receiveMoreData(connection, buffer: buffer, completion: completion)
+    }
+
+    private func tryParseMessage(from buffer: inout Data) -> SyncMessage? {
+        // Find header end (newline)
+        guard let headerEnd = buffer.firstIndex(of: 0x0A) else {
+            return nil
+        }
+
+        let headerData = buffer[..<headerEnd]
+        guard let header = String(data: headerData, encoding: .utf8) else {
+            return nil
+        }
+
+        let parts = header.split(separator: " ", maxSplits: 1)
+        guard parts.count == 2,
+              let type = SyncMessageType(rawValue: String(parts[0])),
+              let length = Int(parts[1]) else {
+            return nil
+        }
+
+        let payloadStart = buffer.index(after: headerEnd)
+        let availablePayload = buffer.count - (payloadStart - buffer.startIndex)
+
+        guard availablePayload >= length else {
+            return nil  // Not enough payload data yet
+        }
+
+        // Extract payload
+        let payloadEnd = buffer.index(payloadStart, offsetBy: length)
+        let payload = Data(buffer[payloadStart..<payloadEnd])
+
+        // Remove consumed data from buffer
+        buffer = Data(buffer[payloadEnd...])
+
+        return SyncMessage(type: type, payload: payload)
+    }
+
+    private func receiveMoreData(_ connection: NWConnection, buffer: Data, completion: @escaping (Result<SyncMessage, Error>) -> Void) {
+        let connectionId = ObjectIdentifier(connection)
+
+        // Read more data (up to 64KB at a time for efficiency)
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, _, error in
+            guard let self = self else { return }
+
             if let error = error {
                 completion(.failure(error))
                 return
@@ -280,70 +358,71 @@ public final class SyncServer {
                 return
             }
 
-            // Parse header
-            guard let headerEnd = data.firstIndex(of: 0x0A) else {
-                completion(.failure(SyncProtocolError.invalidHeader))
-                return
-            }
+            // Append to buffer
+            var newBuffer = buffer
+            newBuffer.append(data)
 
-            let headerData = data[..<headerEnd]
-            guard let header = String(data: headerData, encoding: .utf8) else {
-                completion(.failure(SyncProtocolError.invalidHeader))
-                return
-            }
-
-            let parts = header.split(separator: " ", maxSplits: 1)
-            guard parts.count == 2,
-                  let type = SyncMessageType(rawValue: String(parts[0])),
-                  let length = Int(parts[1]) else {
-                completion(.failure(SyncProtocolError.invalidHeader))
-                return
-            }
-
-            // Get payload (might be partial in first read)
-            let payloadStart = data.index(after: headerEnd)
-            var payload = Data(data[payloadStart...])
-
-            if payload.count >= length {
-                // Complete message
-                completion(.success(SyncMessage(type: type, payload: Data(payload.prefix(length)))))
+            // Try to parse again
+            if let message = self.tryParseMessage(from: &newBuffer) {
+                // Save remaining buffer
+                self.bufferLock.lock()
+                self.connectionBuffers[connectionId] = newBuffer
+                self.bufferLock.unlock()
+                completion(.success(message))
             } else {
-                // Need more data
-                self?.receiveRemainingPayload(connection, current: payload, total: length) { result in
-                    switch result {
-                    case .success(let fullPayload):
-                        completion(.success(SyncMessage(type: type, payload: fullPayload)))
-                    case .failure(let error):
-                        completion(.failure(error))
-                    }
-                }
+                // Still need more data
+                self.receiveMoreData(connection, buffer: newBuffer, completion: completion)
             }
         }
     }
 
-    private func receiveRemainingPayload(_ connection: NWConnection, current: Data, total: Int, completion: @escaping (Result<Data, Error>) -> Void) {
-        let remaining = total - current.count
-
-        connection.receive(minimumIncompleteLength: remaining, maximumLength: remaining) { data, _, _, error in
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
-
-            guard let data = data else {
-                completion(.failure(SyncProtocolError.incompletePayload))
-                return
-            }
-
-            var payload = current
-            payload.append(data)
-
-            if payload.count >= total {
-                completion(.success(Data(payload.prefix(total))))
-            } else {
-                self.receiveRemainingPayload(connection, current: payload, total: total, completion: completion)
-            }
+    private func printServerInfo() {
+        log("Server listening on port \(port)")
+        log("Serving: \(rootPath.path)")
+        log("")
+        log("Connect using:")
+        for ip in getLocalIPAddresses() {
+            log("  diffa push <local-dir> \(ip):\(port)")
+            log("  diffa pull <local-dir> \(ip):\(port)")
         }
+        log("")
+    }
+
+    private func getLocalIPAddresses() -> [String] {
+        var addresses: [String] = []
+
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
+            return ["localhost"]
+        }
+        defer { freeifaddrs(ifaddr) }
+
+        var ptr = firstAddr
+        while true {
+            let interface = ptr.pointee
+            let addrFamily = interface.ifa_addr.pointee.sa_family
+
+            if addrFamily == UInt8(AF_INET) {  // IPv4
+                let name = String(cString: interface.ifa_name)
+                // Skip loopback
+                if name != "lo0" {
+                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    if getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                                   &hostname, socklen_t(hostname.count),
+                                   nil, 0, NI_NUMERICHOST) == 0 {
+                        let address = String(cString: hostname)
+                        if !address.isEmpty && !addresses.contains(address) {
+                            addresses.append(address)
+                        }
+                    }
+                }
+            }
+
+            guard let next = interface.ifa_next else { break }
+            ptr = next
+        }
+
+        return addresses.isEmpty ? ["localhost"] : addresses
     }
 
     private func log(_ message: String) {
