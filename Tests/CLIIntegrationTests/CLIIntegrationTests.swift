@@ -98,7 +98,7 @@ final class CLIIntegrationTests: XCTestCase {
     func testVersion() throws {
         let result = try runCLI(["--version"])
         XCTAssertEqual(result.exitCode, 0)
-        XCTAssertTrue(result.stdout.contains("0.11.0") || result.stdout.contains("1.0.0"))
+        XCTAssertTrue(result.stdout.contains("0.12.0") || result.stdout.contains("1.0.0"))
     }
 
     func testHelp() throws {

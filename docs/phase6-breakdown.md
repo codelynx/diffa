@@ -1,4 +1,4 @@
-# Phase 6 Implementation Breakdown: Efficient Directory Sync
+-# Phase 6 Implementation Breakdown: Efficient Directory Sync
 
 **Goal:** Implement efficient content-addressable sync with daemon + client architecture
 **Duration:** 2-3 weeks (14 incremental steps)

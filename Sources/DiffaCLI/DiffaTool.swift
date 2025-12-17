@@ -7,14 +7,17 @@ struct DiffaTool: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "diffa",
         abstract: "Snapshot, compare, patch, and sync directories",
-        version: "0.11.0",
+        version: "0.12.0",
         subcommands: [
             SnapshotCommand.self,
             CompareCommand.self,
             PatchCommand.self,
             SyncCommand.self,
             ExportCommand.self,
-            VerifyCommand.self
+            VerifyCommand.self,
+            ServeCommand.self,
+            PushCommand.self,
+            PullCommand.self
         ],
         helpNames: [.short, .long]
     )
