@@ -33,15 +33,29 @@ public final class SyncServer {
 
     /// Start server (blocking)
     public func start() throws {
+        try startAsync()
+        // Keep running
+        log("Press Ctrl+C to stop")
+        dispatchMain()
+    }
+
+    /// Start server (non-blocking, for testing)
+    public func startAsync() throws {
         let parameters = NWParameters.tcp
         listener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var startError: Error?
 
         listener?.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
                 self?.printServerInfo()
+                semaphore.signal()
             case .failed(let error):
                 self?.log("Server failed: \(error)")
+                startError = error
+                semaphore.signal()
             case .cancelled:
                 self?.log("Server stopped")
             default:
@@ -54,11 +68,15 @@ public final class SyncServer {
         }
 
         listener?.start(queue: .global())
-        isRunning = true
 
-        // Keep running
-        log("Press Ctrl+C to stop")
-        dispatchMain()
+        // Wait for server to be ready
+        _ = semaphore.wait(timeout: .now() + 5)
+
+        if let error = startError {
+            throw error
+        }
+
+        isRunning = true
     }
 
     /// Stop server
