@@ -45,6 +45,7 @@ public final class SyncServer {
         listener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
 
         let semaphore = DispatchSemaphore(value: 0)
+        let errorLock = NSLock()
         var startError: Error?
 
         listener?.stateUpdateHandler = { [weak self] state in
@@ -54,7 +55,9 @@ public final class SyncServer {
                 semaphore.signal()
             case .failed(let error):
                 self?.log("Server failed: \(error)")
+                errorLock.lock()
                 startError = error
+                errorLock.unlock()
                 semaphore.signal()
             case .cancelled:
                 self?.log("Server stopped")
@@ -70,9 +73,18 @@ public final class SyncServer {
         listener?.start(queue: .global())
 
         // Wait for server to be ready
-        _ = semaphore.wait(timeout: .now() + 5)
+        let result = semaphore.wait(timeout: .now() + 5)
 
-        if let error = startError {
+        if result == .timedOut {
+            listener?.cancel()
+            throw SyncProtocolError.timeout
+        }
+
+        errorLock.lock()
+        let error = startError
+        errorLock.unlock()
+
+        if let error = error {
             throw error
         }
 

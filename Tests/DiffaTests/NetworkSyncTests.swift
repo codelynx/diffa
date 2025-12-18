@@ -49,10 +49,9 @@ final class NetworkSyncTests: XCTestCase {
 
     private func startServer() throws {
         server = SyncServer(path: remoteDir, port: testPort)
-        server.onLog = { print("[Server] \($0)") }
+        // Silence server logs in tests (SyncServer.log already prints)
+        server.onLog = nil
         try server.startAsync()
-        // Give server a moment to be ready
-        Thread.sleep(forTimeInterval: 0.1)
     }
 
     private func createFile(at dir: URL, name: String, content: String) throws {
@@ -97,7 +96,7 @@ final class NetworkSyncTests: XCTestCase {
 
         // Push
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.push(localPath: localDir, to: "localhost", port: testPort)
 
         // Verify remote has the files
@@ -114,7 +113,7 @@ final class NetworkSyncTests: XCTestCase {
 
         // Push
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.push(localPath: localDir, to: "localhost", port: testPort)
 
         // Verify remote has updated content
@@ -131,7 +130,7 @@ final class NetworkSyncTests: XCTestCase {
 
         // Push (should delete file2 from remote)
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.push(localPath: localDir, to: "localhost", port: testPort)
 
         // Verify remote mirrors local
@@ -150,7 +149,7 @@ final class NetworkSyncTests: XCTestCase {
 
         // Pull
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.pull(localPath: localDir, from: "localhost", port: testPort)
 
         // Verify local has the files
@@ -167,7 +166,7 @@ final class NetworkSyncTests: XCTestCase {
 
         // Pull
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.pull(localPath: localDir, from: "localhost", port: testPort)
 
         // Verify local has updated content
@@ -184,7 +183,7 @@ final class NetworkSyncTests: XCTestCase {
 
         // Pull (should delete file2 from local)
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.pull(localPath: localDir, from: "localhost", port: testPort)
 
         // Verify local mirrors remote
@@ -203,10 +202,7 @@ final class NetworkSyncTests: XCTestCase {
 
         var uploadMessages: [String] = []
         let client = SyncClient()
-        client.onLog = { message in
-            print("[Client] \(message)")
-            uploadMessages.append(message)
-        }
+        client.onLog = { uploadMessages.append($0) }
         try client.push(localPath: localDir, to: "localhost", port: testPort)
 
         // Verify file was transferred
@@ -225,10 +221,7 @@ final class NetworkSyncTests: XCTestCase {
 
         var uploadMessages: [String] = []
         let client = SyncClient()
-        client.onLog = { message in
-            print("[Client] \(message)")
-            uploadMessages.append(message)
-        }
+        client.onLog = { uploadMessages.append($0) }
         try client.push(localPath: localDir, to: "localhost", port: testPort)
 
         // Verify file was transferred
@@ -248,7 +241,7 @@ final class NetworkSyncTests: XCTestCase {
         try startServer()
 
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.push(localPath: localDir, to: "localhost", port: testPort)
 
         // Remote should be empty
@@ -262,7 +255,7 @@ final class NetworkSyncTests: XCTestCase {
         try startServer()
 
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.pull(localPath: localDir, from: "localhost", port: testPort)
 
         // Local should be empty
@@ -278,7 +271,7 @@ final class NetworkSyncTests: XCTestCase {
         try startServer()
 
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.push(localPath: localDir, to: "localhost", port: testPort)
 
         // Verify all files transferred
@@ -298,7 +291,7 @@ final class NetworkSyncTests: XCTestCase {
         try startServer()
 
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.push(localPath: localDir, to: "localhost", port: testPort)
 
         // Verify structure
@@ -316,7 +309,7 @@ final class NetworkSyncTests: XCTestCase {
         try startServer()
 
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         try client.push(localPath: localDir, to: "localhost", port: testPort)
 
         // Verify binary data is identical
@@ -334,7 +327,7 @@ final class NetworkSyncTests: XCTestCase {
 
         var progressCalls: [(String, Int, Int)] = []
         let client = SyncClient()
-        client.onLog = { print("[Client] \($0)") }
+        client.onLog = nil
         client.onProgress = { path, current, total in
             progressCalls.append((path, current, total))
         }
