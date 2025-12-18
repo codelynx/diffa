@@ -30,6 +30,7 @@ struct ServeCommand: ParsableCommand {
         print("")
 
         let server = SyncServer(path: url, port: port)
+        server.onLog = { print($0) }
         try server.start()
     }
 }

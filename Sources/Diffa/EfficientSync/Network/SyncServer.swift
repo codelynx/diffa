@@ -494,6 +494,5 @@ public final class SyncServer {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let logLine = "[\(timestamp)] \(message)"
         onLog?(logLine)
-        print(logLine)
     }
 }

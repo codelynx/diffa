@@ -392,6 +392,5 @@ public final class SyncClient {
 
     private func log(_ message: String) {
         onLog?(message)
-        print(message)
     }
 }

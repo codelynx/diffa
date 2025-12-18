@@ -31,6 +31,7 @@ struct PushCommand: ParsableCommand {
         print("")
 
         let client = SyncClient()
+        client.onLog = { print($0) }
         try client.push(localPath: url, to: host, port: port)
     }
 

@@ -37,6 +37,7 @@ struct PullCommand: ParsableCommand {
         print("")
 
         let client = SyncClient()
+        client.onLog = { print($0) }
         try client.pull(localPath: url, from: host, port: port)
     }
 
