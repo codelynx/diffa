@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Library:** Swift Package for embedding in macOS/iOS apps
 - **CLI Tool:** `diffa` command for macOS and Linux (Phase 5)
 
-**Current Status:** Phases 0-7 complete. All core functionality implemented with 360+ passing tests. Network sync (serve/push/pull) operational.
+**Current Status:** Phases 0-7 complete. All core functionality implemented with 386 passing tests. Network sync (serve/push/pull) with automatic compression operational.
 
 **Key Design Philosophy:**
 - Simple first, no frills
@@ -162,7 +162,10 @@ Sources/DiffaCLI/
 - TCP server/client using Apple's Network framework
 - `serve`, `push`, `pull` commands
 - Custom message protocol with proper buffering
+- Automatic ZLIB compression for files ≥4KB
+- True mirror behavior (push/pull delete files not in source)
 - Server displays local IP addresses
+- 14 integration tests (localhost push/pull)
 
 ## Schema Versioning
 
@@ -309,12 +312,11 @@ CREATE TABLE schema_version (
 ## Current Version
 
 **Version:** 0.12.0
-**Tests:** 360+ passing (library + integration + EfficientSync)
+**Tests:** 386 passing (library + integration + EfficientSync + NetworkSync)
 
 ## Next Steps
 
 Potential future enhancements:
-- Compression support (zstd)
 - Watch mode for file monitoring
 - Remote sync via SSH
 - Web UI for server status

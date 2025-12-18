@@ -580,7 +580,7 @@ import Diffa
 
 let server = SyncServer(path: directoryURL, port: 8080)
 
-// Set up logging
+// Set up logging (required for output - no default printing)
 server.onLog = { message in
     print("[Server] \(message)")
 }
@@ -592,6 +592,9 @@ try server.start()
 ### Starting a Server in Background
 
 ```swift
+let server = SyncServer(path: directoryURL, port: 8080)
+server.onLog = { print($0) }
+
 DispatchQueue.global().async {
     do {
         try server.start()
@@ -604,12 +607,26 @@ DispatchQueue.global().async {
 server.stop()
 ```
 
+### Non-Blocking Server Start (for Testing)
+
+```swift
+let server = SyncServer(path: directoryURL, port: 8080)
+
+// startAsync() waits until server is ready, then returns
+try server.startAsync()
+
+// Server is now accepting connections
+// ... do work ...
+
+server.stop()
+```
+
 ### Push Local Files to Remote Server
 
 ```swift
 let client = SyncClient()
 
-// Set up logging
+// Set up logging (required for output - no default printing)
 client.onLog = { message in
     print("[Client] \(message)")
 }
