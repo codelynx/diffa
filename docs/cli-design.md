@@ -30,6 +30,9 @@ Commands:
   sync          Synchronize directories
   export        Export comparison results in various formats
   verify        Verify a directory against a snapshot
+  serve         Start sync server daemon (network sync)
+  push          Push local directory to remote server
+  pull          Pull remote directory to local
   version       Show version information
   help          Show help for a command
 ```
@@ -365,7 +368,141 @@ Verifying /path/to/dir against snapshot.diffa...
 
 ---
 
-### 7. `diffa version`
+### 7. `diffa serve`
+
+Start a sync server daemon for network synchronization.
+
+**Syntax:**
+```bash
+diffa serve --path <directory> --port <port>
+```
+
+**Examples:**
+```bash
+# Start server on default port 8080
+diffa serve --path /path/to/sync --port 8080
+
+# Server displays connection info
+# Connect using:
+#   diffa push <local-dir> 192.168.1.100:8080
+#   diffa pull <local-dir> 192.168.1.100:8080
+```
+
+**Options:**
+- `--path <dir>` - Directory to serve (required)
+- `-p, --port <port>` - Port to listen on (default: 8080)
+
+**Output:**
+```
+Starting Diffa sync server...
+  Path: /path/to/sync
+  Port: 8080
+
+Server listening on port 8080
+Serving: /path/to/sync
+
+Connect using:
+  diffa push <local-dir> 192.168.1.100:8080
+  diffa pull <local-dir> 192.168.1.100:8080
+```
+
+**Notes:**
+- Files >4KB are automatically compressed during transfer (ZLIB)
+- Already-compressed files (jpg, mp4, zip, etc.) are sent as-is
+- Log shows compression ratios: `Uploading: file.swift (15000 → 3200 bytes, 78% saved)`
+
+---
+
+### 8. `diffa push`
+
+Push local directory contents to a remote server. Creates a **true mirror** - remote will match local exactly.
+
+> **Warning:** Files that exist only on the remote server will be **deleted**. This is destructive. Make backups before pushing if needed.
+
+**Syntax:**
+```bash
+diffa push <local-path> <host:port>
+```
+
+**Examples:**
+```bash
+# Push local directory to remote server
+diffa push ~/Documents/project 192.168.1.100:8080
+
+# Push to localhost (testing)
+diffa push /local/path localhost:8080
+```
+
+**Arguments:**
+- `<local-path>` - Local directory to push
+- `<host:port>` - Remote server address (e.g., 192.168.1.100:8080)
+
+**Output:**
+```
+Pushing /local/path to 192.168.1.100:8080...
+
+Connecting to 192.168.1.100:8080...
+Connected!
+Handshake complete
+Creating local snapshot...
+Local files: 184
+Remote files: 10
+Operations: 187
+Uploading: file1.txt
+Uploading: file2.txt
+Deleting (remote): old-file.txt
+...
+Sync complete!
+```
+
+---
+
+### 9. `diffa pull`
+
+Pull remote directory contents to local. Creates a **true mirror** - local will match remote exactly.
+
+> **Warning:** Files that exist only on the local directory will be **deleted**. This is destructive. Make backups before pulling if needed.
+
+**Syntax:**
+```bash
+diffa pull <local-path> <host:port>
+```
+
+**Examples:**
+```bash
+# Pull from remote server to local directory
+diffa pull ~/Documents/backup 192.168.1.100:8080
+
+# Pull to empty directory (full clone)
+mkdir /new/local/dir
+diffa pull /new/local/dir 192.168.1.100:8080
+```
+
+**Arguments:**
+- `<local-path>` - Local directory to sync to
+- `<host:port>` - Remote server address (e.g., 192.168.1.100:8080)
+
+**Output:**
+```
+Pulling from 192.168.1.100:8080 to /local/path...
+
+Connecting to 192.168.1.100:8080...
+Connected!
+Handshake complete
+Creating local snapshot...
+Local files: 10
+Remote files: 184
+Operations: 187
+Downloading: file1.txt
+Downloading: file2.txt
+Deleting (local): old-local-file.txt
+...
+Sync complete!
+```
+
+---
+
+### 10. `diffa version`
 
 Show version information.
 
@@ -384,7 +521,7 @@ Platform: macOS 14.0 (arm64)
 
 ---
 
-### 8. `diffa help`
+### 11. `diffa help`
 
 Show help for a command.
 
@@ -675,14 +812,18 @@ Consistent exit codes across all commands:
 
 ## Future Enhancements (Post-1.0)
 
-**Phase 6+ potential additions:**
+**Implemented in Phase 7:**
+- ✅ **Network sync:** `diffa serve`, `diffa push`, `diffa pull`
+- ✅ **Daemon mode:** `diffa serve --path /dir --port 8080`
+
+**Potential future additions:**
 
 1. **Watch mode:** `diffa watch <dir> --snapshot baseline.diffa --alert`
-2. **Remote sync:** `diffa sync local-dir user@host:/remote-dir`
+2. **SSH sync:** `diffa sync local-dir user@host:/remote-dir` (via SSH tunnel)
 3. **Compression:** `diffa snapshot --compress zstd`
 4. **Ignore patterns:** `diffa snapshot --ignore .diffaignore`
 5. **Interactive mode:** `diffa sync --interactive` (prompt for each file)
-6. **Daemon mode:** `diffad --config sync-config.json`
+6. **Web UI:** Browser-based server status dashboard
 
 ---
 
@@ -699,7 +840,7 @@ Consistent exit codes across all commands:
 
 ---
 
-**Document Status:** Complete - Phase 5 design spec
-**Last Updated:** 2025-11-05
-**Next Review:** Before Phase 5 implementation
-**Dependencies:** Phase 1-4 library complete
+**Document Status:** Updated - Phase 7 implemented
+**Last Updated:** 2025-12-17
+**Version:** 0.12.0
+**Dependencies:** All phases (0-7) complete
