@@ -406,6 +406,11 @@ Connect using:
   diffa pull <local-dir> 192.168.1.100:8080
 ```
 
+**Notes:**
+- Files >4KB are automatically compressed during transfer (ZLIB)
+- Already-compressed files (jpg, mp4, zip, etc.) are sent as-is
+- Log shows compression ratios: `Uploading: file.swift (15000 → 3200 bytes, 78% saved)`
+
 ---
 
 ### 8. `diffa push`

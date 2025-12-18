@@ -233,41 +233,47 @@ public final class SyncServer {
             return
         }
 
-        // Format: path\n<data>
-        var payload = Data()
-        payload.append((path + "\n").data(using: .utf8)!)
-        payload.append(data)
+        // Create payload with automatic compression
+        let filePayload = FilePayload.create(path: path, data: data)
 
-        log("Sending file: \(path) (\(data.count) bytes)")
-        sendMessage(connection, SyncMessage(type: .fileData, payload: payload), completion: completion)
+        if filePayload.isCompressed {
+            let ratio = 100 - (filePayload.data.count * 100 / data.count)
+            log("Sending file: \(path) (\(data.count) → \(filePayload.data.count) bytes, \(ratio)% saved)")
+        } else {
+            log("Sending file: \(path) (\(data.count) bytes)")
+        }
+
+        sendMessage(connection, SyncMessage(type: .fileData, payload: filePayload.encode()), completion: completion)
     }
 
     private func receiveFile(_ connection: NWConnection, data: Data, completion: @escaping () -> Void) {
-        // Parse: path\n<data>
-        guard let newlineIndex = data.firstIndex(of: 0x0A) else {
+        // Parse payload (supports both old and new format with compression)
+        guard let filePayload = FilePayload.decode(data) else {
             log("Invalid file data")
             completion()
             return
         }
 
-        let pathData = data[..<newlineIndex]
-        let fileData = data[data.index(after: newlineIndex)...]
-
-        guard let path = String(data: pathData, encoding: .utf8) else {
-            log("Invalid file path")
+        // Decompress if needed
+        guard let fileData = filePayload.decompressedData() else {
+            log("Failed to decompress file: \(filePayload.path)")
             completion()
             return
         }
 
-        let fileURL = rootPath.appendingPathComponent(path)
+        let fileURL = rootPath.appendingPathComponent(filePayload.path)
 
         // Create parent directories
         try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         // Write file
         do {
-            try Data(fileData).write(to: fileURL)
-            log("Received file: \(path) (\(fileData.count) bytes)")
+            try fileData.write(to: fileURL)
+            if filePayload.isCompressed {
+                log("Received file: \(filePayload.path) (\(filePayload.data.count) → \(fileData.count) bytes, decompressed)")
+            } else {
+                log("Received file: \(filePayload.path) (\(fileData.count) bytes)")
+            }
         } catch {
             log("Failed to write file: \(error)")
         }

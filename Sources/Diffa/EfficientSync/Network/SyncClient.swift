@@ -234,17 +234,23 @@ public final class SyncClient {
 
             case .upload(let path):
                 onProgress?(path, current, total)
-                log("Uploading: \(path)")
 
                 // Read local file
                 let fileURL = localPath.appendingPathComponent(path)
                 let fileData = try Data(contentsOf: fileURL)
 
+                // Create payload with automatic compression
+                let filePayload = FilePayload.create(path: path, data: fileData)
+
+                if filePayload.isCompressed {
+                    let ratio = 100 - (filePayload.data.count * 100 / fileData.count)
+                    log("Uploading: \(path) (\(fileData.count) → \(filePayload.data.count) bytes, \(ratio)% saved)")
+                } else {
+                    log("Uploading: \(path) (\(fileData.count) bytes)")
+                }
+
                 // Send file
-                var payload = Data()
-                payload.append((path + "\n").data(using: .utf8)!)
-                payload.append(fileData)
-                sendMessageSync(connection, SyncMessage(type: .fileData, payload: payload))
+                sendMessageSync(connection, SyncMessage(type: .fileData, payload: filePayload.encode()))
 
             case .delete(let path):
                 onProgress?(path, current, total)
@@ -264,26 +270,29 @@ public final class SyncClient {
     }
 
     private func writeReceivedFile(_ data: Data, to localPath: URL) throws {
-        // Parse: path\n<data>
-        guard let newlineIndex = data.firstIndex(of: 0x0A) else {
+        // Parse payload (supports both old and new format with compression)
+        guard let filePayload = FilePayload.decode(data) else {
             throw SyncProtocolError.invalidHeader
         }
 
-        let pathData = data[..<newlineIndex]
-        let fileData = data[data.index(after: newlineIndex)...]
-
-        guard let path = String(data: pathData, encoding: .utf8) else {
-            throw SyncProtocolError.invalidHeader
+        // Decompress if needed
+        guard let fileData = filePayload.decompressedData() else {
+            throw SyncProtocolError.incompletePayload
         }
 
-        let fileURL = localPath.appendingPathComponent(path)
+        let fileURL = localPath.appendingPathComponent(filePayload.path)
 
         // Create parent directories
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         // Write file
-        try Data(fileData).write(to: fileURL)
-        log("  Written: \(path) (\(fileData.count) bytes)")
+        try fileData.write(to: fileURL)
+
+        if filePayload.isCompressed {
+            log("  Written: \(filePayload.path) (\(filePayload.data.count) → \(fileData.count) bytes, decompressed)")
+        } else {
+            log("  Written: \(filePayload.path) (\(fileData.count) bytes)")
+        }
     }
 
     // MARK: - Network Helpers

@@ -172,6 +172,84 @@ public struct NetworkFileItem: Codable {
     }
 }
 
+// MARK: - File Payload Encoding
+
+/// Encodes/decodes file data payloads with optional compression
+///
+/// Payload format: `<path>\t<compressed:0|1>\t<original_size>\n<data>`
+public struct FilePayload {
+    public let path: String
+    public let data: Data
+    public let isCompressed: Bool
+    public let originalSize: Int
+
+    public init(path: String, data: Data, isCompressed: Bool = false, originalSize: Int? = nil) {
+        self.path = path
+        self.data = data
+        self.isCompressed = isCompressed
+        self.originalSize = originalSize ?? data.count
+    }
+
+    /// Encode payload for transmission
+    public func encode() -> Data {
+        var payload = Data()
+        let header = "\(path)\t\(isCompressed ? 1 : 0)\t\(originalSize)\n"
+        payload.append(header.data(using: .utf8)!)
+        payload.append(data)
+        return payload
+    }
+
+    /// Decode payload from received data
+    public static func decode(_ payload: Data) -> FilePayload? {
+        guard let newlineIndex = payload.firstIndex(of: 0x0A) else {
+            return nil
+        }
+
+        let headerData = payload[..<newlineIndex]
+        let fileData = payload[payload.index(after: newlineIndex)...]
+
+        guard let header = String(data: headerData, encoding: .utf8) else {
+            return nil
+        }
+
+        let parts = header.split(separator: "\t", omittingEmptySubsequences: false)
+
+        // Support both old format (path only) and new format (path, compressed, originalSize)
+        if parts.count == 1 {
+            // Old format: just path
+            return FilePayload(path: String(parts[0]), data: Data(fileData))
+        } else if parts.count >= 3 {
+            // New format: path\tcompressed\toriginalSize
+            let path = String(parts[0])
+            let isCompressed = parts[1] == "1"
+            let originalSize = Int(parts[2]) ?? fileData.count
+            return FilePayload(path: path, data: Data(fileData), isCompressed: isCompressed, originalSize: originalSize)
+        }
+
+        return nil
+    }
+
+    /// Create payload with automatic compression decision
+    public static func create(path: String, data: Data) -> FilePayload {
+        // Check if we should compress
+        if SyncCompression.shouldCompress(path: path, size: data.count) {
+            if let compressed = SyncCompression.compress(data) {
+                return FilePayload(path: path, data: compressed, isCompressed: true, originalSize: data.count)
+            }
+        }
+        // Return uncompressed
+        return FilePayload(path: path, data: data, isCompressed: false, originalSize: data.count)
+    }
+
+    /// Get decompressed data
+    public func decompressedData() -> Data? {
+        if isCompressed {
+            return SyncCompression.decompress(data, originalSize: originalSize)
+        }
+        return data
+    }
+}
+
 // MARK: - Errors
 
 public enum SyncProtocolError: Error, CustomStringConvertible {

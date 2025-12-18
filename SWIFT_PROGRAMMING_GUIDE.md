@@ -554,6 +554,25 @@ Both `push` and `pull` create **true mirrors**:
 
 > **Warning:** Both operations are destructive. Files on the non-authoritative side that don't exist on the authoritative side will be permanently deleted. Make backups before syncing if needed.
 
+### Automatic Compression
+
+Network transfers automatically compress files to reduce bandwidth:
+
+- **Threshold:** Files ≥4KB are compressed (smaller files have too much overhead)
+- **Algorithm:** ZLIB (gzip compatible)
+- **Skip list:** Already-compressed files are sent uncompressed:
+  - Images: jpg, jpeg, png, gif, webp, heic
+  - Video: mp4, mov, avi, mkv
+  - Audio: mp3, aac, m4a, ogg
+  - Archives: zip, gz, 7z, rar, tar.gz
+  - Documents: pdf, docx, xlsx
+
+Compression happens automatically - no configuration needed. Log output shows compression ratios:
+```
+Uploading: main.swift (15000 → 3200 bytes, 78% saved)
+Uploading: image.jpg (50000 bytes)  // Not compressed
+```
+
 ### Starting a Sync Server
 
 ```swift

@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - TCP-based sync protocol using Apple's Network framework
   - Server displays local IP addresses for easy connection
   - Proper message buffering for reliable large file transfers
+  - **Automatic compression** for network transfers (ZLIB/gzip compatible)
+    - Files >4KB automatically compressed
+    - Skips already-compressed files (jpg, mp4, zip, etc.)
+    - Backward-compatible protocol (works with older clients/servers)
 
 ### Fixed
 - Network protocol buffer handling for rapid file transfers
