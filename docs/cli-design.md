@@ -410,7 +410,9 @@ Connect using:
 
 ### 8. `diffa push`
 
-Push local directory contents to a remote server.
+Push local directory contents to a remote server. Creates a **true mirror** - remote will match local exactly.
+
+> **Warning:** Files that exist only on the remote server will be **deleted**. This is destructive. Make backups before pushing if needed.
 
 **Syntax:**
 ```bash
@@ -439,10 +441,11 @@ Connected!
 Handshake complete
 Creating local snapshot...
 Local files: 184
-Remote files: 3
-Operations: 182
+Remote files: 10
+Operations: 187
 Uploading: file1.txt
 Uploading: file2.txt
+Deleting (remote): old-file.txt
 ...
 Sync complete!
 ```
@@ -451,7 +454,9 @@ Sync complete!
 
 ### 9. `diffa pull`
 
-Pull remote directory contents to local.
+Pull remote directory contents to local. Creates a **true mirror** - local will match remote exactly.
+
+> **Warning:** Files that exist only on the local directory will be **deleted**. This is destructive. Make backups before pulling if needed.
 
 **Syntax:**
 ```bash
@@ -480,11 +485,12 @@ Connecting to 192.168.1.100:8080...
 Connected!
 Handshake complete
 Creating local snapshot...
-Local files: 3
+Local files: 10
 Remote files: 184
-Operations: 182
+Operations: 187
 Downloading: file1.txt
 Downloading: file2.txt
+Deleting (local): old-local-file.txt
 ...
 Sync complete!
 ```

@@ -167,10 +167,10 @@ diffa sync /dir-a /dir-b --bidirectional --conflict-resolution newest
 # Start server on remote machine
 diffa serve --path /path/to/sync --port 8080
 
-# Push local files to remote server
+# Push local files to remote server (creates mirror - deletes remote-only files)
 diffa push /local/path host:port
 
-# Pull remote files to local
+# Pull remote files to local (creates mirror - deletes local-only files)
 diffa pull /local/path host:port
 ```
 

@@ -23,6 +23,7 @@ public enum SyncMessageType: String {
     case metadata = "METADATA"
     case requestFile = "REQUEST"
     case fileData = "FILE"
+    case deleteFile = "DELETE"
     case done = "DONE"
 }
 

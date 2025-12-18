@@ -169,7 +169,12 @@ public final class SyncClient {
                     operations.append(TransferOperation(action: .upload(path: path)))
                 }
             }
-            // Note: server-side deletions handled by server
+            // Delete remote files not on local
+            for path in remoteByPath.keys {
+                if localByPath[path] == nil {
+                    operations.append(TransferOperation(action: .delete(path: path)))
+                }
+            }
 
         case .pull:
             // Pull: local should mirror remote
@@ -243,10 +248,17 @@ public final class SyncClient {
 
             case .delete(let path):
                 onProgress?(path, current, total)
-                log("Deleting: \(path)")
 
-                let fileURL = localPath.appendingPathComponent(path)
-                try? FileManager.default.removeItem(at: fileURL)
+                if mode == .push {
+                    // Push mode: request server to delete remote file
+                    log("Deleting (remote): \(path)")
+                    sendMessageSync(connection, SyncMessage(type: .deleteFile, string: path))
+                } else {
+                    // Pull mode: delete local file
+                    log("Deleting (local): \(path)")
+                    let fileURL = localPath.appendingPathComponent(path)
+                    try? FileManager.default.removeItem(at: fileURL)
+                }
             }
         }
     }

@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Network protocol buffer handling for rapid file transfers
+- Push mode now deletes remote files not present locally (true mirror behavior)
 
 ## [0.11.0] - 2025-12-17
 

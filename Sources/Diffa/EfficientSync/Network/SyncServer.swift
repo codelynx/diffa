@@ -202,6 +202,12 @@ public final class SyncServer {
                         self.handleFileTransfers(connection, mode: mode, localItems: localItems, remoteItems: remoteItems, snapshot: snapshot)
                     }
 
+                case .deleteFile:
+                    // Client requesting us to delete a file (push mode)
+                    let path = String(data: message.payload, encoding: .utf8) ?? ""
+                    self.deleteFile(path: path)
+                    self.handleFileTransfers(connection, mode: mode, localItems: localItems, remoteItems: remoteItems, snapshot: snapshot)
+
                 case .done:
                     self.log("Sync complete")
                     self.sendMessage(connection, SyncMessage(type: .done)) {
@@ -267,6 +273,29 @@ public final class SyncServer {
         }
 
         completion()
+    }
+
+    private func deleteFile(path: String) {
+        let fileURL = rootPath.appendingPathComponent(path)
+
+        do {
+            try FileManager.default.removeItem(at: fileURL)
+            log("Deleted file: \(path)")
+
+            // Clean up empty parent directories
+            var parentURL = fileURL.deletingLastPathComponent()
+            while parentURL.path != rootPath.path {
+                let contents = try? FileManager.default.contentsOfDirectory(at: parentURL, includingPropertiesForKeys: nil)
+                if contents?.isEmpty == true {
+                    try? FileManager.default.removeItem(at: parentURL)
+                    parentURL = parentURL.deletingLastPathComponent()
+                } else {
+                    break
+                }
+            }
+        } catch {
+            log("Failed to delete file \(path): \(error)")
+        }
     }
 
     // MARK: - Network Helpers

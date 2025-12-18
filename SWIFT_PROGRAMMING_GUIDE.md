@@ -538,6 +538,22 @@ for operation in operations {
 
 Phase 7 provides TCP-based network synchronization between machines.
 
+### Push/Pull Mirror Behavior
+
+Both `push` and `pull` create **true mirrors**:
+
+- **Push**: Local becomes authoritative. Remote will be modified to match local exactly.
+  - Files only on local → uploaded to remote
+  - Files different on local → uploaded to remote (overwrites)
+  - Files only on remote → **deleted from remote**
+
+- **Pull**: Remote becomes authoritative. Local will be modified to match remote exactly.
+  - Files only on remote → downloaded to local
+  - Files different on remote → downloaded to local (overwrites)
+  - Files only on local → **deleted from local**
+
+> **Warning:** Both operations are destructive. Files on the non-authoritative side that don't exist on the authoritative side will be permanently deleted. Make backups before syncing if needed.
+
 ### Starting a Sync Server
 
 ```swift
