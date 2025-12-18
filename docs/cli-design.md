@@ -1,4 +1,4 @@
-# CLI Tool Design: `diffalla`
+# CLI Tool Design: `diffa`
 
 **Date:** 2025-11-05
 **Status:** Design phase - Phase 5 deliverable
@@ -6,7 +6,7 @@
 
 ## Overview
 
-The `diffalla` command-line tool is a thin wrapper around the Diffalla Swift library, providing rsync-like functionality for users who need a standalone tool rather than app integration.
+The `diffa` command-line tool is a thin wrapper around the Diffa Swift library, providing rsync-like functionality for users who need a standalone tool rather than app integration.
 
 **Design Philosophy:**
 - Thin wrapper around library (minimal CLI-specific code)
@@ -21,7 +21,7 @@ The `diffalla` command-line tool is a thin wrapper around the Diffalla Swift lib
 ### Top-Level Commands
 
 ```bash
-diffalla <command> [options] [arguments]
+diffa <command> [options] [arguments]
 
 Commands:
   snapshot      Create a snapshot of a directory
@@ -30,6 +30,9 @@ Commands:
   sync          Synchronize directories
   export        Export comparison results in various formats
   verify        Verify a directory against a snapshot
+  serve         Start sync server daemon (network sync)
+  push          Push local directory to remote server
+  pull          Pull remote directory to local
   version       Show version information
   help          Show help for a command
 ```
@@ -38,31 +41,31 @@ Commands:
 
 ## Command Reference
 
-### 1. `diffalla snapshot`
+### 1. `diffa snapshot`
 
 Create a lightweight snapshot of a directory.
 
 **Syntax:**
 ```bash
-diffalla snapshot <directory> -o <output.sqlite> [options]
+diffa snapshot <directory> -o <output.diffa> [options]
 ```
 
 **Examples:**
 ```bash
 # Create snapshot
-diffalla snapshot /path/to/dir -o snapshot.sqlite
+diffa snapshot /path/to/dir -o snapshot.diffa
 
 # Create with progress
-diffalla snapshot /path/to/dir -o snapshot.sqlite --progress
+diffa snapshot /path/to/dir -o snapshot.diffa --progress
 
 # Exclude hidden files
-diffalla snapshot /path/to/dir -o snapshot.sqlite --no-hidden
+diffa snapshot /path/to/dir -o snapshot.diffa --no-hidden
 
 # Store symlinks as-is (don't follow)
-diffalla snapshot /path/to/dir -o snapshot.sqlite --no-follow-symlinks
+diffa snapshot /path/to/dir -o snapshot.diffa --no-follow-symlinks
 
 # Capture ownership (requires sudo to restore later)
-sudo diffalla snapshot /etc -o snapshot.sqlite --with-ownership
+sudo diffa snapshot /etc -o snapshot.diffa --with-ownership
 ```
 
 **Options:**
@@ -79,36 +82,36 @@ sudo diffalla snapshot /etc -o snapshot.sqlite --with-ownership
 ```
 Creating snapshot of /path/to/dir...
 [████████████████████] 10,000 files (100%)
-Snapshot saved to snapshot.sqlite (5.2 MB)
+Snapshot saved to snapshot.diffa (5.2 MB)
 ```
 
 ---
 
-### 2. `diffalla compare`
+### 2. `diffa compare`
 
 Compare two directories or snapshots.
 
 **Syntax:**
 ```bash
-diffalla compare <source> <destination> [options]
+diffa compare <source> <destination> [options]
 ```
 
 **Examples:**
 ```bash
 # Compare two directories (creates temporary snapshots)
-diffalla compare /path/a /path/b
+diffa compare /path/a /path/b
 
 # Compare existing snapshots (fast)
-diffalla compare snapshot-a.sqlite snapshot-b.sqlite
+diffa compare snapshot-a.diffa snapshot-b.diffa
 
 # Compare directory to snapshot
-diffalla compare /path/a snapshot-b.sqlite
+diffa compare /path/a snapshot-b.diffa
 
 # Output to JSON
-diffalla compare /path/a /path/b --format json -o result.json
+diffa compare /path/a /path/b --format json -o result.json
 
 # Show only summary
-diffalla compare /path/a /path/b --summary
+diffa compare /path/a /path/b --summary
 ```
 
 **Options:**
@@ -131,7 +134,7 @@ Added (5):
 
 Removed (3):
   - old-file.txt
-  - data/cache.db
+  - data/cache.diffa
   ...
 
 Modified (12):
@@ -152,7 +155,7 @@ Summary:
 
 ---
 
-### 3. `diffalla patch`
+### 3. `diffa patch`
 
 Create, apply, or revert patches.
 
@@ -160,22 +163,22 @@ Create, apply, or revert patches.
 
 **Syntax:**
 ```bash
-diffalla patch create <source> <destination> -o <patch.sqlite> [options]
+diffa patch create <source> <destination> -o <patch-file> [options]
 ```
 
 **Examples:**
 ```bash
 # Create patch from directories
-diffalla patch create /old /new -o update.patch
+diffa patch create /old /new -o update.patch
 
 # Create from snapshots (fast)
-diffalla patch create old.sqlite new.sqlite -o update.patch
+diffa patch create old.diffa new.diffa -o update.patch
 
 # Include revert data
-diffalla patch create /old /new -o update.patch --with-revert
+diffa patch create /old /new -o update.patch --with-revert
 
 # External cache for large files
-diffalla patch create /old /new -o update.patch --cache-dir /tmp/cache
+diffa patch create /old /new -o update.patch --cache-dir /tmp/cache
 ```
 
 **Options:**
@@ -191,19 +194,19 @@ diffalla patch create /old /new -o update.patch --cache-dir /tmp/cache
 
 **Syntax:**
 ```bash
-diffalla patch apply <patch.sqlite> <target-directory> [options]
+diffa patch apply <patch-file> <target-directory> [options]
 ```
 
 **Examples:**
 ```bash
 # Apply patch
-diffalla patch apply update.patch /install/dir
+diffa patch apply update.patch /install/dir
 
 # Dry-run (preview without changes)
-diffalla patch apply update.patch /install/dir --dry-run
+diffa patch apply update.patch /install/dir --dry-run
 
 # With progress
-diffalla patch apply update.patch /install/dir --progress
+diffa patch apply update.patch /install/dir --progress
 ```
 
 **Options:**
@@ -228,16 +231,16 @@ Applied successfully:
 
 **Syntax:**
 ```bash
-diffalla patch revert <patch.sqlite> <target-directory> [options]
+diffa patch revert <patch-file> <target-directory> [options]
 ```
 
 **Examples:**
 ```bash
 # Revert patch
-diffalla patch revert update.patch /install/dir
+diffa patch revert update.patch /install/dir
 
 # Dry-run
-diffalla patch revert update.patch /install/dir --dry-run
+diffa patch revert update.patch /install/dir --dry-run
 ```
 
 **Options:**
@@ -247,31 +250,31 @@ diffalla patch revert update.patch /install/dir --dry-run
 
 ---
 
-### 4. `diffalla sync`
+### 4. `diffa sync`
 
 Synchronize directories.
 
 **Syntax:**
 ```bash
-diffalla sync <source> <destination> [options]
+diffa sync <source> <destination> [options]
 ```
 
 **Examples:**
 ```bash
 # Unidirectional sync (source → destination)
-diffalla sync /source /dest
+diffa sync /source /dest
 
 # Bidirectional sync
-diffalla sync /dir-a /dir-b --bidirectional
+diffa sync /dir-a /dir-b --bidirectional
 
 # With conflict resolution strategy
-diffalla sync /dir-a /dir-b --bidirectional --conflicts newest
+diffa sync /dir-a /dir-b --bidirectional --conflicts newest
 
 # Dry-run
-diffalla sync /source /dest --dry-run
+diffa sync /source /dest --dry-run
 
 # Delete extraneous files in destination
-diffalla sync /source /dest --delete
+diffa sync /source /dest --delete
 ```
 
 **Options:**
@@ -296,28 +299,28 @@ Time: 45.2s
 
 ---
 
-### 5. `diffalla export`
+### 5. `diffa export`
 
 Export comparison results in various formats.
 
 **Syntax:**
 ```bash
-diffalla export <patch.sqlite> -f <format> -o <output> [options]
+diffa export <patch-file> -f <format> -o <output> [options]
 ```
 
 **Examples:**
 ```bash
 # Export as HTML
-diffalla export update.patch -f html -o report.html
+diffa export update.patch -f html -o report.html
 
 # Export as JSON
-diffalla export update.patch -f json -o data.json
+diffa export update.patch -f json -o data.json
 
 # Export as unified diff
-diffalla export update.patch -f diff -o changes.diff
+diffa export update.patch -f diff -o changes.diff
 
 # Export as text
-diffalla export update.patch -f text -o summary.txt
+diffa export update.patch -f text -o summary.txt
 ```
 
 **Options:**
@@ -327,25 +330,25 @@ diffalla export update.patch -f text -o summary.txt
 
 ---
 
-### 6. `diffalla verify`
+### 6. `diffa verify`
 
 Verify a directory against a snapshot.
 
 **Syntax:**
 ```bash
-diffalla verify <directory> <snapshot.sqlite> [options]
+diffa verify <directory> <snapshot.diffa> [options]
 ```
 
 **Examples:**
 ```bash
 # Verify directory matches snapshot
-diffalla verify /path/to/dir snapshot.sqlite
+diffa verify /path/to/dir snapshot.diffa
 
 # Show differences if any
-diffalla verify /path/to/dir snapshot.sqlite --show-diff
+diffa verify /path/to/dir snapshot.diffa --show-diff
 
 # Quiet (exit code only)
-diffalla verify /path/to/dir snapshot.sqlite --quiet
+diffa verify /path/to/dir snapshot.diffa --quiet
 ```
 
 **Options:**
@@ -354,7 +357,7 @@ diffalla verify /path/to/dir snapshot.sqlite --quiet
 
 **Output:**
 ```
-Verifying /path/to/dir against snapshot.sqlite...
+Verifying /path/to/dir against snapshot.diffa...
 ✓ Verification passed: No changes detected
 ```
 
@@ -365,18 +368,152 @@ Verifying /path/to/dir against snapshot.sqlite...
 
 ---
 
-### 7. `diffalla version`
+### 7. `diffa serve`
+
+Start a sync server daemon for network synchronization.
+
+**Syntax:**
+```bash
+diffa serve --path <directory> --port <port>
+```
+
+**Examples:**
+```bash
+# Start server on default port 8080
+diffa serve --path /path/to/sync --port 8080
+
+# Server displays connection info
+# Connect using:
+#   diffa push <local-dir> 192.168.1.100:8080
+#   diffa pull <local-dir> 192.168.1.100:8080
+```
+
+**Options:**
+- `--path <dir>` - Directory to serve (required)
+- `-p, --port <port>` - Port to listen on (default: 8080)
+
+**Output:**
+```
+Starting Diffa sync server...
+  Path: /path/to/sync
+  Port: 8080
+
+Server listening on port 8080
+Serving: /path/to/sync
+
+Connect using:
+  diffa push <local-dir> 192.168.1.100:8080
+  diffa pull <local-dir> 192.168.1.100:8080
+```
+
+**Notes:**
+- Files >4KB are automatically compressed during transfer (ZLIB)
+- Already-compressed files (jpg, mp4, zip, etc.) are sent as-is
+- Log shows compression ratios: `Uploading: file.swift (15000 → 3200 bytes, 78% saved)`
+
+---
+
+### 8. `diffa push`
+
+Push local directory contents to a remote server. Creates a **true mirror** - remote will match local exactly.
+
+> **Warning:** Files that exist only on the remote server will be **deleted**. This is destructive. Make backups before pushing if needed.
+
+**Syntax:**
+```bash
+diffa push <local-path> <host:port>
+```
+
+**Examples:**
+```bash
+# Push local directory to remote server
+diffa push ~/Documents/project 192.168.1.100:8080
+
+# Push to localhost (testing)
+diffa push /local/path localhost:8080
+```
+
+**Arguments:**
+- `<local-path>` - Local directory to push
+- `<host:port>` - Remote server address (e.g., 192.168.1.100:8080)
+
+**Output:**
+```
+Pushing /local/path to 192.168.1.100:8080...
+
+Connecting to 192.168.1.100:8080...
+Connected!
+Handshake complete
+Creating local snapshot...
+Local files: 184
+Remote files: 10
+Operations: 187
+Uploading: file1.txt
+Uploading: file2.txt
+Deleting (remote): old-file.txt
+...
+Sync complete!
+```
+
+---
+
+### 9. `diffa pull`
+
+Pull remote directory contents to local. Creates a **true mirror** - local will match remote exactly.
+
+> **Warning:** Files that exist only on the local directory will be **deleted**. This is destructive. Make backups before pulling if needed.
+
+**Syntax:**
+```bash
+diffa pull <local-path> <host:port>
+```
+
+**Examples:**
+```bash
+# Pull from remote server to local directory
+diffa pull ~/Documents/backup 192.168.1.100:8080
+
+# Pull to empty directory (full clone)
+mkdir /new/local/dir
+diffa pull /new/local/dir 192.168.1.100:8080
+```
+
+**Arguments:**
+- `<local-path>` - Local directory to sync to
+- `<host:port>` - Remote server address (e.g., 192.168.1.100:8080)
+
+**Output:**
+```
+Pulling from 192.168.1.100:8080 to /local/path...
+
+Connecting to 192.168.1.100:8080...
+Connected!
+Handshake complete
+Creating local snapshot...
+Local files: 10
+Remote files: 184
+Operations: 187
+Downloading: file1.txt
+Downloading: file2.txt
+Deleting (local): old-local-file.txt
+...
+Sync complete!
+```
+
+---
+
+### 10. `diffa version`
 
 Show version information.
 
 **Syntax:**
 ```bash
-diffalla version [--verbose]
+diffa version [--verbose]
 ```
 
 **Output:**
 ```
-diffalla version 1.0.0
+diffa version 1.0.0
 Library version: 1.0.0
 SQLite version: 3.43.0
 Platform: macOS 14.0 (arm64)
@@ -384,20 +521,20 @@ Platform: macOS 14.0 (arm64)
 
 ---
 
-### 8. `diffalla help`
+### 11. `diffa help`
 
 Show help for a command.
 
 **Syntax:**
 ```bash
-diffalla help [command]
+diffa help [command]
 ```
 
 **Examples:**
 ```bash
-diffalla help
-diffalla help snapshot
-diffalla help sync
+diffa help
+diffa help snapshot
+diffa help sync
 ```
 
 ---
@@ -416,15 +553,15 @@ Available for all commands:
 
 ## Environment Variables
 
-- `DIFFALLA_CACHE_DIR` - Default cache directory for patches
-- `DIFFALLA_INLINE_THRESHOLD` - Default inline threshold in bytes
-- `DIFFALLA_NO_COLOR` - Disable colored output (set to 1)
+- `DIFFA_CACHE_DIR` - Default cache directory for patches
+- `DIFFA_INLINE_THRESHOLD` - Default inline threshold in bytes
+- `DIFFA_NO_COLOR` - Disable colored output (set to 1)
 
 ---
 
 ## Configuration File
 
-Optional configuration file: `~/.diffallarc` (JSON format)
+Optional configuration file: `~/.diffarc` (JSON format)
 
 **Example:**
 ```json
@@ -436,7 +573,7 @@ Optional configuration file: `~/.diffallarc` (JSON format)
   },
   "patch": {
     "withRevert": true,
-    "cacheDir": "/tmp/diffalla-cache",
+    "cacheDir": "/tmp/diffa-cache",
     "inlineThreshold": 1048576
   },
   "sync": {
@@ -456,16 +593,16 @@ Optional configuration file: `~/.diffallarc` (JSON format)
 
 ```bash
 # Before install
-diffalla snapshot /Applications -o before.sqlite
+diffa snapshot /Applications -o before.diffa
 
 # Run installer
 ./installer.pkg
 
 # After install
-diffalla snapshot /Applications -o after.sqlite
+diffa snapshot /Applications -o after.diffa
 
 # See what changed
-diffalla compare before.sqlite after.sqlite
+diffa compare before.diffa after.diffa
 ```
 
 ---
@@ -474,13 +611,13 @@ diffalla compare before.sqlite after.sqlite
 
 ```bash
 # Create deployment patch
-diffalla patch create /current-version /new-version -o deploy.patch
+diffa patch create /current-version /new-version -o deploy.patch
 
 # Apply to production
-diffalla patch apply deploy.patch /production --progress
+diffa patch apply deploy.patch /production --progress
 
 # If issues, rollback
-diffalla patch revert deploy.patch /production
+diffa patch revert deploy.patch /production
 ```
 
 ---
@@ -489,10 +626,10 @@ diffalla patch revert deploy.patch /production
 
 ```bash
 # Sync laptop ↔ desktop
-diffalla sync ~/Documents /mnt/desktop/Documents --bidirectional --conflicts newest
+diffa sync ~/Documents /mnt/desktop/Documents --bidirectional --conflicts newest
 
 # Dry-run first to preview
-diffalla sync ~/Documents /mnt/desktop/Documents --bidirectional --dry-run
+diffa sync ~/Documents /mnt/desktop/Documents --bidirectional --dry-run
 ```
 
 ---
@@ -501,13 +638,13 @@ diffalla sync ~/Documents /mnt/desktop/Documents --bidirectional --dry-run
 
 ```bash
 # Create baseline snapshot
-diffalla snapshot /etc -o baseline.sqlite
+diffa snapshot /etc -o baseline.diffa
 
 # Later, verify no unauthorized changes
-diffalla verify /etc baseline.sqlite
+diffa verify /etc baseline.diffa
 
 # If changes detected, show what changed
-diffalla verify /etc baseline.sqlite --show-diff
+diffa verify /etc baseline.diffa --show-diff
 ```
 
 ---
@@ -516,10 +653,10 @@ diffalla verify /etc baseline.sqlite --show-diff
 
 ```bash
 # Create patch
-diffalla patch create v1.0 v1.1 -o update.patch
+diffa patch create v1.0 v1.1 -o update.patch
 
 # Export as HTML for review
-diffalla export update.patch -f html -o deployment-report.html
+diffa export update.patch -f html -o deployment-report.html
 
 # Open in browser
 open deployment-report.html
@@ -533,7 +670,7 @@ open deployment-report.html
 
 ```
 ┌─────────────────────────────────────────┐
-│  CLI Binary (diffalla)                  │
+│  CLI Binary (diffa)                  │
 │  - Argument parsing (swift-argument-parser)
 │  - Command dispatch                     │
 │  - Progress formatting                  │
@@ -541,7 +678,7 @@ open deployment-report.html
 └─────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────┐
-│  Diffalla Library (Swift Package)       │
+│  Diffa Library (Swift Package)       │
 │  - Snapshot, Comparison, Patching, Sync │
 │  - SQLite wrapper                       │
 │  - Core algorithms                      │
@@ -576,21 +713,21 @@ open deployment-report.html
 ### Distribution
 
 **macOS:**
-- Homebrew formula: `brew install diffalla`
-- DMG with binary: Install to `/usr/local/bin/diffalla`
+- Homebrew formula: `brew install diffa`
+- DMG with binary: Install to `/usr/local/bin/diffa`
 - Swift Package Manager: `swift build -c release`
 
 **Linux:**
-- APT package: `sudo apt install diffalla`
-- RPM package: `sudo yum install diffalla`
+- APT package: `sudo apt install diffa`
+- RPM package: `sudo yum install diffa`
 - Static binary: Download and copy to `/usr/local/bin/`
 
 **From Source:**
 ```bash
-git clone https://github.com/user/diffalla.git
-cd diffalla
+git clone https://github.com/user/diffa.git
+cd diffa
 swift build -c release
-cp .build/release/diffalla /usr/local/bin/
+cp .build/release/diffa /usr/local/bin/
 ```
 
 ---
@@ -598,7 +735,7 @@ cp .build/release/diffalla /usr/local/bin/
 ### Phase 5 Implementation Plan
 
 **Step 1: CLI Structure (Week 1)**
-- Create `Sources/diffalla-cli/` target
+- Create `Sources/diffa-cli/` target
 - Add `swift-argument-parser` dependency
 - Implement argument parsing for all commands
 - Wire up to library functions
@@ -616,7 +753,7 @@ cp .build/release/diffalla /usr/local/bin/
 - Test across platforms (macOS, Linux)
 
 **Step 4: Documentation (Week 2)**
-- Man pages (diffalla.1, diffalla-snapshot.1, etc.)
+- Man pages (diffa.1, diffa-snapshot.1, etc.)
 - README with examples
 - Homebrew formula
 - Packaging scripts
@@ -645,18 +782,18 @@ Consistent exit codes across all commands:
 
 ## Comparison to rsync CLI
 
-| Feature | rsync | diffalla |
+| Feature | rsync | diffa |
 |---------|-------|----------|
-| Syntax | `rsync [options] source dest` | `diffalla sync source dest [options]` |
+| Syntax | `rsync [options] source dest` | `diffa sync source dest [options]` |
 | Dry-run | `-n, --dry-run` | `-n, --dry-run` ✅ |
 | Progress | `--progress` | `-p, --progress` ✅ |
 | Delete | `--delete` | `--delete` ✅ |
 | Verbose | `-v, --verbose` | `-v, --verbose` ✅ |
 | Bidirectional | Run twice manually | `--bidirectional` ✅ |
 | Conflicts | N/A | `--conflicts <strategy>` ✅ |
-| Snapshot | N/A | `diffalla snapshot` ✅ |
-| Verify | N/A | `diffalla verify` ✅ |
-| Patch | N/A | `diffalla patch` ✅ |
+| Snapshot | N/A | `diffa snapshot` ✅ |
+| Verify | N/A | `diffa verify` ✅ |
+| Patch | N/A | `diffa patch` ✅ |
 
 **Advantages over rsync CLI:**
 - ✅ Snapshot and verify commands
@@ -675,14 +812,18 @@ Consistent exit codes across all commands:
 
 ## Future Enhancements (Post-1.0)
 
-**Phase 6+ potential additions:**
+**Implemented in Phase 7:**
+- ✅ **Network sync:** `diffa serve`, `diffa push`, `diffa pull`
+- ✅ **Daemon mode:** `diffa serve --path /dir --port 8080`
 
-1. **Watch mode:** `diffalla watch <dir> --snapshot baseline.sqlite --alert`
-2. **Remote sync:** `diffalla sync local-dir user@host:/remote-dir`
-3. **Compression:** `diffalla snapshot --compress zstd`
-4. **Ignore patterns:** `diffalla snapshot --ignore .diffallaignore`
-5. **Interactive mode:** `diffalla sync --interactive` (prompt for each file)
-6. **Daemon mode:** `diffallad --config sync-config.json`
+**Potential future additions:**
+
+1. **Watch mode:** `diffa watch <dir> --snapshot baseline.diffa --alert`
+2. **SSH sync:** `diffa sync local-dir user@host:/remote-dir` (via SSH tunnel)
+3. **Compression:** `diffa snapshot --compress zstd`
+4. **Ignore patterns:** `diffa snapshot --ignore .diffaignore`
+5. **Interactive mode:** `diffa sync --interactive` (prompt for each file)
+6. **Web UI:** Browser-based server status dashboard
 
 ---
 
@@ -699,7 +840,7 @@ Consistent exit codes across all commands:
 
 ---
 
-**Document Status:** Complete - Phase 5 design spec
-**Last Updated:** 2025-11-05
-**Next Review:** Before Phase 5 implementation
-**Dependencies:** Phase 1-4 library complete
+**Document Status:** Updated - Phase 7 implemented
+**Last Updated:** 2025-12-17
+**Version:** 0.12.0
+**Dependencies:** All phases (0-7) complete

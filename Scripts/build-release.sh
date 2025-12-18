@@ -15,7 +15,7 @@ VERSION="${1:-$(git describe --tags --always 2>/dev/null || echo "0.1.0")}"
 BUILD_DIR=".build/release-dist"
 DIST_DIR="dist"
 
-echo "=== Diffalla Release Builder ==="
+echo "=== Diffa Release Builder ==="
 echo "Version: $VERSION"
 echo
 
@@ -54,16 +54,16 @@ if [ "$PLATFORM_NAME" = "macos" ]; then
 
     echo "  Creating universal binary..."
     lipo -create \
-        .build/arm64-apple-macosx/release/diffalla \
-        .build/x86_64-apple-macosx/release/diffalla \
-        -output "$BUILD_DIR/diffalla"
+        .build/arm64-apple-macosx/release/diffa \
+        .build/x86_64-apple-macosx/release/diffa \
+        -output "$BUILD_DIR/diffa"
 
-    BINARY_PATH="$BUILD_DIR/diffalla"
+    BINARY_PATH="$BUILD_DIR/diffa"
 else
     # Build for Linux
     swift build -c release
-    cp .build/release/diffalla "$BUILD_DIR/diffalla"
-    BINARY_PATH="$BUILD_DIR/diffalla"
+    cp .build/release/diffa "$BUILD_DIR/diffa"
+    BINARY_PATH="$BUILD_DIR/diffa"
 fi
 
 echo "✅ Binary built: $BINARY_PATH"
@@ -94,12 +94,12 @@ echo "  Stripped size: ${STRIPPED_SIZE_MB}MB"
 # Create distribution package
 echo
 echo "📦 Creating distribution package..."
-PACKAGE_NAME="diffalla-${VERSION}-${PLATFORM_NAME}"
+PACKAGE_NAME="diffa-${VERSION}-${PLATFORM_NAME}"
 PACKAGE_DIR="$BUILD_DIR/$PACKAGE_NAME"
 
 mkdir -p "$PACKAGE_DIR/bin"
 mkdir -p "$PACKAGE_DIR/man/man1"
-mkdir -p "$PACKAGE_DIR/share/doc/diffalla"
+mkdir -p "$PACKAGE_DIR/share/doc/diffa"
 
 # Copy binary
 cp "$BINARY_PATH" "$PACKAGE_DIR/bin/"
@@ -111,28 +111,28 @@ if [ -d "man/man1" ]; then
 fi
 
 # Copy documentation
-cp README.md "$PACKAGE_DIR/share/doc/diffalla/" 2>/dev/null || true
-cp LICENSE* "$PACKAGE_DIR/share/doc/diffalla/" 2>/dev/null || true
+cp README.md "$PACKAGE_DIR/share/doc/diffa/" 2>/dev/null || true
+cp LICENSE* "$PACKAGE_DIR/share/doc/diffa/" 2>/dev/null || true
 
 # Copy examples
 if [ -d "examples" ]; then
-    cp -r examples "$PACKAGE_DIR/share/doc/diffalla/"
+    cp -r examples "$PACKAGE_DIR/share/doc/diffa/"
     echo "  ✓ Example scripts included"
 fi
 
 # Create install script
 cat > "$PACKAGE_DIR/install.sh" << 'EOF'
 #!/bin/bash
-# install.sh - Install diffalla
+# install.sh - Install diffa
 set -euo pipefail
 
 PREFIX="${PREFIX:-/usr/local}"
 
-echo "Installing diffalla to $PREFIX..."
+echo "Installing diffa to $PREFIX..."
 
 # Install binary
-install -m 755 bin/diffalla "$PREFIX/bin/diffalla"
-echo "✓ Binary installed to $PREFIX/bin/diffalla"
+install -m 755 bin/diffa "$PREFIX/bin/diffa"
+echo "✓ Binary installed to $PREFIX/bin/diffa"
 
 # Install man pages
 if [ -d "man/man1" ]; then
@@ -144,17 +144,17 @@ if [ -d "man/man1" ]; then
 fi
 
 # Install documentation
-if [ -d "share/doc/diffalla" ]; then
-    mkdir -p "$PREFIX/share/doc/diffalla"
-    cp -r share/doc/diffalla/* "$PREFIX/share/doc/diffalla/"
-    echo "✓ Documentation installed to $PREFIX/share/doc/diffalla/"
+if [ -d "share/doc/diffa" ]; then
+    mkdir -p "$PREFIX/share/doc/diffa"
+    cp -r share/doc/diffa/* "$PREFIX/share/doc/diffa/"
+    echo "✓ Documentation installed to $PREFIX/share/doc/diffa/"
 fi
 
 echo
 echo "Installation complete!"
 echo
-echo "Run 'diffalla --help' to get started"
-echo "Run 'man diffalla' for documentation"
+echo "Run 'diffa --help' to get started"
+echo "Run 'man diffa' for documentation"
 EOF
 
 chmod +x "$PACKAGE_DIR/install.sh"

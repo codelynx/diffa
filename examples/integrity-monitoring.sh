@@ -3,16 +3,16 @@
 #
 # Usage:
 #   # Create baseline
-#   ./integrity-monitoring.sh init /etc /root/baselines/etc.db
+#   ./integrity-monitoring.sh init /etc /root/baselines/etc.diffa
 #
 #   # Check for changes
-#   ./integrity-monitoring.sh check /etc /root/baselines/etc.db
+#   ./integrity-monitoring.sh check /etc /root/baselines/etc.diffa
 #
 #   # Update baseline (after authorized changes)
-#   ./integrity-monitoring.sh update /etc /root/baselines/etc.db
+#   ./integrity-monitoring.sh update /etc /root/baselines/etc.diffa
 #
 # Use with cron:
-#   */30 * * * * /usr/local/bin/integrity-monitoring.sh check /etc /root/baselines/etc.db
+#   */30 * * * * /usr/local/bin/integrity-monitoring.sh check /etc /root/baselines/etc.diffa
 
 set -euo pipefail
 
@@ -31,7 +31,7 @@ case "$COMMAND" in
         mkdir -p "$(dirname "$BASELINE")"
 
         # Create snapshot
-        if diffalla snapshot "$DIRECTORY" -o "$BASELINE"; then
+        if diffa snapshot "$DIRECTORY" -o "$BASELINE"; then
             echo
             echo "✅ Baseline created: $BASELINE"
             echo
@@ -57,7 +57,7 @@ case "$COMMAND" in
         fi
 
         # Verify directory matches baseline
-        if diffalla verify "$DIRECTORY" "$BASELINE" --show-diff; then
+        if diffa verify "$DIRECTORY" "$BASELINE" --show-diff; then
             echo
             echo "✅ Integrity check passed - no changes detected"
             exit 0
@@ -90,7 +90,7 @@ case "$COMMAND" in
         # Show changes before updating
         echo "Changes since last baseline:"
         echo
-        if diffalla verify "$DIRECTORY" "$BASELINE" --show-diff; then
+        if diffa verify "$DIRECTORY" "$BASELINE" --show-diff; then
             echo "No changes to record"
             exit 0
         fi
@@ -109,7 +109,7 @@ case "$COMMAND" in
         echo "📦 Old baseline backed up: $BACKUP"
 
         # Create new baseline
-        if diffalla snapshot "$DIRECTORY" -o "$BASELINE"; then
+        if diffa snapshot "$DIRECTORY" -o "$BASELINE"; then
             echo "✅ Baseline updated: $BASELINE"
         else
             echo "❌ Failed to update baseline"

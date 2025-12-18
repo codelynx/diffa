@@ -210,7 +210,7 @@ let cacheDir = try FileManager.default.url(
     appropriateFor: nil,
     create: true
 )
-let snapshotURL = cacheDir.appendingPathComponent("diffalla/snapshot.json")
+let snapshotURL = cacheDir.appendingPathComponent("diffa/snapshot.json")
 let snapshot = try await Snapshot.create(
     from: directory,
     saveTo: snapshotURL

@@ -1,6 +1,6 @@
 # Distribution Scripts
 
-This directory contains scripts for building, packaging, and distributing Diffalla.
+This directory contains scripts for building, packaging, and distributing Diffa.
 
 ## Scripts
 
@@ -30,8 +30,8 @@ Builds optimized release binaries for distribution.
 ```
 
 **Output:**
-- `dist/diffalla-VERSION-PLATFORM.tar.gz` - Distribution tarball
-- `dist/diffalla-VERSION-PLATFORM.tar.gz.sha256` - Checksum file
+- `dist/diffa-VERSION-PLATFORM.tar.gz` - Distribution tarball
+- `dist/diffa-VERSION-PLATFORM.tar.gz.sha256` - Checksum file
 
 **Requirements:**
 - macOS: Xcode with Swift 5.9+
@@ -58,13 +58,13 @@ Universal installation script supporting both source and binary installs.
 PREFIX=$HOME/.local ./Scripts/install.sh
 
 # One-line remote install (future)
-curl -fsSL https://raw.githubusercontent.com/yourusername/Diffalla/main/Scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yourusername/Diffa/main/Scripts/install.sh | bash
 ```
 
 **Environment Variables:**
 - `PREFIX` - Installation prefix (default: `/usr/local`)
 - `VERSION` - Version to install (default: `latest`)
-- `REPO` - GitHub repository (default: `codelynx/Diffalla`)
+- `REPO` - GitHub repository (default: `codelynx/Diffa`)
 
 ---
 
@@ -117,18 +117,18 @@ git push origin v1.0.0
 
 ### Formula
 
-The Homebrew formula is in `Formula/diffalla.rb`.
+The Homebrew formula is in `Formula/diffa.rb`.
 
 **Local Testing:**
 ```bash
 # Install from local formula
-brew install --formula Formula/diffalla.rb
+brew install --formula Formula/diffa.rb
 
 # Test the formula
-brew test diffalla
+brew test diffa
 
 # Audit the formula
-brew audit --new-formula diffalla
+brew audit --new-formula diffa
 ```
 
 **Creating a Tap:**
@@ -137,17 +137,17 @@ brew audit --new-formula diffalla
 gh repo create homebrew-tap --public
 
 # Add formula
-cp Formula/diffalla.rb homebrew-tap/diffalla.rb
+cp Formula/diffa.rb homebrew-tap/diffa.rb
 cd homebrew-tap
-git add diffalla.rb
-git commit -m "Add diffalla formula"
+git add diffa.rb
+git commit -m "Add diffa formula"
 git push
 ```
 
 **Installing from Tap:**
 ```bash
 brew tap codelynx/tap
-brew install diffalla
+brew install diffa
 ```
 
 ---
@@ -158,7 +158,7 @@ Before creating a release:
 
 1. **Update Version Numbers:**
    - [ ] `Package.swift` (if applicable)
-   - [ ] `Sources/DiffallaCLI/main.swift` (version in CLI)
+   - [ ] `Sources/DiffaCLI/main.swift` (version in CLI)
    - [ ] `CHANGELOG.md` (document changes)
 
 2. **Run Tests:**
@@ -171,10 +171,10 @@ Before creating a release:
    ```bash
    ./Scripts/build-release.sh X.Y.Z
    cd dist
-   tar -xzf diffalla-X.Y.Z-macos.tar.gz
-   cd diffalla-X.Y.Z-macos
+   tar -xzf diffa-X.Y.Z-macos.tar.gz
+   cd diffa-X.Y.Z-macos
    ./install.sh
-   diffalla --version
+   diffa --version
    ```
 
 4. **Create Git Tag:**
@@ -184,22 +184,22 @@ Before creating a release:
    ```
 
 5. **Wait for GitHub Actions:**
-   - Monitor workflow at: https://github.com/yourusername/Diffalla/actions
-   - Verify release created: https://github.com/yourusername/Diffalla/releases
+   - Monitor workflow at: https://github.com/yourusername/Diffa/actions
+   - Verify release created: https://github.com/yourusername/Diffa/releases
 
 6. **Update Homebrew Tap** (if not automated):
    ```bash
    # Calculate new SHA256
-   shasum -a 256 dist/diffalla-X.Y.Z-macos.tar.gz
+   shasum -a 256 dist/diffa-X.Y.Z-macos.tar.gz
 
-   # Update Formula/diffalla.rb:
+   # Update Formula/diffa.rb:
    # - url: new version
    # - sha256: new checksum
 
    # Push to tap
    cd homebrew-tap
-   git add diffalla.rb
-   git commit -m "Update diffalla to X.Y.Z"
+   git add diffa.rb
+   git commit -m "Update diffa to X.Y.Z"
    git push
    ```
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Diffalla Benchmark Harness
+# Diffa Benchmark Harness
 #
 # Opt-in benchmarking script (NOT run during swift test).
 # Runs performance benchmarks and outputs JSON results.
@@ -26,7 +26,7 @@ TIMESTAMP=$(date +"%Y-%m-%d-%H%M%S")
 OUTPUT_FILE="benchmarks/results-${TIMESTAMP}.json"
 
 echo "========================================="
-echo "Diffalla Benchmark Harness"
+echo "Diffa Benchmark Harness"
 echo "========================================="
 echo "Dataset: ${DATASET}"
 echo "Output: ${OUTPUT_FILE}"
@@ -34,7 +34,7 @@ echo ""
 
 # Build benchmark executable in release mode for accurate performance
 echo "Building benchmark executable (release mode)..."
-swift build -c release --product diffalla-benchmark
+swift build -c release --product diffa-benchmark
 
 # Run benchmarks and capture output
 echo ""
@@ -42,7 +42,7 @@ echo "Running benchmarks..."
 echo ""
 
 # Run and tee output to both console and file
-.build/release/diffalla-benchmark "${DATASET}" | tee "${OUTPUT_FILE}.log"
+.build/release/diffa-benchmark "${DATASET}" | tee "${OUTPUT_FILE}.log"
 
 # Extract JSON from output (everything after "Results JSON:")
 echo ""

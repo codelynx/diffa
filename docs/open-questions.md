@@ -41,7 +41,7 @@ A consolidated list of open questions and design decisions to be made.
 - Backup/sync tools should see everything by default
 - Explicit exclusion is safer (no surprises)
 - Platform: Files starting with `.` on Unix/macOS
-- Ignore patterns (.diffallaignore) deferred to Phase 5
+- Ignore patterns (.diffaignore) deferred to Phase 5
 
 **See:** `docs/decisions.md` for full details
 
@@ -50,7 +50,7 @@ A consolidated list of open questions and design decisions to be made.
 
 **Options:**
 1. No filtering (compare everything)
-2. Support ignore files (.diffallaignore)
+2. Support ignore files (.diffaignore)
 3. Programmatic filters only
 4. Both ignore files and programmatic filters
 
@@ -361,7 +361,7 @@ A consolidated list of open questions and design decisions to be made.
 
 **Options:**
 1. No persistence (session only)
-2. Per-directory cache file (.diffalla-cache)
+2. Per-directory cache file (.diffa-cache)
 3. Central cache database
 4. User-specified location
 

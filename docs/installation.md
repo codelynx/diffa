@@ -1,6 +1,6 @@
 # Installation Guide
 
-Diffalla can be installed on macOS and Linux using several methods. Choose the one that best fits your system and preferences.
+Diffa can be installed on macOS and Linux using several methods. Choose the one that best fits your system and preferences.
 
 ## Quick Install
 
@@ -8,7 +8,7 @@ Diffalla can be installed on macOS and Linux using several methods. Choose the o
 Works on both macOS and Linux:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/codelynx/Diffalla/main/Scripts/install-diffalla.sh | bash
+curl -sSL https://raw.githubusercontent.com/codelynx/Diffa/main/Scripts/install-diffa.sh | bash
 ```
 
 This script will:
@@ -23,14 +23,14 @@ This script will:
 
 #### Homebrew (Recommended)
 ```bash
-brew tap codelynx/diffalla
-brew install diffalla
+brew tap codelynx/diffa
+brew install diffa
 ```
 
 #### MacPorts (Coming Soon)
 ```bash
 # Not yet available
-sudo port install diffalla
+sudo port install diffa
 ```
 
 ### Linux
@@ -40,43 +40,43 @@ sudo port install diffalla
 # Install Homebrew if you don't have it
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# Then install Diffalla (same as macOS!)
-brew tap codelynx/diffalla
-brew install diffalla
+# Then install Diffa (same as macOS!)
+brew tap codelynx/diffa
+brew install diffa
 ```
 
 #### Snap Store (Ubuntu/Debian/Fedora/etc.)
 ```bash
-sudo snap install diffalla --classic
+sudo snap install diffa --classic
 ```
 
-The `--classic` flag is required because Diffalla needs full file system access.
+The `--classic` flag is required because Diffa needs full file system access.
 
 #### APT Repository (Ubuntu/Debian) - Coming Soon
 ```bash
 # PPA not yet available
-sudo add-apt-repository ppa:codelynx/diffalla
+sudo add-apt-repository ppa:codelynx/diffa
 sudo apt update
-sudo apt install diffalla
+sudo apt install diffa
 ```
 
 ## Manual Installation
 
 ### Download Prebuilt Binaries
 
-1. Go to [Releases](https://github.com/codelynx/Diffalla/releases/latest)
+1. Go to [Releases](https://github.com/codelynx/Diffa/releases/latest)
 2. Download the appropriate binary:
    - **Linux**: 
-     - `diffalla-linux-x86_64` - 64-bit Intel/AMD
-     - `diffalla-linux-arm64` - ARM64 (Raspberry Pi 4+, AWS Graviton)
+     - `diffa-linux-x86_64` - 64-bit Intel/AMD
+     - `diffa-linux-arm64` - ARM64 (Raspberry Pi 4+, AWS Graviton)
    - **macOS**:
-     - `diffalla-macos-x86_64` - Intel Macs
-     - `diffalla-macos-arm64` - Apple Silicon (M1/M2/M3)
+     - `diffa-macos-x86_64` - Intel Macs
+     - `diffa-macos-arm64` - Apple Silicon (M1/M2/M3)
 
 3. Make it executable and move to your PATH:
 ```bash
-chmod +x diffalla-*
-sudo mv diffalla-* /usr/local/bin/diffalla
+chmod +x diffa-*
+sudo mv diffa-* /usr/local/bin/diffa
 ```
 
 ### Build from Source
@@ -95,7 +95,7 @@ xcode-select --install
 
 **Linux**: Use the provided installer script:
 ```bash
-curl -sSL https://raw.githubusercontent.com/codelynx/Diffalla/main/Scripts/install-swift-linux.sh | bash
+curl -sSL https://raw.githubusercontent.com/codelynx/Diffa/main/Scripts/install-swift-linux.sh | bash
 ```
 
 Or manually from [swift.org](https://swift.org/download/)
@@ -104,17 +104,17 @@ Or manually from [swift.org](https://swift.org/download/)
 
 ```bash
 # Clone the repository
-git clone https://github.com/codelynx/Diffalla.git
-cd Diffalla
+git clone https://github.com/codelynx/Diffa.git
+cd Diffa
 
 # Build release version
 swift build -c release
 
 # Install (may require sudo)
-sudo cp .build/release/diffalla /usr/local/bin/
+sudo cp .build/release/diffa /usr/local/bin/
 
 # Verify installation
-diffalla --version
+diffa --version
 ```
 
 ## Container Image (Docker/Podman)
@@ -122,20 +122,20 @@ diffalla --version
 Coming soon:
 ```bash
 # Docker
-docker run --rm -v $(pwd):/data codelynx/diffalla snapshot /data
+docker run --rm -v $(pwd):/data codelynx/diffa snapshot /data
 
 # Podman
-podman run --rm -v $(pwd):/data codelynx/diffalla snapshot /data
+podman run --rm -v $(pwd):/data codelynx/diffa snapshot /data
 ```
 
 ## Package Managers Summary
 
 | Platform | Package Manager | Status | Command |
 |----------|----------------|--------|---------|
-| macOS + Linux | Homebrew | ✅ Available | `brew tap codelynx/diffalla && brew install diffalla` |
+| macOS + Linux | Homebrew | ✅ Available | `brew tap codelynx/diffa && brew install diffa` |
 | macOS | MacPorts | 🚧 Coming Soon | - |
-| Linux (All) | Snap | ✅ Available | `snap install diffalla --classic` |
-| Linux (All) | Binary Download | ✅ Available | See [Releases](https://github.com/codelynx/Diffalla/releases) |
+| Linux (All) | Snap | ✅ Available | `snap install diffa --classic` |
+| Linux (All) | Binary Download | ✅ Available | See [Releases](https://github.com/codelynx/Diffa/releases) |
 | Ubuntu/Debian | APT (PPA) | 🚧 Coming Soon | - |
 | RHEL/Fedora | YUM/DNF | 🚧 Planned | - |
 | Arch Linux | AUR | 🚧 Planned | - |
@@ -147,26 +147,26 @@ After installation, verify it works:
 
 ```bash
 # Check version
-diffalla --version
+diffa --version
 
 # View help
-diffalla --help
+diffa --help
 
 # Create a test snapshot
-diffalla snapshot /tmp -o test.sqlite
+diffa snapshot /tmp -o test.diffa
 ```
 
 ## Updating
 
 ### Homebrew
 ```bash
-brew upgrade diffalla
+brew upgrade diffa
 ```
 
 ### Snap
 ```bash
 # Auto-updates by default, or manually:
-sudo snap refresh diffalla
+sudo snap refresh diffa
 ```
 
 ### Manual Update
@@ -176,17 +176,17 @@ Re-run the installation script or download the latest binary from releases.
 
 ### Homebrew
 ```bash
-brew uninstall diffalla
+brew uninstall diffa
 ```
 
 ### Snap
 ```bash
-sudo snap remove diffalla
+sudo snap remove diffa
 ```
 
 ### Manual
 ```bash
-sudo rm /usr/local/bin/diffalla
+sudo rm /usr/local/bin/diffa
 ```
 
 ## Troubleshooting
@@ -195,11 +195,11 @@ sudo rm /usr/local/bin/diffalla
 If you get permission errors when installing to `/usr/local/bin/`:
 ```bash
 # Either use sudo
-sudo mv diffalla /usr/local/bin/
+sudo mv diffa /usr/local/bin/
 
 # Or install to user directory
 mkdir -p ~/.local/bin
-mv diffalla ~/.local/bin/
+mv diffa ~/.local/bin/
 # Add to PATH in ~/.bashrc or ~/.zshrc:
 export PATH="$HOME/.local/bin:$PATH"
 ```
@@ -226,5 +226,5 @@ sudo pacman -S sqlite
 ## Support
 
 For issues or questions:
-- [GitHub Issues](https://github.com/codelynx/Diffalla/issues)
-- [Discussions](https://github.com/codelynx/Diffalla/discussions)
+- [GitHub Issues](https://github.com/codelynx/Diffa/issues)
+- [Discussions](https://github.com/codelynx/Diffa/discussions)

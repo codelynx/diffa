@@ -28,7 +28,7 @@ Synchronize folders to make them identical or mirror one to another.
 Make destination identical to source (source → destination).
 
 ```swift
-extension Diffalla {
+extension Diffa {
 	static func syncUnidirectional(
 		source: URL,
 		destination: URL,
@@ -50,7 +50,7 @@ extension Diffalla {
 Make both folders identical (A ↔ B).
 
 ```swift
-extension Diffalla {
+extension Diffa {
 	static func syncBidirectional(
 		a: URL,
 		b: URL,
@@ -73,7 +73,7 @@ extension Diffalla {
 ### Unidirectional Sync Process
 
 1. **Compare folders**
-   - Run comparison: `Diffalla.Difference.compare(source, destination)`
+   - Run comparison: `Diffa.Difference.compare(source, destination)`
    - Identify added, removed, modified items
 
 2. **Plan operations**
@@ -95,7 +95,7 @@ extension Diffalla {
 ### Bidirectional Sync Process
 
 1. **Compare folders**
-   - Run comparison: `Diffalla.Difference.compare(a, b)`
+   - Run comparison: `Diffa.Difference.compare(a, b)`
    - Identify added, removed, modified items
 
 2. **Analyze conflicts**
@@ -196,7 +196,7 @@ struct SyncResult {
 
 ```swift
 // Unidirectional sync
-let result = try await Diffalla.syncUnidirectional(
+let result = try await Diffa.syncUnidirectional(
 	source: URL(fileURLWithPath: "/source"),
 	destination: URL(fileURLWithPath: "/backup"),
 	progress: { progress in
@@ -213,7 +213,7 @@ print("  Transferred: \(result.bytesTransferred) bytes")
 print("  Duration: \(result.duration) seconds")
 
 // Bidirectional sync
-let result = try await Diffalla.syncBidirectional(
+let result = try await Diffa.syncBidirectional(
 	a: URL(fileURLWithPath: "/folderA"),
 	b: URL(fileURLWithPath: "/folderB"),
 	conflictResolution: .newest,

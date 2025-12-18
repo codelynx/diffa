@@ -1,11 +1,48 @@
 # Changelog
 
-All notable changes to Diffalla will be documented in this file.
+All notable changes to Diffa will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.12.0] - 2025-12-17
+
+### Added
+- **Phase 7: Network Sync**
+  - `diffa serve` - Start sync server daemon
+  - `diffa push` - Push local directory to remote server
+  - `diffa pull` - Pull remote directory to local
+  - TCP-based sync protocol using Apple's Network framework
+  - Server displays local IP addresses for easy connection
+  - Proper message buffering for reliable large file transfers
+  - **Automatic compression** for network transfers (ZLIB/gzip compatible)
+    - Files >4KB automatically compressed
+    - Skips already-compressed files (jpg, mp4, zip, etc.)
+    - Backward-compatible protocol (works with older clients/servers)
+
+### Fixed
+- Network protocol buffer handling for rapid file transfers
+- Push mode now deletes remote files not present locally (true mirror behavior)
+
+## [0.11.0] - 2025-12-17
+
+### Added
+- **Phase 6: EfficientSync Foundation**
+  - Content-addressable storage with SHA-256 hashing
+  - SQLite-backed snapshots with hash index for fast lookups
+  - FileSystemScanner for streaming directory traversal
+  - FileHasher with 64KB chunk streaming
+  - SQLiteSyncSnapshot for efficient snapshot creation
+  - SnapshotComparator for detecting add/modify/delete/move operations
+  - MoveDetector with deterministic hash-based pairing
+  - ContentTracker for zero-copy deduplication
+  - EfficientSyncExecutor for applying sync operations
+  - 43+ new tests for Phase 6 components
+
+### Changed
+- Version bump to 0.11.0
 
 ## [0.10.0] - 2025-11-06
 
@@ -14,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Cross-platform hashing using Swift Crypto (replaces macOS-only CommonCrypto)
   - Full Linux compatibility (tested on Ubuntu)
   - Snap package support (snapcraft.yaml)
-  - Linux installation scripts (install-swift-linux.sh, install-diffalla.sh)
+  - Linux installation scripts (install-swift-linux.sh, install-diffa.sh)
 
 - **Enhanced Distribution**
   - Comprehensive distribution guide
@@ -94,6 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [CLI Design](docs/cli-design.md)
 - [Architecture](docs/architecture.md)
 
-[Unreleased]: https://github.com/codelynx/Diffalla/compare/v0.10.0...HEAD
-[0.10.0]: https://github.com/codelynx/Diffalla/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/codelynx/Diffalla/releases/tag/v0.9.0
+[Unreleased]: https://github.com/codelynx/Diffa/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/codelynx/Diffa/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/codelynx/Diffa/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/codelynx/Diffa/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/codelynx/Diffa/releases/tag/v0.9.0

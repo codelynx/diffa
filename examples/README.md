@@ -1,10 +1,10 @@
-# Diffalla Example Scripts
+# Diffa Example Scripts
 
-This directory contains example shell scripts demonstrating common workflows with the `diffalla` CLI tool.
+This directory contains example shell scripts demonstrating common workflows with the `diffa` CLI tool.
 
 ## Prerequisites
 
-- `diffalla` must be installed and in your PATH
+- `diffa` must be installed and in your PATH
 - Bash shell (macOS, Linux)
 - Appropriate file system permissions for target directories
 
@@ -104,13 +104,13 @@ Monitors directories for unauthorized changes using baseline snapshots.
 **Usage:**
 ```bash
 # Create initial baseline
-./integrity-monitoring.sh init /etc /root/baselines/etc.db
+./integrity-monitoring.sh init /etc /root/baselines/etc.diffa
 
 # Check for changes
-./integrity-monitoring.sh check /etc /root/baselines/etc.db
+./integrity-monitoring.sh check /etc /root/baselines/etc.diffa
 
 # Update baseline after authorized changes
-./integrity-monitoring.sh update /etc /root/baselines/etc.db
+./integrity-monitoring.sh update /etc /root/baselines/etc.diffa
 ```
 
 **What it does:**
@@ -121,10 +121,10 @@ Monitors directories for unauthorized changes using baseline snapshots.
 **Automation with cron:**
 ```bash
 # Check every 30 minutes
-*/30 * * * * /usr/local/bin/integrity-monitoring.sh check /etc /root/baselines/etc.db || mail -s "System changes detected" admin@example.com
+*/30 * * * * /usr/local/bin/integrity-monitoring.sh check /etc /root/baselines/etc.diffa || mail -s "System changes detected" admin@example.com
 
 # Daily check with logging
-0 0 * * * /usr/local/bin/integrity-monitoring.sh check /var/www /root/baselines/www.db >> /var/log/integrity-check.log 2>&1
+0 0 * * * /usr/local/bin/integrity-monitoring.sh check /var/www /root/baselines/www.diffa >> /var/log/integrity-check.log 2>&1
 ```
 
 **Use cases:**
@@ -143,27 +143,27 @@ Monitors directories for unauthorized changes using baseline snapshots.
 # In your CI pipeline
 - name: Verify Build Output
   run: |
-    diffalla snapshot expected-output/ -o expected.db
+    diffa snapshot expected-output/ -o expected.diffa
     make build
-    diffalla verify build/output/ expected.db
+    diffa verify build/output/ expected.diffa
 ```
 
 ### Backup Verification
 
 ```bash
 # Verify backup completeness
-diffalla snapshot /data -o /backups/data-baseline.db
+diffa snapshot /data -o /backups/data-baseline.diffa
 rsync -av /data /backups/data-copy/
-diffalla verify /backups/data-copy/ /backups/data-baseline.db
+diffa verify /backups/data-copy/ /backups/data-baseline.diffa
 ```
 
 ### Configuration Management
 
 ```bash
 # Detect configuration drift
-diffalla snapshot /etc -o /baselines/etc-$(date +%Y%m).db
+diffa snapshot /etc -o /baselines/etc-$(date +%Y%m).diffa
 # Later...
-diffalla compare /baselines/etc-202501.db /etc
+diffa compare /baselines/etc-202501.diffa /etc
 ```
 
 ## Tips

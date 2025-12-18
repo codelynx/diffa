@@ -35,7 +35,7 @@ esac
 # Dry-run first
 echo "🔍 Analyzing changes (dry-run)..."
 echo
-if ! diffalla sync "$DIR_A" "$DIR_B" --bidirectional \
+if ! diffa sync "$DIR_A" "$DIR_B" --bidirectional \
     --conflict-resolution "$CONFLICT_STRATEGY" --dry-run; then
     if [ "$CONFLICT_STRATEGY" = "error" ]; then
         echo
@@ -64,7 +64,7 @@ fi
 # Perform actual sync
 echo "🔄 Syncing..."
 echo
-if diffalla sync "$DIR_A" "$DIR_B" --bidirectional \
+if diffa sync "$DIR_A" "$DIR_B" --bidirectional \
     --conflict-resolution "$CONFLICT_STRATEGY" --progress; then
     echo
     echo "✅ Sync completed successfully"
@@ -77,7 +77,7 @@ fi
 # Verify both directories are now identical
 echo
 echo "🔍 Verifying sync..."
-if diffalla compare "$DIR_A" "$DIR_B" --summary; then
+if diffa compare "$DIR_A" "$DIR_B" --summary; then
     echo "✅ Verification passed - directories are identical"
 else
     echo "⚠️  Verification failed - directories still differ"

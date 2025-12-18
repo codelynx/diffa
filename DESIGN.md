@@ -107,7 +107,7 @@
 ### API Surface
 
 ```swift
-struct Diffalla {
+struct Diffa {
 	struct Difference<T: ItemProtocol> {
 		let sourceSnapshot: Snapshot      // Reference to snapshot A
 		let destinationSnapshot: Snapshot // Reference to snapshot B
@@ -145,7 +145,7 @@ struct Diffalla {
 - Snapshots can be reused for multiple comparisons
 
 **Main comparison type:**
-- `Diffalla` - Top-level namespace for the library
+- `Diffa` - Top-level namespace for the library
 - `Difference<T>` - Generic nested struct containing comparison results
 - `compare()` - Static factory method to perform comparison
 - `source` - The original/base item to compare from
@@ -161,25 +161,25 @@ struct Diffalla {
 **Usage:**
 ```swift
 // Option 1: Compare directories (creates snapshots internally)
-let diff = try await Diffalla.Difference.compare(source: dirA, destination: dirB)
+let diff = try await Diffa.Difference.compare(source: dirA, destination: dirB)
 print("Added: \(diff.added.count)")
 print("Removed: \(diff.removed.count)")
 print("Modified: \(diff.modified.count)")
 
 // Option 2: Compare existing snapshots (reusable, lightweight)
-let snapA = try Snapshot.load(from: "snapshot_a.sqlite")
-let snapB = try Snapshot.load(from: "snapshot_b.sqlite")
-let diff = try Diffalla.Difference.compare(source: snapA, destination: snapB)
+let snapA = try Snapshot.load(from: "snapshot_a.diffa")
+let snapB = try Snapshot.load(from: "snapshot_b.diffa")
+let diff = try Diffa.Difference.compare(source: snapA, destination: snapB)
 // Comparison is just SQL queries - very fast!
 
 // Option 3: Multiple comparisons with snapshot reuse
-let snapA = try await Snapshot.create(from: dirA, saveTo: "a.sqlite")
-let snapB = try await Snapshot.create(from: dirB, saveTo: "b.sqlite")
-let snapC = try await Snapshot.create(from: dirC, saveTo: "c.sqlite")
+let snapA = try await Snapshot.create(from: dirA, saveTo: "a.diffa")
+let snapB = try await Snapshot.create(from: dirB, saveTo: "b.diffa")
+let snapC = try await Snapshot.create(from: dirC, saveTo: "c.diffa")
 
-let diffAB = try Diffalla.Difference.compare(source: snapA, destination: snapB)
-let diffBC = try Diffalla.Difference.compare(source: snapB, destination: snapC)
-let diffAC = try Diffalla.Difference.compare(source: snapA, destination: snapC)
+let diffAB = try Diffa.Difference.compare(source: snapA, destination: snapB)
+let diffBC = try Diffa.Difference.compare(source: snapB, destination: snapC)
+let diffAC = try Diffa.Difference.compare(source: snapA, destination: snapC)
 // Each comparison is fast - directories only scanned once!
 ```
 
@@ -194,7 +194,7 @@ struct Patch {
 }
 
 // Synchronization
-extension Diffalla {
+extension Diffa {
 	static func syncBidirectional(
 		a: URL,
 		b: URL,
@@ -209,7 +209,7 @@ extension Diffalla {
 }
 
 // Snapshots (file-based, not memory-based)
-extension Diffalla {
+extension Diffa {
 	struct Snapshot {
 		// Create and save snapshot to file (streaming)
 		static func create(

@@ -11,8 +11,8 @@ TARGET_DIR="${1:?Usage: $0 <directory> <installer-command>}"
 shift
 INSTALLER_CMD="$@"
 
-BEFORE_SNAPSHOT="/tmp/diffalla-before-$$.db"
-AFTER_SNAPSHOT="/tmp/diffalla-after-$$.db"
+BEFORE_SNAPSHOT="/tmp/diffa-before-$$.diffa"
+AFTER_SNAPSHOT="/tmp/diffa-after-$$.diffa"
 
 cleanup() {
     rm -f "$BEFORE_SNAPSHOT" "$AFTER_SNAPSHOT"
@@ -26,7 +26,7 @@ echo
 
 # Create before snapshot
 echo "📸 Creating before snapshot..."
-diffalla snapshot "$TARGET_DIR" -o "$BEFORE_SNAPSHOT"
+diffa snapshot "$TARGET_DIR" -o "$BEFORE_SNAPSHOT"
 echo
 
 # Run installer
@@ -36,13 +36,13 @@ echo
 
 # Create after snapshot
 echo "📸 Creating after snapshot..."
-diffalla snapshot "$TARGET_DIR" -o "$AFTER_SNAPSHOT"
+diffa snapshot "$TARGET_DIR" -o "$AFTER_SNAPSHOT"
 echo
 
 # Compare
 echo "🔍 Comparing snapshots..."
 echo
-if diffalla compare "$BEFORE_SNAPSHOT" "$AFTER_SNAPSHOT"; then
+if diffa compare "$BEFORE_SNAPSHOT" "$AFTER_SNAPSHOT"; then
     echo
     echo "✅ No changes detected (installer had no impact)"
     exit 0

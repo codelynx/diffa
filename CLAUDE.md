@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Diffalla** is a Swift library and command-line tool for file system comparison, patching, and synchronization on Apple platforms and Linux. It provides snapshot-based directory comparison, patch creation/application, and folder synchronization with conflict resolution.
+**Diffa** is a Swift library and command-line tool for file system comparison, patching, and synchronization on Apple platforms and Linux. It provides snapshot-based directory comparison, patch creation/application, and folder synchronization with conflict resolution.
 
 **Dual Interface:**
 - **Library:** Swift Package for embedding in macOS/iOS apps
-- **CLI Tool:** `diffalla` command for macOS and Linux (Phase 5)
+- **CLI Tool:** `diffa` command for macOS and Linux (Phase 5)
 
-**Current Status:** Design phase complete. Custom SQLite wrapper implemented and production-ready (28 passing tests). Phase 1 implementation (Snapshots and Comparison) awaiting resolution of critical design questions.
+**Current Status:** Phases 0-7 complete. All core functionality implemented with 386 passing tests. Network sync (serve/push/pull) with automatic compression operational.
 
 **Key Design Philosophy:**
 - Simple first, no frills
@@ -51,7 +51,7 @@ swift build 2>&1 | grep -i warning
 
 ### Current Implementation (Phase 0: SQLite Wrapper)
 
-**Custom SQLite Wrapper** (`Sources/Diffalla/Database/`):
+**Custom SQLite Wrapper** (`Sources/Diffa/Database/`):
 - Zero external dependencies, cross-platform (macOS, iOS, Linux)
 - 5 core files (~525 lines total):
   - `SQLiteDatabase.swift` - Main database connection class
@@ -72,19 +72,29 @@ swift build 2>&1 | grep -i warning
 - **Text reading:** Uses `sqlite3_column_bytes()` → Data → String (preserves embedded nulls)
 - **Value semantics:** SQLiteRow copies all data in init (no references to statement)
 
-### Planned Architecture (Phase 1+)
+### Current Architecture
 
 **Module Structure:**
 ```
-Sources/Diffalla/
+Sources/Diffa/
 ├── Database/           # ✅ Complete - SQLite wrapper
-├── Core/               # Phase 1 - ItemProtocol, Metadata, FileSystemItem
-├── Snapshots/          # Phase 1 - Snapshot creation, loading, comparison
-├── Comparison/         # Phase 1 - Difference computation (SQL-powered)
-├── Patching/           # Phase 2 - Patch creation, apply, revert
-├── Synchronization/    # Phase 3 - Unidirectional/bidirectional sync
-├── Optimization/       # Phase 4 - Move detection, hash caching
-└── Utilities/          # All phases - Hash utils, file ops, errors
+├── Core/               # ✅ Complete - ItemProtocol, Metadata, FileSystemItem
+├── Snapshots/          # ✅ Complete - Snapshot creation, loading, comparison
+├── Comparison/         # ✅ Complete - Difference computation (SQL-powered)
+├── Patching/           # ✅ Complete - Patch creation, apply, revert
+├── Synchronization/    # ✅ Complete - Unidirectional/bidirectional sync
+├── Optimization/       # ✅ Complete - Move detection, hash caching
+├── EfficientSync/      # ✅ Complete - Phase 6 content-addressable sync
+│   ├── Core/           # FileItem, ContentTracker, SyncMode
+│   ├── Snapshots/      # FileSystemScanner, FileHasher, SQLiteSyncSnapshot
+│   ├── Comparison/     # SnapshotComparator, MoveDetector, EfficientSyncExecutor
+│   └── Network/        # SyncProtocol, SyncServer, SyncClient
+└── Utilities/          # Hash utils, file ops, errors
+
+Sources/DiffaCLI/
+├── DiffaTool.swift     # Main entry point
+├── Commands/           # snapshot, compare, patch, sync, export, verify
+└── Network/            # serve, push, pull commands
 ```
 
 **Core Design Patterns:**
@@ -113,43 +123,49 @@ Sources/Diffalla/
 
 ## Implementation Phases
 
-### Phase 1: Foundation (In Progress - Blocked)
-**Status:** Awaiting resolution of 3 critical design questions before coding starts
+### Phase 0: SQLite Wrapper ✅ Complete
+- Custom zero-dependency SQLite wrapper
+- 28 comprehensive tests
 
-**Critical Questions (must resolve before Phase 1):**
-1. **Symlink handling:** Follow by default or store as-is? (proposed: follow, configurable)
-2. **Hidden files:** Include or exclude by default? (proposed: include, filterable)
-3. **Metadata comparison:** Full stat() or selective? (proposed: minimal - mod time + size + hash)
+### Phase 1: Foundation ✅ Complete
+- Core types, Snapshot creation/loading, Difference comparison
+- Symlinks: follow by default, configurable
+- Hidden files: include by default, filterable
+- Metadata: mod time + size + hash
 
-**Location:** `docs/implementation-readiness.md:182-186` and `docs/open-questions.md`
+### Phase 2: Patching ✅ Complete
+- Patch structure, creation, RevertData, apply/revert
+- Export formats (text, JSON, HTML, diff)
 
-**Deliverables:** Core types, Snapshot creation/loading, Difference comparison, basic tests
+### Phase 3: Synchronization ✅ Complete
+- Unidirectional sync, bidirectional sync
+- Conflict resolution strategies (error, newest, source-wins, dest-wins)
 
-**Exit Criteria:**
-- 10,000 files snapshot in <30s (HDD baseline)
-- Memory usage <10 MB for 10,000 files
-- Test coverage ≥80% for Core/Snapshots/Comparison
+### Phase 4: Optimization ✅ Complete
+- Hash caching, parallel hashing
+- Move detection, benchmarking harness
 
-### Phase 2: Patching
-**Depends on:** Phase 1 complete
-**Deliverables:** Patch structure, creation, RevertData, apply/revert, export functions
+### Phase 5: CLI Tool ✅ Complete
+- 9 commands: snapshot, compare, patch, sync, export, verify, serve, push, pull
+- ANSI color support, dry-run mode, progress reporting
+- 23 integration tests, 7 man pages
 
-### Phase 3: Synchronization
-**Depends on:** Phase 1 & 2 complete
-**Deliverables:** Unidirectional sync, bidirectional sync, conflict resolution
+### Phase 6: EfficientSync ✅ Complete
+- Content-addressable storage with SHA-256
+- SQLite-backed snapshots with hash index
+- Streaming file scanner and hasher
+- Move detection with deterministic pairing
+- ContentTracker for zero-copy deduplication
+- 43+ new tests
 
-### Phase 4: Optimization
-**Depends on:** Phase 1 (can run parallel to 2/3)
-**Deliverables:** Hash caching, parallel hashing, benchmarking harness
-
-### Phase 5: Polish & CLI Tool (Future)
-**Depends on:** Phase 1-4 complete
-**Deliverables:**
-- **CLI Tool** (`diffalla` command) for macOS and Linux - PRIMARY GOAL
-- Complete documentation (API docs, man pages, guides)
-- Example projects (GUI app, integration examples)
-- Compression (optional)
-- Full platform support (macOS, iOS, Linux)
+### Phase 7: Network Sync ✅ Complete
+- TCP server/client using Apple's Network framework
+- `serve`, `push`, `pull` commands
+- Custom message protocol with proper buffering
+- Automatic ZLIB compression for files ≥4KB
+- True mirror behavior (push/pull delete files not in source)
+- Server displays local IP addresses
+- 14 integration tests (localhost push/pull)
 
 ## Schema Versioning
 
@@ -223,8 +239,8 @@ CREATE TABLE schema_version (
 - `docs/optimization.md` - Optimization strategies spec
 
 **Current Implementation:**
-- `Sources/Diffalla/Database/README.md` - SQLite wrapper usage guide
-- `Tests/DiffallaTests/SQLiteDatabaseTests.swift` - 28 comprehensive tests
+- `Sources/Diffa/Database/README.md` - SQLite wrapper usage guide
+- `Tests/DiffaTests/SQLiteDatabaseTests.swift` - 28 comprehensive tests
 
 ## Important Conventions
 
@@ -275,14 +291,16 @@ CREATE TABLE schema_version (
 - **close():** Uses `sqlite3_close` (throws if busy)
 - **Thread safety:** Each thread needs its own connection
 
-### File Operations (Future)
-- **Symlinks:** Strategy TBD (follow vs store)
-- **Hidden files:** Policy TBD (include vs exclude)
-- **Metadata:** Level TBD (minimal vs full)
+### File Operations
+- **Symlinks:** Follow by default (configurable with --no-follow-symlinks)
+- **Hidden files:** Include by default (filterable with --no-hidden)
+- **Metadata:** Minimal - mod time + size + hash
 
 ## Dependencies
 
-**External:** None (zero external dependencies policy)
+**Swift Packages:**
+- `swift-argument-parser` - CLI argument parsing
+- `swift-crypto` - Cross-platform SHA-256 hashing
 
 **System Libraries:**
 - `libsqlite3` (macOS/iOS: system, Linux: apt-get install libsqlite3-dev)
@@ -291,32 +309,15 @@ CREATE TABLE schema_version (
 - Platforms: macOS 13+, iOS 16+
 - Swift version: 5.9+
 
-## Next Steps Before Coding
+## Current Version
 
-Before starting Phase 1 implementation:
+**Version:** 0.12.0
+**Tests:** 386 passing (library + integration + EfficientSync + NetworkSync)
 
-1. **Resolve Phase 1 critical questions** (see `docs/implementation-readiness.md:182-186`):
-   - Symlink handling strategy
-   - Hidden files inclusion policy
-   - Metadata comparison level
+## Next Steps
 
-2. **Validate hardware baselines:**
-   - Confirm access to HDD + SSD test machines
-   - Benchmark simple file operations
-
-3. **Generate benchmark datasets:**
-   - Create 1k, 10k, 100k file test datasets
-   - Store in `Tests/Fixtures/Datasets/`
-
-4. **Review and finalize API design** based on question resolutions
-
-## Contact and Decisions
-
-For design decisions and open questions, refer to:
-- `docs/open-questions.md` - All unresolved design questions
-- `docs/implementation-readiness.md` - Phase plan and question assignment
-
-When making significant design decisions during implementation:
-- Document in `docs/decisions.md` (to be created)
-- Update relevant specification documents
-- Add tests to verify the decision
+Potential future enhancements:
+- Watch mode for file monitoring
+- Remote sync via SSH
+- Web UI for server status
+- Performance optimization for 100k+ files

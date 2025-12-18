@@ -1,6 +1,6 @@
-# Distribution Guide for Diffalla
+# Distribution Guide for Diffa
 
-This guide covers how to distribute Diffalla across different platforms and package managers.
+This guide covers how to distribute Diffa across different platforms and package managers.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -12,7 +12,7 @@ This guide covers how to distribute Diffalla across different platforms and pack
 
 ## Overview
 
-Diffalla uses a multi-channel distribution strategy to reach users on macOS and Linux:
+Diffa uses a multi-channel distribution strategy to reach users on macOS and Linux:
 
 1. **Direct Downloads** - GitHub Releases with prebuilt binaries
 2. **Homebrew** - Works on both macOS and Linux
@@ -25,14 +25,14 @@ Diffalla uses a multi-channel distribution strategy to reach users on macOS and 
 
 ```bash
 # Universal installer (macOS & Linux)
-curl -sSL https://raw.githubusercontent.com/codelynx/Diffalla/main/Scripts/install-diffalla.sh | bash
+curl -sSL https://raw.githubusercontent.com/codelynx/Diffa/main/Scripts/install-diffa.sh | bash
 
 # Homebrew (macOS & Linux)
-brew tap codelynx/diffalla
-brew install diffalla
+brew tap codelynx/diffa
+brew install diffa
 
 # Snap (Linux)
-sudo snap install diffalla --classic
+sudo snap install diffa --classic
 ```
 
 ### For Maintainers
@@ -54,14 +54,14 @@ sudo snap install diffalla --classic
 3. Creates release with binaries attached
 
 **Binary naming convention**:
-- `diffalla-linux-x86_64` - Linux 64-bit Intel/AMD
-- `diffalla-linux-arm64` - Linux ARM64
-- `diffalla-macos-x86_64` - macOS Intel
-- `diffalla-macos-arm64` - macOS Apple Silicon
+- `diffa-linux-x86_64` - Linux 64-bit Intel/AMD
+- `diffa-linux-arm64` - Linux ARM64
+- `diffa-macos-x86_64` - macOS Intel
+- `diffa-macos-arm64` - macOS Apple Silicon
 
 ### Universal Install Script
 
-**Location**: `Scripts/install-diffalla.sh`
+**Location**: `Scripts/install-diffa.sh`
 
 **Features**:
 - Auto-detects OS and architecture
@@ -81,38 +81,38 @@ Homebrew has two distribution models:
 
 1. **Homebrew Core** (Centralized)
    - Prestigious but strict requirements
-   - Users install with: `brew install diffalla`
+   - Users install with: `brew install diffa`
    - Requires 50+ GitHub stars, PR review process
 
 2. **Personal Taps** (Decentralized)
    - Full control, instant updates
-   - Users install with: `brew tap owner/repo && brew install diffalla`
+   - Users install with: `brew tap owner/repo && brew install diffa`
    - No requirements or review process
 
 ### Creating Your Own Tap
 
 #### Step 1: Create Repository
 
-Create a GitHub repository named `homebrew-diffalla` or `homebrew-tools`.
+Create a GitHub repository named `homebrew-diffa` or `homebrew-tools`.
 
 #### Step 2: Write Formula
 
-Create `Formula/diffalla.rb`:
+Create `Formula/diffa.rb`:
 
 ```ruby
-class Diffalla < Formula
+class Diffa < Formula
   desc "Fast file system comparison and synchronization"
-  homepage "https://github.com/codelynx/Diffalla"
+  homepage "https://github.com/codelynx/Diffa"
   version "0.9.0"
   license "MIT"
   
   # Source tarball
-  url "https://github.com/codelynx/Diffalla/archive/refs/tags/v0.9.0.tar.gz"
+  url "https://github.com/codelynx/Diffa/archive/refs/tags/v0.9.0.tar.gz"
   sha256 "SHA256_OF_TARBALL"
   
   # Bottles (prebuilt binaries) - optional but recommended
   bottle do
-    root_url "https://github.com/codelynx/Diffalla/releases/download/v0.9.0"
+    root_url "https://github.com/codelynx/Diffa/releases/download/v0.9.0"
     sha256 cellar: :any_skip_relocation, arm64_sonoma:   "SHA256_OF_MACOS_ARM64_BOTTLE"
     sha256 cellar: :any_skip_relocation, arm64_ventura:  "SHA256_OF_MACOS_ARM64_BOTTLE"
     sha256 cellar: :any_skip_relocation, x86_64_linux:   "SHA256_OF_LINUX_X64_BOTTLE"
@@ -123,12 +123,12 @@ class Diffalla < Formula
   
   def install
     system "swift", "build", "-c", "release", "--disable-sandbox"
-    bin.install ".build/release/diffalla"
-    man1.install "man/diffalla.1" if File.exist?("man/diffalla.1")
+    bin.install ".build/release/diffa"
+    man1.install "man/diffa.1" if File.exist?("man/diffa.1")
   end
   
   test do
-    system "#{bin}/diffalla", "--version"
+    system "#{bin}/diffa", "--version"
   end
 end
 ```
@@ -137,34 +137,34 @@ end
 
 ```bash
 # For source tarball
-curl -sL https://github.com/codelynx/Diffalla/archive/refs/tags/v0.9.0.tar.gz | sha256sum
+curl -sL https://github.com/codelynx/Diffa/archive/refs/tags/v0.9.0.tar.gz | sha256sum
 
 # For bottles (after building them)
-sha256sum diffalla--0.9.0.arm64_sonoma.bottle.tar.gz
+sha256sum diffa--0.9.0.arm64_sonoma.bottle.tar.gz
 ```
 
 #### Step 4: Test Formula Locally
 
 ```bash
 # In your tap repository
-brew install --build-from-source Formula/diffalla.rb
-brew test diffalla
-brew audit --strict diffalla
+brew install --build-from-source Formula/diffa.rb
+brew test diffa
+brew audit --strict diffa
 ```
 
 #### Step 5: Push to GitHub
 
 ```bash
-git add Formula/diffalla.rb
-git commit -m "Add diffalla formula"
+git add Formula/diffa.rb
+git commit -m "Add diffa formula"
 git push
 ```
 
 #### Step 6: Users Install
 
 ```bash
-brew tap codelynx/diffalla
-brew install diffalla
+brew tap codelynx/diffa
+brew install diffa
 ```
 
 ### Building Bottles (Prebuilt Binaries)
@@ -173,13 +173,13 @@ Bottles speed up installation by providing prebuilt binaries:
 
 ```bash
 # 1. Install formula from source
-brew install --build-bottle diffalla
+brew install --build-bottle diffa
 
 # 2. Create bottle
-brew bottle diffalla
+brew bottle diffa
 
 # 3. This creates files like:
-# diffalla--0.9.0.arm64_sonoma.bottle.tar.gz
+# diffa--0.9.0.arm64_sonoma.bottle.tar.gz
 
 # 4. Upload to GitHub releases
 
@@ -209,19 +209,19 @@ jobs:
       - name: Update Formula
         run: |
           VERSION=${{ github.event.inputs.version }}
-          URL="https://github.com/codelynx/Diffalla/archive/refs/tags/v${VERSION}.tar.gz"
+          URL="https://github.com/codelynx/Diffa/archive/refs/tags/v${VERSION}.tar.gz"
           SHA=$(curl -sL "$URL" | sha256sum | cut -d' ' -f1)
           
-          sed -i "s/version \".*\"/version \"$VERSION\"/" Formula/diffalla.rb
-          sed -i "s|url \".*\"|url \"$URL\"|" Formula/diffalla.rb
-          sed -i "s/sha256 \".*\"/sha256 \"$SHA\"/" Formula/diffalla.rb
+          sed -i "s/version \".*\"/version \"$VERSION\"/" Formula/diffa.rb
+          sed -i "s|url \".*\"|url \"$URL\"|" Formula/diffa.rb
+          sed -i "s/sha256 \".*\"/sha256 \"$SHA\"/" Formula/diffa.rb
       
       - name: Commit and Push
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add Formula/diffalla.rb
-          git commit -m "Update diffalla to v${{ github.event.inputs.version }}"
+          git add Formula/diffa.rb
+          git commit -m "Update diffa to v${{ github.event.inputs.version }}"
           git push
 ```
 
@@ -262,16 +262,16 @@ sudo snap install snapcraft --classic
 snapcraft login
 
 # 3. Register the name (one-time)
-snapcraft register diffalla
+snapcraft register diffa
 
 # 4. Build the snap
 snapcraft
 
 # 5. Upload to store
-snapcraft upload diffalla_0.9.0_amd64.snap
+snapcraft upload diffa_0.9.0_amd64.snap
 
 # 6. Release to stable channel
-snapcraft release diffalla 0.9.0 stable
+snapcraft release diffa 0.9.0 stable
 ```
 
 **Benefits**:
@@ -285,15 +285,15 @@ snapcraft release diffalla 0.9.0 stable
 **Process Overview**:
 
 1. Create Launchpad account
-2. Set up PPA: `ppa:yourusername/diffalla`
+2. Set up PPA: `ppa:yourusername/diffa`
 3. Create Debian package structure
 4. Build and upload to PPA
 
 **Users install with**:
 ```bash
-sudo add-apt-repository ppa:yourusername/diffalla
+sudo add-apt-repository ppa:yourusername/diffa
 sudo apt update
-sudo apt install diffalla
+sudo apt install diffa
 ```
 
 ### AUR (Arch Linux) - Future
@@ -302,7 +302,7 @@ Create `PKGBUILD` file and submit to AUR.
 
 **Users install with**:
 ```bash
-yay -S diffalla  # or any AUR helper
+yay -S diffa  # or any AUR helper
 ```
 
 ## Release Automation
@@ -323,14 +323,14 @@ yay -S diffalla  # or any AUR helper
 
 4. **Update Homebrew tap**:
    ```bash
-   # In your homebrew-diffalla repo
+   # In your homebrew-diffa repo
    ./update-formula.sh 1.0.0
    ```
 
 5. **Update Snap** (if using):
    ```bash
-   snapcraft upload diffalla_1.0.0_amd64.snap
-   snapcraft release diffalla 1.0.0 stable
+   snapcraft upload diffa_1.0.0_amd64.snap
+   snapcraft release diffa 1.0.0 stable
    ```
 
 ### Version Management
@@ -348,18 +348,18 @@ Before releasing, test each channel:
 
 ```bash
 # Test GitHub Release binary
-curl -L https://github.com/codelynx/Diffalla/releases/download/v1.0.0/diffalla-linux-x86_64 -o diffalla
-chmod +x diffalla
-./diffalla --version
+curl -L https://github.com/codelynx/Diffa/releases/download/v1.0.0/diffa-linux-x86_64 -o diffa
+chmod +x diffa
+./diffa --version
 
 # Test Homebrew
-brew tap codelynx/diffalla
-brew install diffalla
-diffalla --version
+brew tap codelynx/diffa
+brew install diffa
+diffa --version
 
 # Test Snap
-sudo snap install diffalla --classic --edge
-diffalla --version
+sudo snap install diffa --classic --edge
+diffa --version
 ```
 
 ## Platform Comparison Matrix

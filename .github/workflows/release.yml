@@ -37,7 +37,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: diffalla-macos
+          name: diffa-macos
           path: dist/*.tar.gz*
           if-no-files-found: error
 
@@ -69,7 +69,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: diffalla-linux
+          name: diffa-linux
           path: dist/*.tar.gz*
           if-no-files-found: error
 
@@ -86,13 +86,13 @@ jobs:
       - name: Download macOS Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: diffalla-macos
+          name: diffa-macos
           path: dist/
 
       - name: Download Linux Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: diffalla-linux
+          name: diffa-linux
           path: dist/
 
       - name: Generate Release Notes
@@ -105,7 +105,7 @@ jobs:
           VERSION="${VERSION#v}"
 
           cat > release-notes.md << EOF
-          # Diffalla v${VERSION}
+          # Diffa v${VERSION}
 
           ## Installation
 
@@ -114,21 +114,21 @@ jobs:
           **Homebrew (recommended):**
           \`\`\`bash
           brew tap codelynx/tap
-          brew install diffalla
+          brew install diffa
           \`\`\`
 
           **Manual installation:**
           \`\`\`bash
-          curl -fsSL https://github.com/${{ github.repository }}/releases/download/v${VERSION}/diffalla-${VERSION}-macos.tar.gz | tar -xz
-          cd diffalla-${VERSION}-macos
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/v${VERSION}/diffa-${VERSION}-macos.tar.gz | tar -xz
+          cd diffa-${VERSION}-macos
           sudo ./install.sh
           \`\`\`
 
           ### Linux
 
           \`\`\`bash
-          curl -fsSL https://github.com/${{ github.repository }}/releases/download/v${VERSION}/diffalla-${VERSION}-linux.tar.gz | tar -xz
-          cd diffalla-${VERSION}-linux
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/v${VERSION}/diffa-${VERSION}-linux.tar.gz | tar -xz
+          cd diffa-${VERSION}-linux
           sudo ./install.sh
           \`\`\`
 
@@ -136,7 +136,7 @@ jobs:
 
           Verify checksums:
           \`\`\`bash
-          shasum -a 256 -c diffalla-${VERSION}-*.tar.gz.sha256
+          shasum -a 256 -c diffa-${VERSION}-*.tar.gz.sha256
           \`\`\`
 
           ## Changes
@@ -146,7 +146,7 @@ jobs:
           ## Documentation
 
           - [CLI Documentation](docs/cli-design.md)
-          - Man pages: \`man diffalla\`
+          - Man pages: \`man diffa\`
           - Examples: See \`examples/\` directory in package
 
           ---
@@ -173,19 +173,19 @@ jobs:
           VERSION="${VERSION#v}"
 
           # Calculate SHA256 of macOS tarball
-          MACOS_SHA256=$(shasum -a 256 dist/diffalla-${VERSION}-macos.tar.gz | awk '{print $1}')
+          MACOS_SHA256=$(shasum -a 256 dist/diffa-${VERSION}-macos.tar.gz | awk '{print $1}')
 
           # Update formula
           sed -i.bak \
             -e "s|url \".*\"|url \"https://github.com/${{ github.repository }}/archive/refs/tags/v${VERSION}.tar.gz\"|" \
             -e "s|sha256 \".*\"|sha256 \"${MACOS_SHA256}\"|" \
-            Formula/diffalla.rb
+            Formula/diffa.rb
 
-          rm Formula/diffalla.rb.bak
+          rm Formula/diffa.rb.bak
 
           echo "Updated Homebrew formula with version ${VERSION}"
           echo "SHA256: ${MACOS_SHA256}"
           echo
           echo "Next steps:"
-          echo "1. Review Formula/diffalla.rb changes"
+          echo "1. Review Formula/diffa.rb changes"
           echo "2. Commit and push to tap repository"

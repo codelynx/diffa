@@ -4,7 +4,7 @@ This document summarizes the design phase completion and readiness for implement
 
 ## Overview
 
-Diffalla is a Swift library for file system comparison, patching, and synchronization on Apple platforms.
+Diffa is a Swift library for file system comparison, patching, and synchronization on Apple platforms.
 
 **Status:** Design phase complete, ready for implementation.
 
@@ -356,7 +356,7 @@ All core operations have been reviewed in detail with implementation pseudocode:
 - Benchmark results published
 
 ✅ **Open Questions Resolved:** (see Phase 4 Questions section below)
-- Hash cache persistence location (decision: per-directory .diffalla/cache)
+- Hash cache persistence location (decision: per-directory .diffa/cache)
 - Parallel operation limits (decision: ProcessInfo.processInfo.activeProcessorCount)
 - Cache invalidation strategy (decision: mod time + size + inode)
 
@@ -461,7 +461,7 @@ class BenchmarkHarness {
 **Prerequisites:** Phase 1-4 complete
 
 #### Deliverables
-1. **CLI Tool** (`diffalla` command) for macOS and Linux
+1. **CLI Tool** (`diffa` command) for macOS and Linux
    - Complete command-line interface (snapshot, compare, patch, sync, export, verify)
    - Argument parsing with `swift-argument-parser`
    - Progress bars, colored output, exit codes
@@ -490,7 +490,7 @@ class BenchmarkHarness {
 ✅ **CLI Tool:**
 - All commands implemented: snapshot, compare, patch, sync, export, verify
 - Progress bars and colored output working
-- Man pages complete (diffalla.1, diffalla-snapshot.1, etc.)
+- Man pages complete (diffa.1, diffa-snapshot.1, etc.)
 - Installation: Homebrew formula + binary releases
 - Cross-platform: macOS and Linux tested
 - Integration tests: All commands tested with various flags
@@ -512,7 +512,7 @@ class BenchmarkHarness {
 - [ ] Block-level delta sync
 - [ ] Incremental/resumable operations
 - [ ] Compression (gzip, zstd)
-- [ ] Ignore patterns (.diffallaignore)
+- [ ] Ignore patterns (.diffaignore)
 - [ ] Hard link preservation
 - [ ] Extended attributes sync
 - [ ] Sparse file optimization
@@ -775,7 +775,7 @@ extension Snapshot {
 
 **Breaking Changes (Rare):**
 - Only on major versions
-- Provide migration tool: `diffalla-migrate-v1-to-v2`
+- Provide migration tool: `diffa-migrate-v1-to-v2`
 - Document migration path clearly
 
 ## Open Questions
@@ -808,7 +808,7 @@ Remaining design decisions documented in [open-questions.md](open-questions.md):
 
 ```
 Sources/
-└── Diffalla/
+└── Diffa/
     ├── Core/
     │   ├── ItemProtocol.swift
     │   ├── Metadata.swift
@@ -844,7 +844,7 @@ Sources/
         └── ErrorTypes.swift
 
 Tests/
-└── DiffallaTests/
+└── DiffaTests/
     ├── SnapshotTests.swift
     ├── ComparisonTests.swift
     ├── PatchingTests.swift

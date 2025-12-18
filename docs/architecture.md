@@ -2,7 +2,7 @@
 
 ## Overview
 
-Diffalla is a Swift library for file system comparison, patching, and synchronization.
+Diffa is a Swift library for file system comparison, patching, and synchronization.
 
 **Platform:** macOS, iOS (Apple platforms initially)
 
@@ -62,12 +62,12 @@ struct Metadata: Equatable {
 - `group` - File group (optional)
 - `extendedAttributes` - Extended file attributes (platform-specific)
 
-### Diffalla Namespace
+### Diffa Namespace
 
 Top-level namespace for the library.
 
 ```swift
-struct Diffalla {
+struct Diffa {
 	// Contains nested types and operations
 }
 ```
@@ -82,7 +82,7 @@ struct Diffalla {
 Lightweight comparison result that references two snapshots.
 
 ```swift
-extension Diffalla {
+extension Diffa {
 	struct Difference<T: ItemProtocol> {
 		let sourceSnapshot: Snapshot      // Reference to snapshot A
 		let destinationSnapshot: Snapshot // Reference to snapshot B
@@ -122,15 +122,15 @@ Difference struct: ~400 bytes (just snapshot references)
 **Usage:**
 ```swift
 // Option 1: Compare directories (creates snapshots internally)
-let diff = try await Diffalla.Difference.compare(
+let diff = try await Diffa.Difference.compare(
 	source: dirA,
 	destination: dirB
 )
 
 // Option 2: Compare existing snapshots (lightweight)
-let snapA = try Snapshot.load(from: "a.sqlite")
-let snapB = try Snapshot.load(from: "b.sqlite")
-let diff = try Diffalla.Difference.compare(
+let snapA = try Snapshot.load(from: "a.diffa")
+let snapB = try Snapshot.load(from: "b.diffa")
+let diff = try Diffa.Difference.compare(
 	source: snapA,
 	destination: snapB
 )
@@ -171,7 +171,7 @@ struct ComparisonProgress {
 
 **Usage:**
 ```swift
-let diff = try await Diffalla.Difference.compare(
+let diff = try await Diffa.Difference.compare(
 	source: a,
 	destination: b,
 	progress: { progress in
@@ -266,7 +266,7 @@ struct PatchMetadata: Codable {
 Synchronization operations and results.
 
 ```swift
-extension Diffalla {
+extension Diffa {
 	static func syncUnidirectional(
 		source: URL,
 		destination: URL,
@@ -350,7 +350,7 @@ enum ConflictAction {
 Lightweight directory state snapshots for verification.
 
 ```swift
-extension Diffalla {
+extension Diffa {
 	struct Snapshot {
 		let databaseURL: URL          // Reference to SQLite database file
 		let rootPath: String          // Cached from database
@@ -449,7 +449,7 @@ CREATE INDEX idx_items_parent_id ON items(parent_id);
 
 **Key implementation notes:**
 - **Snapshot object is just a reference to a SQLite database file (~200 bytes)**
-- All snapshot data lives in the .sqlite file on disk, not in memory
+- All snapshot data lives in the .diffa file on disk, not in memory
 - Snapshot is always file-based (SQLite database)
 - Stream items to database incrementally (INSERT per item)
 - Hierarchical structure with parent-child relationships
@@ -462,7 +462,7 @@ CREATE INDEX idx_items_parent_id ON items(parent_id);
 ## Module Structure
 
 ```
-Diffalla/
+Diffa/
 ├── Core/
 │   ├── ItemProtocol.swift
 │   ├── Metadata.swift
@@ -547,7 +547,7 @@ Diffalla/
 ### Error Types
 
 ```swift
-enum DiffallaError: Error {
+enum DiffaError: Error {
 	case fileNotFound(path: String)
 	case permissionDenied(path: String)
 	case hashComputationFailed(path: String)

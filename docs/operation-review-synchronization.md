@@ -74,7 +74,7 @@ let destination = URL(fileURLWithPath: "/path/to/B")
 ```swift
 let snapshotA = try await Snapshot.create(
     from: source,
-    saveTo: temporaryDirectory().appendingPathComponent("snapshot_a.sqlite"),
+    saveTo: temporaryDirectory().appendingPathComponent("snapshot_a.diffa"),
     progress: { progress in
         reportProgress(.scanning(directory: "A", progress: progress))
     }
@@ -82,7 +82,7 @@ let snapshotA = try await Snapshot.create(
 
 let snapshotB = try await Snapshot.create(
     from: destination,
-    saveTo: temporaryDirectory().appendingPathComponent("snapshot_b.sqlite"),
+    saveTo: temporaryDirectory().appendingPathComponent("snapshot_b.diffa"),
     progress: { progress in
         reportProgress(.scanning(directory: "B", progress: progress))
     }
@@ -186,7 +186,7 @@ return SyncResult(
 ### Result
 
 ```swift
-let result = try await Diffalla.syncUnidirectional(
+let result = try await Diffa.syncUnidirectional(
     source: sourceDir,
     destination: destDir,
     progress: { progress in
@@ -222,8 +222,8 @@ let conflictResolution: ConflictResolution = .newest
 **Step 1: Create snapshots**
 
 ```swift
-let snapshotA = try await Snapshot.create(from: dirA, saveTo: "a.sqlite")
-let snapshotB = try await Snapshot.create(from: dirB, saveTo: "b.sqlite")
+let snapshotA = try await Snapshot.create(from: dirA, saveTo: "a.diffa")
+let snapshotB = try await Snapshot.create(from: dirB, saveTo: "b.diffa")
 ```
 
 **Step 2: Compare both directions**
@@ -463,7 +463,7 @@ return SyncResult(
 ### Result
 
 ```swift
-let result = try await Diffalla.syncBidirectional(
+let result = try await Diffa.syncBidirectional(
     a: dirA,
     b: dirB,
     conflictResolution: .newest,
@@ -580,7 +580,7 @@ func detectMoves(removed: [SnapshotItem], added: [SnapshotItem]) -> [(String, St
 ## API Design
 
 ```swift
-extension Diffalla {
+extension Diffa {
     // Unidirectional sync (A → B)
     static func syncUnidirectional(
         source: URL,
@@ -662,7 +662,7 @@ enum ConflictType {
 
 ```swift
 // Sync source to backup (unidirectional)
-let result = try await Diffalla.syncUnidirectional(
+let result = try await Diffa.syncUnidirectional(
     source: documents,
     destination: backup,
     progress: { progress in
@@ -677,7 +677,7 @@ print("Backup complete: \\(result.bytesTransferred) bytes")
 
 ```swift
 // Sync two folders (bidirectional)
-let result = try await Diffalla.syncBidirectional(
+let result = try await Diffa.syncBidirectional(
     a: localFolder,
     b: remoteFolder,
     conflictResolution: .newest,  // Latest changes win
@@ -693,7 +693,7 @@ print("Conflicts resolved: \\(result.conflicts.count)")
 
 ```swift
 // Deploy source to production (source wins)
-let result = try await Diffalla.syncUnidirectional(
+let result = try await Diffa.syncUnidirectional(
     source: stagingDir,
     destination: productionDir,
     progress: { progress in

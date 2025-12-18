@@ -45,7 +45,7 @@ struct Snapshot {
 	// Create snapshot and save to SQLite database
 	static func create(
 		from directory: URL,
-		saveTo snapshotURL: URL,  // .sqlite file path
+		saveTo snapshotURL: URL,  // .diffa file path
 		progress: ((SnapshotProgress) -> Void)? = nil
 	) async throws -> Snapshot
 
@@ -79,7 +79,7 @@ struct SnapshotProgress {
 
 **Key points:**
 - **Snapshot object is just a reference to a SQLite database file**
-- All data lives in the .sqlite file, not in memory
+- All data lives in the .diffa file, not in memory
 - Snapshot object is lightweight (~200 bytes)
 - Metadata cached for quick access (total files, etc.)
 - All navigation/queries execute against the database
@@ -102,7 +102,7 @@ struct SnapshotProgress {
                  │ References
                  ↓
 ┌─────────────────────────────────────┐
-│  snapshot.sqlite (on disk)          │
+│  snapshot.diffa (on disk)          │
 │  ┌───────────────────────────────┐  │
 │  │ snapshot_metadata table       │  │
 │  │  - version, root_path, etc.   │  │
@@ -225,7 +225,7 @@ struct SnapshotDifference {
 
 ```swift
 let directory = URL(fileURLWithPath: "/path/to/directory")
-let snapshotDB = URL(fileURLWithPath: "/tmp/my-snapshot.sqlite")
+let snapshotDB = URL(fileURLWithPath: "/tmp/my-snapshot.diffa")
 
 // Create snapshot - saves to SQLite database during creation
 let snapshot = try await Snapshot.create(
@@ -249,12 +249,12 @@ print("  Total size: \(snapshot.metadata.totalSize) bytes")
 // 1. Explicit location (user-specified)
 let snapshot = try await Snapshot.create(
 	from: directory,
-	saveTo: URL(fileURLWithPath: "/path/to/snapshot.sqlite")
+	saveTo: URL(fileURLWithPath: "/path/to/snapshot.diffa")
 )
 
 // 2. Temporary directory (cleared on reboot)
 let tempSnapshot = FileManager.default.temporaryDirectory
-	.appendingPathComponent("snapshot-\(UUID().uuidString).sqlite")
+	.appendingPathComponent("snapshot-\(UUID().uuidString).diffa")
 let snapshot = try await Snapshot.create(
 	from: directory,
 	saveTo: tempSnapshot
@@ -267,7 +267,7 @@ let cacheDir = try FileManager.default.url(
 	appropriateFor: nil,
 	create: true
 )
-let cacheSnapshot = cacheDir.appendingPathComponent("snapshots/baseline.sqlite")
+let cacheSnapshot = cacheDir.appendingPathComponent("snapshots/baseline.diffa")
 let snapshot = try await Snapshot.create(
 	from: directory,
 	saveTo: cacheSnapshot
@@ -585,7 +585,7 @@ print("  Modified: \(diff.modified.count)")
 
 ```sql
 -- Attach second database for comparison
-ATTACH DATABASE '/path/to/new-snapshot.sqlite' AS new;
+ATTACH DATABASE '/path/to/new-snapshot.diffa' AS new;
 
 -- Find added items (in new, not in old)
 SELECT path FROM new.items
@@ -706,12 +706,12 @@ if !diff.added.isEmpty {
 
 ### SQLite Database
 
-Snapshots are stored as **SQLite database files** (.sqlite extension).
+Snapshots are stored as **SQLite database files** (.diffa extension).
 
 **Database structure:**
 
 ```
-snapshot.sqlite
+snapshot.diffa
 ├── snapshot_metadata table (key-value pairs)
 │   ├── version = "1.0"
 │   ├── root_path = "/path/to/directory"
@@ -888,10 +888,10 @@ let parent = try snapshot.getParent(of: helper.id)
 
 ## API Integration
 
-### Snapshot in Diffalla Namespace
+### Snapshot in Diffa Namespace
 
 ```swift
-extension Diffalla {
+extension Diffa {
 	struct Snapshot {
 		let rootPath: String
 		let createdDate: Date
@@ -901,7 +901,7 @@ extension Diffalla {
 		// Create snapshot and save to SQLite database
 		static func create(
 			from directory: URL,
-			saveTo snapshotURL: URL,  // .sqlite file
+			saveTo snapshotURL: URL,  // .diffa file
 			progress: ((SnapshotProgress) -> Void)? = nil
 		) async throws -> Snapshot
 
@@ -939,8 +939,8 @@ extension Diffalla {
 
 ```swift
 // Create snapshot - saves to SQLite database
-let snapshotDB = URL(fileURLWithPath: "/tmp/baseline.sqlite")
-let snapshot = try await Diffalla.Snapshot.create(
+let snapshotDB = URL(fileURLWithPath: "/tmp/baseline.diffa")
+let snapshot = try await Diffa.Snapshot.create(
 	from: directory,
 	saveTo: snapshotDB,
 	progress: { progress in
@@ -949,7 +949,7 @@ let snapshot = try await Diffalla.Snapshot.create(
 )
 
 // Compare later - loads from database
-let snapshot = try Diffalla.Snapshot.load(from: snapshotDB)
+let snapshot = try Diffa.Snapshot.load(from: snapshotDB)
 let diff = try await snapshot.compare(to: directory)
 
 if diff.hasChanges {
