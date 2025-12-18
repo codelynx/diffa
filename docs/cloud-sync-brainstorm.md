@@ -303,6 +303,126 @@ Before choosing a path, answer these:
 
 ---
 
+## NAT Traversal: How P2P Works Through Routers
+
+### The Problem
+
+Both users are behind NAT (home routers with private IPs):
+
+```
+Dad's house                          Mom's house
+┌─────────────────┐                  ┌─────────────────┐
+│ Dad: 192.168.1.5│                  │ Mom: 192.168.1.8│
+│      (private)  │                  │      (private)  │
+└────────┬────────┘                  └────────┬────────┘
+         │                                    │
+    ┌────▼────┐                          ┌────▼────┐
+    │ Router  │                          │ Router  │
+    │ NAT     │                          │ NAT     │
+    │73.45.1.1│                          │98.22.3.4│
+    └────┬────┘                          └────┬────┘
+         │                                    │
+         └──────────── Internet ──────────────┘
+
+Problem: Routers block incoming connections by default
+```
+
+### Solution: UDP Hole Punching
+
+**Step 1:** Both tell relay their public IP:port
+```
+Dad ──► Relay: "I'm 73.45.1.1:54321"
+Mom ──► Relay: "I'm 98.22.3.4:12345"
+```
+
+**Step 2:** Relay shares addresses (this is "signaling")
+```
+Relay ──► Dad: "Mom is at 98.22.3.4:12345"
+Relay ──► Mom: "Dad is at 73.45.1.1:54321"
+```
+
+**Step 3:** Both send UDP packet simultaneously
+```
+Dad ──UDP──► 98.22.3.4:12345   (Dad's router creates outbound mapping)
+Mom ──UDP──► 73.45.1.1:54321   (Mom's router creates outbound mapping)
+```
+
+**Step 4:** NAT "hole" is punched
+```
+Dad's router: "I sent to 98.22.3.4, incoming from same IP = reply, allow!"
+Mom's router: "I sent to 73.45.1.1, incoming from same IP = reply, allow!"
+
+Direct connection established:
+Dad ◄────────── 500MB photo ──────────► Mom  (no relay needed!)
+```
+
+### Success Rate by NAT Type
+
+| NAT Type | Hole Punch Works? | Common Where |
+|----------|-------------------|--------------|
+| Full Cone | ✅ Yes | Home routers |
+| Restricted Cone | ✅ Yes | Home routers |
+| Port Restricted | ✅ Usually | Some routers |
+| Symmetric | ❌ No | Corporate, mobile |
+
+**Overall success rate:** ~80-85% of connections go direct
+
+### When Hole Punch Fails → Relay Fallback
+
+```
+if hole_punch_timeout(5 seconds):
+    use_relay()  # Works 100%, but costs bandwidth
+```
+
+This is exactly how Tailscale (DERP), WebRTC (TURN), and ZeroTier work.
+
+---
+
+## Cost Analysis: 10,000 Users
+
+### Assumptions
+- 10,000 users ("dad and mom" profile)
+- Sync 2x/month each
+- 500MB average file size
+- Pure relay = data through server twice (upload + download)
+
+### Pure Relay (Naive Approach)
+
+```
+10,000 users × 2 syncs × 500MB = 10 TB/month
+Relay doubles it: 20 TB/month through server
+```
+
+| Provider | Bandwidth Cost | Total/Month |
+|----------|---------------|-------------|
+| AWS | $0.09/GB × 20TB | **~$1,850** 😱 |
+| Fly.io | $0.02/GB × 20TB | **~$420** |
+| Hetzner | ~20TB included | **~$50-100** |
+
+### Hybrid P2P + Relay (Smart Approach)
+
+```
+85% direct (hole punch works): 0 bandwidth cost
+15% relay fallback: 3 TB/month
+Signaling for all: ~10 GB/month (negligible)
+```
+
+| Provider | Bandwidth Cost | Total/Month |
+|----------|---------------|-------------|
+| Any provider | 3TB × $0.02-0.09 | **~$60-270** |
+| With Hetzner | Included | **~$30-50** |
+
+### Bottom Line
+
+| Approach | 10K Users/Month |
+|----------|-----------------|
+| Pure relay | $400-2,000 |
+| **Hybrid P2P + relay** | **$30-100** |
+
+Hybrid saves 80-95% on bandwidth costs.
+
+---
+
 ## App Store App Architecture
 
 For a consumer App Store app targeting non-technical users ("dad and mom"):
