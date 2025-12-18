@@ -477,6 +477,335 @@ For a consumer App Store app targeting non-technical users ("dad and mom"):
 
 ---
 
+## Library Hook Design (Credentials Never Exposed)
+
+The library handles sync mechanics, but the App handles authentication. Library never sees user credentials.
+
+### Architecture Layers
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  App Layer (GUI)                                        │
+│  - Sign in with Apple                                   │
+│  - User identity, device pairing                        │
+│  - Knows credentials                                    │
+└────────────────────┬────────────────────────────────────┘
+                     │ Hooks (protocols)
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│  Library Layer (Diffa)                                  │
+│  - Sync logic, file transfer                            │
+│  - NAT traversal, relay connection                      │
+│  - NO credentials, just opaque tokens                   │
+└────────────────────┬────────────────────────────────────┘
+                     │ Opaque token
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│  Relay Server                                           │
+│  - Validates tokens                                     │
+│  - Routes connections                                   │
+│  - Never sees file contents (E2E encrypted)             │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Hook Protocols (Swift)
+
+```swift
+/// App implements this - Library calls it for auth
+public protocol SyncAuthProvider {
+    /// Get auth token for relay connection
+    /// App handles login, returns opaque token
+    func getAuthToken() async throws -> String
+
+    /// Get room/session ID to connect to peer
+    func getRoomID() async throws -> String
+
+    /// Verify peer identity (optional, for E2E)
+    func verifyPeer(publicKey: Data) async -> Bool
+}
+
+/// App implements this - Library calls for network events
+public protocol SyncNetworkDelegate {
+    /// Called when NAT type detected
+    func didDetectNATType(_ type: NATType)
+
+    /// Called to decide: P2P or relay?
+    func shouldUseRelay() -> Bool
+
+    /// Called when connection established
+    func didConnect(mode: ConnectionMode)  // .direct or .relay
+
+    /// Called on connection failure
+    func didFailToConnect(error: Error)
+}
+
+/// Optional: E2E encryption (relay can't read contents)
+public protocol SyncEncryptionProvider {
+    /// Get this device's public key
+    func getPublicKey() -> Data
+
+    /// Encrypt data for peer
+    func encrypt(_ data: Data, forPeer peerPublicKey: Data) throws -> Data
+
+    /// Decrypt data from peer
+    func decrypt(_ data: Data, fromPeer peerPublicKey: Data) throws -> Data
+}
+```
+
+### App Implementation Example
+
+```swift
+// App implements the auth provider
+class MyAppAuthProvider: SyncAuthProvider {
+    func getAuthToken() async throws -> String {
+        // App calls YOUR backend with Apple Sign-In credential
+        // Backend validates and returns a short-lived sync token
+        // Library NEVER sees Apple credentials
+        return await MyBackend.getSyncToken(user: currentUser)
+    }
+
+    func getRoomID() async throws -> String {
+        // App creates/joins room via your backend
+        return await MyBackend.createSyncRoom(user: currentUser)
+    }
+
+    func verifyPeer(publicKey: Data) async -> Bool {
+        // Verify this is a known/trusted device
+        return await MyBackend.isKnownDevice(publicKey: publicKey)
+    }
+}
+
+// App uses library with hooks
+let syncer = CloudSync(
+    authProvider: MyAppAuthProvider(),
+    networkDelegate: self,
+    encryptionProvider: MyE2EProvider()  // optional
+)
+try await syncer.connect()
+```
+
+### Token Flow Diagram
+
+```
+┌─────────┐      ┌─────────┐      ┌─────────┐      ┌─────────┐
+│  App    │      │ Backend │      │ Library │      │  Relay  │
+└────┬────┘      └────┬────┘      └────┬────┘      └────┬────┘
+     │                │                │                │
+     │ 1. Sign in with Apple           │                │
+     ├───────────────►│                │                │
+     │                │                │                │
+     │ 2. Validate, create user        │                │
+     │◄───────────────┤                │                │
+     │                │                │                │
+     │ 3. Request sync token           │                │
+     ├───────────────►│                │                │
+     │                │                │                │
+     │ 4. Short-lived token (5 min)    │                │
+     │◄───────────────┤                │                │
+     │                │                │                │
+     │ 5. Pass token to library (hook) │                │
+     ├───────────────────────────────►│                │
+     │                │                │                │
+     │                │                │ 6. Connect with token
+     │                │                ├───────────────►│
+     │                │                │                │
+     │                │                │ 7. Relay validates token
+     │                │                │◄───────────────┤
+     │                │                │                │
+     │                │                │ 8. Connected!  │
+     │◄────────────────────────────────┤◄───────────────┤
+```
+
+### What Each Layer Sees
+
+| Data | App | Library | Relay |
+|------|-----|---------|-------|
+| Apple ID credentials | ✅ | ❌ | ❌ |
+| User email | ✅ | ❌ | ❌ |
+| Sync token (opaque) | ✅ | ✅ | ✅ (validates) |
+| Room code | ✅ | ✅ | ✅ |
+| File contents | ✅ | ✅ | ❌ (E2E encrypted) |
+| Peer public keys | ✅ | ✅ | ❌ |
+
+### Security Properties
+
+1. **Library never sees credentials** - Only opaque tokens from App
+2. **Tokens are short-lived** - 5 minute expiry, backend controls
+3. **E2E encryption optional** - Relay can't read file contents
+4. **Backend controls access** - Can revoke tokens, block devices
+5. **Device pairing via App** - Library just connects, App decides who
+
+---
+
+## Network Test Tool
+
+A diagnostic tool to test P2P connectivity before syncing.
+
+### User Experience
+
+```bash
+diffa network-test
+
+Testing network connectivity...
+
+[1/4] Detecting NAT type.............. Restricted Cone ✅
+[2/4] Finding public IP............... 73.45.123.88:54321 ✅
+[3/4] Testing hole punch.............. Success ✅
+[4/4] Testing relay fallback.......... Available ✅
+
+Results:
+┌─────────────────────────────────────────────────┐
+│  P2P Direct:  ✅ Should work (85% of peers)     │
+│  Relay:       ✅ Available as fallback          │
+│  Expected:    Fast direct transfers             │
+└─────────────────────────────────────────────────┘
+```
+
+When behind corporate firewall:
+
+```bash
+diffa network-test
+
+Testing network connectivity...
+
+[1/4] Detecting NAT type.............. Symmetric NAT ⚠️
+[2/4] Finding public IP............... 98.22.3.4:??? (port changes)
+[3/4] Testing hole punch.............. Failed ❌
+[4/4] Testing relay fallback.......... Available ✅
+
+Results:
+┌─────────────────────────────────────────────────┐
+│  P2P Direct:  ❌ Blocked (corporate firewall?)  │
+│  Relay:       ✅ Will use relay automatically   │
+│  Expected:    Slower, but works everywhere      │
+└─────────────────────────────────────────────────┘
+
+Tip: Ask IT to allow UDP port 41641 for faster sync
+```
+
+### How It Works
+
+```
+┌──────────────┐         ┌──────────────┐
+│  Your Mac    │         │  Test Server │
+│              │         │  (STUN-like) │
+└──────┬───────┘         └──────┬───────┘
+       │                        │
+       │ 1. "What's my public IP?"
+       ├───────────────────────►│
+       │                        │
+       │ 2. "You're 73.45.1.1:54321"
+       │◄───────────────────────┤
+       │                        │
+       │ 3. Send UDP to test peer
+       ├─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─►│
+       │                        │
+       │ 4. Did it arrive? Y/N  │
+       │◄───────────────────────┤
+```
+
+### NAT Type Detection
+
+```swift
+enum NATType: String {
+    case fullCone = "Full Cone"              // Best - any peer can connect
+    case restrictedCone = "Restricted Cone"  // Good - hole punch works
+    case portRestricted = "Port Restricted"  // OK - usually works
+    case symmetric = "Symmetric"             // Bad - need relay
+    case unknown = "Unknown"
+}
+
+func detectNATType() -> NATType {
+    // 1. Query STUN server A from port X → get public IP:portA
+    // 2. Query STUN server B from port X → get public IP:portB
+    // 3. If portA == portB → Cone NAT (good)
+    // 4. If portA != portB → Symmetric NAT (bad)
+}
+```
+
+### Components Needed
+
+| Component | Purpose | Build or Use Existing? |
+|-----------|---------|------------------------|
+| **STUN client** | Detect public IP & NAT type | Build (simple UDP) |
+| **Test peer** | Verify hole punch works | Build echo server |
+| **Relay check** | Confirm fallback works | Ping our relay |
+
+### Free Public STUN Servers
+
+```
+stun.l.google.com:19302
+stun.cloudflare.com:3478
+stun.stunprotocol.org:3478
+```
+
+### Implementation Sketch
+
+```swift
+struct NetworkTestCommand: ParsableCommand {
+    static var configuration = CommandConfiguration(
+        commandName: "network-test",
+        abstract: "Test P2P connectivity and fallback options"
+    )
+
+    func run() throws {
+        print("Testing network connectivity...\n")
+
+        // 1. Detect NAT type using STUN
+        let natType = try detectNATType()
+        printStep(1, "Detecting NAT type", natType.rawValue, natType != .symmetric)
+
+        // 2. Get public endpoint
+        let endpoint = try discoverPublicEndpoint()
+        printStep(2, "Finding public IP", endpoint, endpoint != nil)
+
+        // 3. Test hole punch with our test server
+        let holePunchWorks = try testHolePunch(endpoint)
+        printStep(3, "Testing hole punch", holePunchWorks ? "Success" : "Failed", holePunchWorks)
+
+        // 4. Test relay connectivity
+        let relayWorks = try testRelayConnection()
+        printStep(4, "Testing relay fallback", relayWorks ? "Available" : "Unavailable", relayWorks)
+
+        // Summary
+        printSummary(natType: natType, p2p: holePunchWorks, relay: relayWorks)
+    }
+}
+```
+
+### GUI Version (App Store)
+
+For non-technical users, show simple status:
+
+```
+┌─────────────────────────────────────┐
+│         Connection Status           │
+│                                     │
+│    🟢  Direct Connection Ready      │
+│                                     │
+│    Your transfers will be fast      │
+│    and won't use our servers.       │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+Or:
+
+```
+┌─────────────────────────────────────┐
+│         Connection Status           │
+│                                     │
+│    🟡  Using Relay Server           │
+│                                     │
+│    Your network blocks direct       │
+│    connections. Sync will work      │
+│    but may be slower.               │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+---
+
 ## Next Steps
 
 **Phase 1: Documentation (Now)** - For power users / CLI
@@ -484,7 +813,13 @@ For a consumer App Store app targeting non-technical users ("dad and mom"):
 - [ ] Write ZeroTier setup guide for diffa
 - [ ] Document SSH tunnel approach
 
-**Phase 2: App Store App (Future)**
+**Phase 2: Network Test Tool**
+- [ ] Implement STUN client (UDP)
+- [ ] NAT type detection
+- [ ] `diffa network-test` CLI command
+- [ ] Test server for hole punch verification
+
+**Phase 3: App Store App (Future)**
 - [ ] Design WebSocket protocol (wrap TCP in WS)
 - [ ] Build relay server (Node.js/Go/Swift)
 - [ ] User account system (Sign in with Apple)
