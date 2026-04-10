@@ -1,3 +1,4 @@
+#if canImport(Network)
 import Foundation
 import ArgumentParser
 import Diffa
@@ -34,3 +35,4 @@ struct ServeCommand: ParsableCommand {
         try server.start()
     }
 }
+#endif // canImport(Network)

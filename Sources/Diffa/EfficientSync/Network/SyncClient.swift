@@ -1,7 +1,7 @@
 import Foundation
+
 #if canImport(Network)
 import Network
-#endif
 
 /// TCP client for EfficientSync push/pull
 ///
@@ -394,3 +394,5 @@ public final class SyncClient {
         onLog?(message)
     }
 }
+
+#endif // canImport(Network)

@@ -1,5 +1,5 @@
 import Foundation
-import CryptoKit
+import Crypto
 
 /// SHA-256 file hasher with streaming for memory efficiency
 ///
@@ -34,12 +34,24 @@ public struct FileHasher {
         var hasher = SHA256()
 
         // Stream in chunks (memory efficient for large files)
-        while autoreleasepool(invoking: {
-            let data = handle.readData(ofLength: bufferSize)
-            guard !data.isEmpty else { return false }
+        while true {
+            let data: Data
+            #if canImport(ObjectiveC)
+            var shouldContinue = false
+            autoreleasepool {
+                let chunk = handle.readData(ofLength: bufferSize)
+                if !chunk.isEmpty {
+                    hasher.update(data: chunk)
+                    shouldContinue = true
+                }
+            }
+            guard shouldContinue else { break }
+            #else
+            data = handle.readData(ofLength: bufferSize)
+            guard !data.isEmpty else { break }
             hasher.update(data: data)
-            return true
-        }) { }
+            #endif
+        }
 
         return Data(hasher.finalize())
     }

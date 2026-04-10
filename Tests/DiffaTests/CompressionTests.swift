@@ -1,6 +1,7 @@
 import XCTest
 @testable import Diffa
 
+#if canImport(Compression)
 final class CompressionTests: XCTestCase {
 
     // MARK: - SyncCompression Tests
@@ -174,3 +175,4 @@ final class CompressionTests: XCTestCase {
         XCTAssertFalse(decoded.isCompressed)
     }
 }
+#endif // canImport(Compression)

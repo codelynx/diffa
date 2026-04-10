@@ -26,10 +26,15 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-crypto", from: "3.0.0")
     ],
     targets: [
+        .systemLibrary(
+            name: "CSQLite",
+            path: "Sources/CSQLite"
+        ),
         .target(
             name: "Diffa",
             dependencies: [
-                .product(name: "Crypto", package: "swift-crypto")
+                .product(name: "Crypto", package: "swift-crypto"),
+                .target(name: "CSQLite", condition: .when(platforms: [.linux]))
             ],
             path: "Sources/Diffa",
             exclude: [
@@ -42,7 +47,7 @@ let package = Package(
                 "EfficientSync/Comparison/README.md"
             ],
             linkerSettings: [
-                .linkedLibrary("sqlite3", .when(platforms: [.macOS, .iOS, .linux]))
+                .linkedLibrary("sqlite3", .when(platforms: [.macOS, .iOS]))
             ]
         ),
         .executableTarget(

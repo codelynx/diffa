@@ -324,14 +324,23 @@ public struct FileSystemItem: ItemProtocol {
 
         // Read file in chunks
         let bufferSize = 64 * 1024 // 64 KB chunks
-        while autoreleasepool(invoking: {
-            let data = fileHandle.readData(ofLength: bufferSize)
-            if data.isEmpty {
-                return false // EOF
+        while true {
+            #if canImport(ObjectiveC)
+            var shouldContinue = false
+            autoreleasepool {
+                let data = fileHandle.readData(ofLength: bufferSize)
+                if !data.isEmpty {
+                    hasher.update(data: data)
+                    shouldContinue = true
+                }
             }
+            guard shouldContinue else { break }
+            #else
+            let data = fileHandle.readData(ofLength: bufferSize)
+            guard !data.isEmpty else { break }
             hasher.update(data: data)
-            return true // Continue
-        }) {}
+            #endif
+        }
 
         // Finalize hash
         let digest = hasher.finalize()

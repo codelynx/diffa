@@ -1,7 +1,7 @@
 import Foundation
+
 #if canImport(Network)
 import Network
-#endif
 
 /// TCP server for EfficientSync daemon
 ///
@@ -496,3 +496,5 @@ public final class SyncServer {
         onLog?(logLine)
     }
 }
+
+#endif // canImport(Network)

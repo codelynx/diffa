@@ -172,6 +172,7 @@ public struct NetworkFileItem: Codable {
     }
 }
 
+#if canImport(Compression)
 // MARK: - File Payload Encoding
 
 /// Encodes/decodes file data payloads with optional compression
@@ -249,6 +250,8 @@ public struct FilePayload {
         return data
     }
 }
+
+#endif // canImport(Compression)
 
 // MARK: - Errors
 

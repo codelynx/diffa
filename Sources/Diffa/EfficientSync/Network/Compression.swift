@@ -1,4 +1,6 @@
 import Foundation
+
+#if canImport(Compression)
 import Compression
 
 /// Compression utilities for network sync
@@ -100,3 +102,5 @@ public enum SyncCompression {
         return destinationBuffer
     }
 }
+
+#endif // canImport(Compression)

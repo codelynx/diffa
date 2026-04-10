@@ -1,3 +1,4 @@
+#if canImport(Network)
 import Foundation
 import ArgumentParser
 import Diffa
@@ -44,3 +45,4 @@ struct PushCommand: ParsableCommand {
         return (String(parts[0]), port)
     }
 }
+#endif // canImport(Network)
