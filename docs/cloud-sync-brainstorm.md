@@ -2,9 +2,10 @@
 
 Exploring options for push/pull/sync over the internet, beyond local TCP.
 
-## Current State
+## Current State (Updated 2026-04-10)
 
-- TCP-based sync works on local network (NWListener/NWConnection)
+- TCP-based sync works on LAN across macOS, Linux, and Windows (verified 12/12 cross-platform tests)
+- Uses cross-platform sockets (POSIX on macOS/Linux, Winsock2 on Windows) via `PlatformSocket.swift`
 - Requires direct connection (server IP + port)
 - Blocked by NAT/firewalls for internet use
 - Protocol is raw TCP, not HTTP
@@ -825,3 +826,92 @@ Or:
 - [ ] User account system (Sign in with Apple)
 - [ ] Device pairing flow
 - [ ] macOS/iOS GUI app
+
+---
+
+## Research Conclusion (2026-04-10)
+
+### Motivation
+
+The driving use case: a non-technical person (e.g. a parent) wants to share a large number of photos or documents with family. Both sides are behind home NAT routers without public IPs. The question was whether Diffa could serve this use case and what infrastructure would be needed.
+
+### The NAT Reality
+
+When both peers are behind NAT, there is no way to establish a direct connection without help from a third party. This is a fundamental networking constraint, not a software limitation.
+
+**What the third party does depends on whether UDP hole punching succeeds:**
+
+| Hole punch result | Third party role | Data flow |
+|-------------------|-----------------|-----------|
+| Succeeds (~85-90%) | Coordination only — exchanges peer addresses | Direct peer-to-peer, relay sees nothing |
+| Fails (symmetric NAT, corporate firewalls) | Full data relay — forwards every byte | All data flows through relay server |
+
+You cannot know in advance which case applies for a given pair of users. The safe assumption for product design is: **the relay must be capable of handling full data transfer.**
+
+### Infrastructure Options Evaluated
+
+**Option A: VPN hub (WireGuard on VPS)**
+- Rent a small VPS ($3-5/month on AWS Lightsail, Hetzner, Oracle free tier)
+- Install WireGuard, configure as hub — both peers connect outbound
+- Diffa works unmodified over the VPN tunnel
+- Full control over infrastructure
+- Requires manual setup on each peer machine
+
+**Option B: Managed mesh VPN (Tailscale)**
+- Sign up at tailscale.com, install client on each machine
+- Zero server management — Tailscale handles coordination and relay
+- Each machine gets a stable IP (100.x.y.z)
+- Direct peer-to-peer when hole punching succeeds, relay through Tailscale's DERP servers when not
+- Free for personal use (100 devices)
+- Diffa works unmodified
+
+**Both options require zero code changes to Diffa.** The VPN layer is transparent to the application — Diffa just connects to an IP and port as if on LAN.
+
+### The Business Model Problem
+
+If Diffa were to offer cloud sync as a paid service (App Store subscription covering backend costs), the economics are challenging:
+
+**The unpredictable variables:**
+- Transfer volume per user (1GB? 100GB? varies wildly with photos)
+- Sync frequency (daily? monthly?)
+- Hole punch success rate (determines whether relay carries data or just coordinates)
+- AWS egress pricing ($0.09/GB after 100GB/month)
+
+**Example at scale (10,000 users):**
+- Pure relay: 20TB/month egress → $1,850/month on AWS
+- Hybrid (85% P2P): 3TB/month egress → $60-270/month
+- A $4.99/month subscription barely covers the hybrid case, and the pure relay case is unsustainable
+
+**Comparison to established services:**
+- Tailscale: free personal tier, charges enterprises (relay usage is low)
+- Dropbox/iCloud: charge for storage tiers, not transfer (different model)
+- Syncthing: fully P2P, no relay cost — but no business model
+
+### Decision
+
+**Ship Diffa as a tool, recommend Tailscale for internet sync, do not take on infrastructure cost.**
+
+Rationale:
+1. The networking layer already works across all three platforms
+2. Tailscale solves NAT traversal with zero code changes and zero infrastructure
+3. Running relay infrastructure introduces unpredictable costs that are hard to cover with subscriptions
+4. The real gap for a "mom-friendly" product is UX (GUI app, device pairing, one-click sync) — not networking
+5. If traction develops, the relay/subscription model can be revisited with real usage data
+
+### What Diffa Code Does NOT Need
+
+- NAT traversal implementation (VPN handles it)
+- STUN/TURN client (VPN handles it)
+- WebSocket protocol (TCP over VPN works)
+- Relay server (Tailscale DERP or VPS WireGuard handles it)
+- User accounts / authentication (out of scope for a CLI/library tool)
+
+### What Could Be Added Later (If Needed)
+
+| Feature | When | Why |
+|---------|------|-----|
+| mDNS/Bonjour discovery | If users want auto-discovery on Tailscale networks | Convenience — avoids remembering IPs |
+| TLS on the wire | If Diffa needs to work without VPN | Currently plaintext TCP; VPN encrypts the tunnel |
+| Shared-secret auth | If serving on a shared network | Prevents unauthorized access to `diffa serve` |
+| GUI wrapper | If targeting non-technical users | Menu bar / system tray app with folder picker |
+| Built-in relay mode | If Diffa must be fully self-contained | Significant effort; only justified if VPN approach is rejected |
