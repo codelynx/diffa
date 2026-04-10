@@ -25,6 +25,8 @@ let invalidSocket: SocketDescriptor = -1
 /// SOCK_STREAM value — on Darwin it's an enum requiring .rawValue, elsewhere it's a plain Int32
 #if canImport(Darwin)
 let platformStreamType = Int32(SOCK_STREAM.rawValue)
+#elseif os(Linux)
+let platformStreamType = Int32(SOCK_STREAM.rawValue)
 #else
 let platformStreamType = Int32(SOCK_STREAM)
 #endif
