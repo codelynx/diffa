@@ -257,16 +257,23 @@ Existing tests in `NetworkSyncTests.swift` and `CompressionTests.swift` use the 
 
 The `startAsync()` / `stop()` pattern used in test setUp/tearDown is a critical correctness requirement. The POSIX socket shutdown design (Section 4, Step 3) must be validated with the existing test suite — any intermittent hang in tearDown indicates a shutdown bug.
 
-### 7.3 Cross-Platform LAN Test (Verified)
+### 7.3 Cross-Platform LAN Tests (Verified)
 
-Mac ↔ Linux push/pull tested over LAN (2026-04-10). Four scenarios verified:
+**Mac ↔ Linux** tested over LAN (2026-04-10). Four scenarios verified:
 
 1. **Linux pushes to Mac** — 4 files transferred correctly, binary hash matched
 2. **Linux pulls from Mac** — 6 files downloaded including Mac-added files, hash matched
 3. **Mirror push (Linux → Mac)** — Mac-only files deleted on remote, unchanged files not re-transferred
 4. **Reverse push (Mac → Linux)** — Linux-originated files deleted, Mac file delivered correctly
 
-All file contents, SHA-256 hashes, nested directories, and mirror delete behavior verified on both sides.
+**Mac ↔ Windows** tested over LAN (2026-04-10). Four scenarios verified:
+
+1. **Windows pushes to Mac** — 4 files transferred, compression worked (100KB → 115 bytes), hash matched
+2. **Windows pulls from Mac** — 6 files downloaded including Mac-added files, decompression verified, hash matched
+3. **Mirror push (Windows → Mac)** — 2 Mac-only files deleted on remote, unchanged files not re-transferred
+4. **Reverse push (Mac → Windows)** — File delivered to Windows server correctly
+
+All file contents, SHA-256 hashes, nested directories, compression/decompression, and mirror delete behavior verified on all three platforms.
 
 ### 7.4 CI Strategy
 - Run `swift test` on both macOS and Linux (e.g., Ubuntu 22.04 with Swift 5.9+).

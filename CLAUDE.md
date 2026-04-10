@@ -170,7 +170,7 @@ Sources/DiffaCLI/
 - Client: non-blocking connect with 10s timeout, 30s read/write timeouts
 - SIGPIPE handling: SO_NOSIGPIPE (macOS), MSG_NOSIGNAL (Linux), N/A (Windows)
 - 14 integration tests (localhost push/pull, pass on all platforms)
-- Cross-platform verified: Mac ↔ Linux push/pull tested over LAN
+- Cross-platform verified: Mac ↔ Linux and Mac ↔ Windows push/pull tested over LAN
 
 ## Schema Versioning
 
