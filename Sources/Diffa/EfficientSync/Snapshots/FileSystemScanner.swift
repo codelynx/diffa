@@ -70,7 +70,22 @@ public struct FileSystemScanner {
             // Check if it's a directory
             let resourceValues = try url.resourceValues(forKeys: [URLResourceKey.isDirectoryKey])
             if resourceValues.isDirectory == true {
+                // Skip internal staging/temp directories at sync root only
+                if url.deletingLastPathComponent().standardizedFileURL == root.standardizedFileURL {
+                    let name = url.lastPathComponent
+                    if name.hasPrefix(".diffa_temp_") || name == ".diffa_staging" {
+                        enumerator.skipDescendants()
+                    }
+                }
                 continue // Skip directories
+            }
+
+            // Skip internal temp files at sync root only
+            if url.deletingLastPathComponent().standardizedFileURL == root.standardizedFileURL {
+                let fileName = url.lastPathComponent
+                if fileName.hasPrefix(".diffa_temp_") {
+                    continue
+                }
             }
 
             // Get file metadata

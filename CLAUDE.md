@@ -226,7 +226,10 @@ Sources/DiffaCLI/
 - Server shutdown: self-pipe trick on Unix, loopback socket pair on Windows
 - Client: non-blocking connect with 10s timeout, 30s read/write timeouts
 - SIGPIPE handling: SO_NOSIGPIPE (macOS), MSG_NOSIGNAL (Linux), N/A (Windows)
-- 14 integration tests (localhost push/pull, pass on all platforms)
+- Hash-based copy optimization: avoids re-transferring renamed/moved files by copying locally on destination
+- Path validation on all server handlers (symlink-aware containment check)
+- COPY protocol message for server-side local file copies
+- 19 integration tests (localhost push/pull, pass on all platforms)
 - Cross-platform verified: all 3 pairs tested over LAN (Mac↔Linux, Mac↔Windows, Windows↔Linux) — 12/12 passed
 
 ## Schema Versioning
@@ -286,6 +289,7 @@ CREATE TABLE schema_version (
 - `docs/cli-design.md` - Command-line tool specification (Phase 5)
 - `docs/competitive-analysis.md` - Comparison to rsync, Git, Unison, etc.
 - `docs/cross-platform-network-sync.md` - Cross-platform network sync design and implementation
+- `docs/network-copy-optimization.md` - Hash-based copy optimization for network sync
 
 **Operation Reviews (Detailed Pseudocode):**
 - `docs/operation-review-snapshot.md` - Snapshot creation
@@ -390,7 +394,7 @@ CREATE TABLE schema_version (
 ## Current Version
 
 **Version:** 0.13.0
-**Tests:** 386 passing on macOS (library + integration + EfficientSync + NetworkSync). On Linux, the full suite requires `--skip FileHasherTests` due to a pre-existing `FileHandle` directory-read trap; with that skipped, one known pre-existing failure remains in `PatchingIntegrationTests.testPatchWithLargeFiles`. On Windows, 363 tests executed with 0 unexpected failures; 17 tests skipped (symlinks require admin, POSIX permissions, MAX_PATH, drive-root paths); 1 pre-existing logic failure in `ContentTrackerTests`. CLIIntegrationTests need `.exe` path detection fix (separate issue).
+**Tests:** 396 passing on macOS (library + integration + EfficientSync + NetworkSync). On Linux, the full suite requires `--skip FileHasherTests` due to a pre-existing `FileHandle` directory-read trap; with that skipped, one known pre-existing failure remains in `PatchingIntegrationTests.testPatchWithLargeFiles`. On Windows, 363 tests executed with 0 unexpected failures; 17 tests skipped (symlinks require admin, POSIX permissions, MAX_PATH, drive-root paths); 1 pre-existing logic failure in `ContentTrackerTests`. CLIIntegrationTests need `.exe` path detection fix (separate issue).
 
 ## Next Steps
 

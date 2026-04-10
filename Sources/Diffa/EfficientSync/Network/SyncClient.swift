@@ -173,6 +173,8 @@ public final class SyncClient {
             case download(path: String)
             case upload(path: String)
             case delete(path: String)
+            case copyLocal(from: String, to: String)
+            case copyRemote(from: String, to: String)
         }
         let action: Action
     }
@@ -189,39 +191,217 @@ public final class SyncClient {
 
         switch mode {
         case .push:
-            for (path, localItem) in localByPath {
-                if let remoteItem = remoteByPath[path] {
-                    if localItem.hash != remoteItem.hash {
-                        operations.append(TransferOperation(action: .upload(path: path)))
-                    }
-                } else {
-                    operations.append(TransferOperation(action: .upload(path: path)))
+            // Destination = remote. Build hash index from remote files.
+            var remoteByHash: [String: String] = [:]
+            for item in remoteItems {
+                if remoteByHash[item.hash] == nil {
+                    remoteByHash[item.hash] = item.path
                 }
             }
-            for path in remoteByPath.keys {
+
+            // Process source files in sorted order for deterministic behavior
+            for path in localByPath.keys.sorted() {
+                let localItem = localByPath[path]!
+                let needsTransfer: Bool
+                if let remoteItem = remoteByPath[path] {
+                    needsTransfer = localItem.hash != remoteItem.hash
+                } else {
+                    needsTransfer = true
+                }
+
+                if needsTransfer {
+                    if let source = remoteByHash[localItem.hash] {
+                        operations.append(TransferOperation(action: .copyRemote(from: source, to: path)))
+                    } else {
+                        operations.append(TransferOperation(action: .upload(path: path)))
+                    }
+                    if remoteByHash[localItem.hash] == nil {
+                        remoteByHash[localItem.hash] = path
+                    }
+                }
+            }
+
+            // Deletes last
+            for path in remoteByPath.keys.sorted() {
                 if localByPath[path] == nil {
                     operations.append(TransferOperation(action: .delete(path: path)))
                 }
             }
 
         case .pull:
-            for (path, remoteItem) in remoteByPath {
-                if let localItem = localByPath[path] {
-                    if remoteItem.hash != localItem.hash {
-                        operations.append(TransferOperation(action: .download(path: path)))
-                    }
-                } else {
-                    operations.append(TransferOperation(action: .download(path: path)))
+            // Destination = local. Build hash index from local files.
+            var localByHash: [String: String] = [:]
+            for item in localItems {
+                if localByHash[item.hash] == nil {
+                    localByHash[item.hash] = item.path
                 }
             }
-            for path in localByPath.keys {
+
+            // Process source files in sorted order for deterministic behavior
+            for path in remoteByPath.keys.sorted() {
+                let remoteItem = remoteByPath[path]!
+                let needsTransfer: Bool
+                if let localItem = localByPath[path] {
+                    needsTransfer = remoteItem.hash != localItem.hash
+                } else {
+                    needsTransfer = true
+                }
+
+                if needsTransfer {
+                    if let source = localByHash[remoteItem.hash] {
+                        operations.append(TransferOperation(action: .copyLocal(from: source, to: path)))
+                    } else {
+                        operations.append(TransferOperation(action: .download(path: path)))
+                    }
+                    if localByHash[remoteItem.hash] == nil {
+                        localByHash[remoteItem.hash] = path
+                    }
+                }
+            }
+
+            // Deletes last
+            for path in localByPath.keys.sorted() {
                 if remoteByPath[path] == nil {
                     operations.append(TransferOperation(action: .delete(path: path)))
                 }
             }
         }
 
+        // Resolve copy cycles (e.g. swap: A→B, B→A) with temp files
+        operations = resolveCopyCycles(operations, mode: mode)
+
         return operations
+    }
+
+    /// Resolve cycles in copy operations using temp files.
+    ///
+    /// When copies form a cycle (e.g. swap: copy A→B and copy B→A),
+    /// executing them sequentially corrupts data. Break each cycle by
+    /// saving one file to a temp path first.
+    ///
+    /// Cycle [A→B, B→A] becomes:
+    ///   copy A → .diffa_temp, copy B → A, copy .diffa_temp → B, delete .diffa_temp
+    private func resolveCopyCycles(
+        _ operations: [TransferOperation],
+        mode: NetworkSyncMode
+    ) -> [TransferOperation] {
+        // Extract copy operations: dest → source
+        var destToSource: [String: String] = [:]
+        for op in operations {
+            switch op.action {
+            case .copyRemote(let from, let to), .copyLocal(let from, let to):
+                destToSource[to] = from
+            default:
+                break
+            }
+        }
+
+        // Find all cycles
+        var visited = Set<String>()
+        var cycles: [[String]] = []
+
+        for dest in destToSource.keys {
+            if visited.contains(dest) { continue }
+
+            // Walk the chain: dest → source → source's dest → ...
+            var chain: [String] = []
+            var current: String? = dest
+            var seen = Set<String>()
+
+            while let node = current, !seen.contains(node) {
+                seen.insert(node)
+                chain.append(node)
+                // Follow chain: source of this node may itself be a copy destination
+                if let src = destToSource[node], destToSource[src] != nil {
+                    current = src
+                } else {
+                    current = nil
+                }
+            }
+
+            if let node = current, seen.contains(node) {
+                // Found a cycle — extract it
+                if let cycleStart = chain.firstIndex(of: node) {
+                    let cycle = Array(chain[cycleStart...])
+                    if cycle.count >= 2 {
+                        cycles.append(cycle)
+                        visited.formUnion(cycle)
+                    }
+                }
+            }
+            visited.formUnion(chain)
+        }
+
+        guard !cycles.isEmpty else { return operations }
+
+        // Collect all cycle destinations for filtering
+        var cycleDests = Set<String>()
+        for cycle in cycles {
+            cycleDests.formUnion(cycle)
+        }
+
+        // Rebuild operations: keep non-cycle ops, replace cycle copies with temp-based sequence
+        var result: [TransferOperation] = []
+
+        // First: emit cycle-breaking operations (must run before deletes)
+        for cycle in cycles {
+            let tempPath = ".diffa_temp_\(UUID().uuidString)"
+
+            // Save first node's content to temp
+            let firstDest = cycle[0]
+            let firstSource = destToSource[firstDest]!
+
+            if mode == .push {
+                result.append(TransferOperation(action: .copyRemote(from: firstSource, to: tempPath)))
+            } else {
+                result.append(TransferOperation(action: .copyLocal(from: firstSource, to: tempPath)))
+            }
+
+            // Process cycle in reverse: each copy's source hasn't been touched yet
+            // cycle = [D₁, D₂, ..., Dₙ] where copy(from: source_i, to: D_i)
+            // source_i = D_{i-1} for i>1, source_1 = Dₙ... no wait.
+            // destToSource[D₁] = S₁, destToSource[D₂] = S₂, etc.
+            // The cycle means S₁ = D_k for some k.
+            // For swap: D₁=hello.txt, S₁=world.txt, D₂=world.txt, S₂=hello.txt
+            // cycle = [hello.txt, world.txt]
+            // We saved S₁ (world.txt) to temp.
+            // Now copy S₂ (hello.txt) → D₂ (world.txt) — hello.txt hasn't been touched
+            // Then copy temp → D₁ (hello.txt)
+
+            // Process forward: cycle[i]'s source is cycle[i+1], which hasn't been written yet
+            for i in 1..<cycle.count {
+                let dest = cycle[i]
+                let source = destToSource[dest]!
+                if mode == .push {
+                    result.append(TransferOperation(action: .copyRemote(from: source, to: dest)))
+                } else {
+                    result.append(TransferOperation(action: .copyLocal(from: source, to: dest)))
+                }
+            }
+
+            // Copy temp → first destination
+            if mode == .push {
+                result.append(TransferOperation(action: .copyRemote(from: tempPath, to: firstDest)))
+                result.append(TransferOperation(action: .delete(path: tempPath)))
+            } else {
+                result.append(TransferOperation(action: .copyLocal(from: tempPath, to: firstDest)))
+                result.append(TransferOperation(action: .delete(path: tempPath)))
+            }
+        }
+
+        // Then: emit non-cycle operations in original order
+        for op in operations {
+            switch op.action {
+            case .copyRemote(_, let to), .copyLocal(_, let to):
+                if !cycleDests.contains(to) {
+                    result.append(op)
+                }
+            default:
+                result.append(op)
+            }
+        }
+
+        return result
     }
 
     private func executeTransfers(
@@ -271,6 +451,42 @@ public final class SyncClient {
 
                 try sendMessageSync(fd, SyncMessage(type: .fileData, payload: filePayload.encode()))
 
+            case .copyLocal(let from, let to):
+                onProgress?(to, current, total)
+                log("Copying (local): \(from) → \(to)")
+
+                let sourceURL = resolveLocalPath(from, under: localPath)
+                let destURL = resolveLocalPath(to, under: localPath)
+
+                // Validate non-temp paths stay within sync root
+                if !isTempPath(from) {
+                    guard validatePath(sourceURL, under: localPath) else {
+                        log("Copy rejected (invalid source): \(from)")
+                        continue
+                    }
+                }
+                if !isTempPath(to) {
+                    guard validatePath(destURL, under: localPath) else {
+                        log("Copy rejected (invalid dest): \(to)")
+                        continue
+                    }
+                }
+
+                try FileManager.default.createDirectory(
+                    at: destURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                if FileManager.default.fileExists(atPath: destURL.path) {
+                    try FileManager.default.removeItem(at: destURL)
+                }
+                try FileManager.default.copyItem(at: sourceURL, to: destURL)
+
+            case .copyRemote(let from, let to):
+                onProgress?(to, current, total)
+                log("Copying (remote): \(from) → \(to)")
+                let payload = "\(from)\t\(to)"
+                try sendMessageSync(fd, SyncMessage(type: .copyFile, string: payload))
+
             case .delete(let path):
                 onProgress?(path, current, total)
 
@@ -279,11 +495,31 @@ public final class SyncClient {
                     try sendMessageSync(fd, SyncMessage(type: .deleteFile, string: path))
                 } else {
                     log("Deleting (local): \(path)")
-                    let fileURL = localPath.appendingPathComponent(path)
+                    let fileURL = resolveLocalPath(path, under: localPath)
                     try? FileManager.default.removeItem(at: fileURL)
                 }
             }
         }
+    }
+
+    /// Check if a relative path is an internal temp file
+    private func isTempPath(_ path: String) -> Bool {
+        path.hasPrefix(".diffa_temp_") && !path.contains("/")
+    }
+
+    /// Resolve a relative path — temp paths go to system temp dir, others to sync root
+    private func resolveLocalPath(_ relativePath: String, under root: URL) -> URL {
+        if isTempPath(relativePath) {
+            return FileManager.default.temporaryDirectory.appendingPathComponent(relativePath)
+        }
+        return root.appendingPathComponent(relativePath)
+    }
+
+    /// Validate that a URL stays within the sync root (resolves symlinks)
+    private func validatePath(_ url: URL, under root: URL) -> Bool {
+        let normalized = url.resolvingSymlinksInPath().standardized.path
+        let rootPath = root.resolvingSymlinksInPath().standardized.path
+        return normalized == rootPath || normalized.hasPrefix(rootPath + "/")
     }
 
     private func writeReceivedFile(_ data: Data, to localPath: URL) throws {

@@ -337,4 +337,210 @@ final class NetworkSyncTests: XCTestCase {
             XCTAssertEqual(call.2, 3, "Total should be 3")
         }
     }
+
+    // MARK: - Copy Optimization Tests
+
+    func testPushCopyOptimizationForRename() throws {
+        // Same content at different paths — should copy on server, not upload
+        let content = "Same content for rename test"
+        try createFile(at: localDir, name: "new_name.txt", content: content)
+        try createFile(at: remoteDir, name: "old_name.txt", content: content)
+
+        try startServer()
+
+        var logMessages: [String] = []
+        let client = SyncClient()
+        client.onLog = { logMessages.append($0) }
+        try client.push(localPath: localDir, to: "localhost", port: testPort)
+
+        // Verify correctness: remote has new_name.txt, not old_name.txt
+        XCTAssertEqual(readFile(at: remoteDir, name: "new_name.txt"), content)
+        XCTAssertFalse(fileExists(at: remoteDir, name: "old_name.txt"))
+
+        // Verify optimization: copy happened, no upload
+        let hasCopy = logMessages.contains { $0.contains("Copying (remote):") }
+        let hasUpload = logMessages.contains { $0.contains("Uploading:") }
+        XCTAssertTrue(hasCopy, "Should use remote copy for renamed file")
+        XCTAssertFalse(hasUpload, "Should not upload when copy is possible")
+    }
+
+    func testPullCopyOptimizationForRename() throws {
+        // Same content at different paths — should copy locally, not download
+        let content = "Same content for pull rename test"
+        try createFile(at: localDir, name: "old_name.txt", content: content)
+        try createFile(at: remoteDir, name: "new_name.txt", content: content)
+
+        try startServer()
+
+        var logMessages: [String] = []
+        let client = SyncClient()
+        client.onLog = { logMessages.append($0) }
+        try client.pull(localPath: localDir, from: "localhost", port: testPort)
+
+        // Verify correctness: local has new_name.txt, not old_name.txt
+        XCTAssertEqual(readFile(at: localDir, name: "new_name.txt"), content)
+        XCTAssertFalse(fileExists(at: localDir, name: "old_name.txt"))
+
+        // Verify optimization: local copy happened, no download
+        let hasCopy = logMessages.contains { $0.contains("Copying (local):") }
+        let hasDownload = logMessages.contains { $0.contains("Downloading:") }
+        XCTAssertTrue(hasCopy, "Should use local copy for renamed file")
+        XCTAssertFalse(hasDownload, "Should not download when copy is possible")
+    }
+
+    func testPushCopyOptimizationForDuplicate() throws {
+        // Two local files with same content, remote has neither
+        // First should upload, second should copy from the first
+        let content = "Duplicate content for dedup test"
+        try createFile(at: localDir, name: "a.txt", content: content)
+        try createFile(at: localDir, name: "b.txt", content: content)
+
+        try startServer()
+
+        var logMessages: [String] = []
+        let client = SyncClient()
+        client.onLog = { logMessages.append($0) }
+        try client.push(localPath: localDir, to: "localhost", port: testPort)
+
+        // Verify correctness
+        XCTAssertEqual(readFile(at: remoteDir, name: "a.txt"), content)
+        XCTAssertEqual(readFile(at: remoteDir, name: "b.txt"), content)
+
+        // Verify optimization: one upload + one copy (sorted: a.txt uploads, b.txt copies)
+        let uploadCount = logMessages.filter { $0.contains("Uploading:") }.count
+        let copyCount = logMessages.filter { $0.contains("Copying (remote):") }.count
+        XCTAssertEqual(uploadCount, 1, "Should upload first file")
+        XCTAssertEqual(copyCount, 1, "Should copy second file from first")
+    }
+
+    func testCopyOverwriteExistingFile() throws {
+        // Remote has target.txt with old content and source.txt with desired content
+        // Local wants target.txt to have the new content — copy should overwrite
+        let oldContent = "Old content"
+        let newContent = "New content to copy"
+        try createFile(at: localDir, name: "target.txt", content: newContent)
+        try createFile(at: localDir, name: "source.txt", content: newContent)
+        try createFile(at: remoteDir, name: "target.txt", content: oldContent)
+        try createFile(at: remoteDir, name: "source.txt", content: newContent)
+
+        try startServer()
+
+        let client = SyncClient()
+        client.onLog = nil
+        try client.push(localPath: localDir, to: "localhost", port: testPort)
+
+        // Verify: target.txt was overwritten with new content via copy
+        XCTAssertEqual(readFile(at: remoteDir, name: "target.txt"), newContent)
+        XCTAssertEqual(readFile(at: remoteDir, name: "source.txt"), newContent)
+    }
+
+    func testPushSwappedContents() throws {
+        // Classic swap: two files exchange their contents
+        // hello.txt had "world", now has "hello"
+        // world.txt had "hello", now has "world"
+        try createFile(at: localDir, name: "hello.txt", content: "hello")
+        try createFile(at: localDir, name: "world.txt", content: "world")
+        try createFile(at: remoteDir, name: "hello.txt", content: "world")
+        try createFile(at: remoteDir, name: "world.txt", content: "hello")
+
+        try startServer()
+
+        var logMessages: [String] = []
+        let client = SyncClient()
+        client.onLog = { logMessages.append($0) }
+        try client.push(localPath: localDir, to: "localhost", port: testPort)
+
+        // Both files must have correct swapped content
+        XCTAssertEqual(readFile(at: remoteDir, name: "hello.txt"), "hello")
+        XCTAssertEqual(readFile(at: remoteDir, name: "world.txt"), "world")
+
+        // Verify optimization: all copies, no uploads (content already on server)
+        let hasUpload = logMessages.contains { $0.contains("Uploading:") }
+        let copyCount = logMessages.filter { $0.contains("Copying (remote):") }.count
+        XCTAssertFalse(hasUpload, "Swap should not require any uploads")
+        XCTAssertGreaterThanOrEqual(copyCount, 2, "Swap should use server-side copies")
+    }
+
+    func testPushCopyAllPathsChangedSameContent() throws {
+        // All paths differ but content is the same — zero transfers
+        // Local: a.txt (E), b.txt (E)  →  Remote: c.txt (E), d.txt (E)
+        let content = "Same content everywhere"
+        try createFile(at: localDir, name: "a.txt", content: content)
+        try createFile(at: localDir, name: "b.txt", content: content)
+        try createFile(at: remoteDir, name: "c.txt", content: content)
+        try createFile(at: remoteDir, name: "d.txt", content: content)
+
+        try startServer()
+
+        var logMessages: [String] = []
+        let client = SyncClient()
+        client.onLog = { logMessages.append($0) }
+        try client.push(localPath: localDir, to: "localhost", port: testPort)
+
+        // Verify correctness: remote mirrors local
+        XCTAssertEqual(readFile(at: remoteDir, name: "a.txt"), content)
+        XCTAssertEqual(readFile(at: remoteDir, name: "b.txt"), content)
+        XCTAssertFalse(fileExists(at: remoteDir, name: "c.txt"))
+        XCTAssertFalse(fileExists(at: remoteDir, name: "d.txt"))
+
+        // Verify optimization: copies only, no uploads
+        let hasUpload = logMessages.contains { $0.contains("Uploading:") }
+        let copyCount = logMessages.filter { $0.contains("Copying (remote):") }.count
+        XCTAssertFalse(hasUpload, "Should not upload — content already on server")
+        XCTAssertEqual(copyCount, 2, "Should copy both files from existing remote content")
+    }
+
+    func testPushThreeWayRotation() throws {
+        // 3-way rotation: A→B→C→A (each file gets the next one's content)
+        try createFile(at: localDir, name: "a.txt", content: "content_c")
+        try createFile(at: localDir, name: "b.txt", content: "content_a")
+        try createFile(at: localDir, name: "c.txt", content: "content_b")
+        try createFile(at: remoteDir, name: "a.txt", content: "content_a")
+        try createFile(at: remoteDir, name: "b.txt", content: "content_b")
+        try createFile(at: remoteDir, name: "c.txt", content: "content_c")
+
+        try startServer()
+
+        var logMessages: [String] = []
+        let client = SyncClient()
+        client.onLog = { logMessages.append($0) }
+        try client.push(localPath: localDir, to: "localhost", port: testPort)
+
+        // Verify correctness
+        XCTAssertEqual(readFile(at: remoteDir, name: "a.txt"), "content_c")
+        XCTAssertEqual(readFile(at: remoteDir, name: "b.txt"), "content_a")
+        XCTAssertEqual(readFile(at: remoteDir, name: "c.txt"), "content_b")
+
+        // Verify optimization: no uploads
+        let hasUpload = logMessages.contains { $0.contains("Uploading:") }
+        XCTAssertFalse(hasUpload, "3-way rotation should not require uploads")
+    }
+
+    func testCopyThenDeleteOrdering() throws {
+        // Rename scenario: old.txt on remote should be used as copy source
+        // then deleted — order matters
+        let content = "Content that moves from old to new path"
+        try createFile(at: localDir, name: "moved.txt", content: content)
+        try createFile(at: remoteDir, name: "original.txt", content: content)
+
+        try startServer()
+
+        var logMessages: [String] = []
+        let client = SyncClient()
+        client.onLog = { logMessages.append($0) }
+        try client.push(localPath: localDir, to: "localhost", port: testPort)
+
+        // Verify correctness
+        XCTAssertEqual(readFile(at: remoteDir, name: "moved.txt"), content)
+        XCTAssertFalse(fileExists(at: remoteDir, name: "original.txt"))
+
+        // Verify ordering: copy before delete in log
+        let copyIndex = logMessages.firstIndex { $0.contains("Copying (remote):") }
+        let deleteIndex = logMessages.firstIndex { $0.contains("Deleting (remote):") }
+        XCTAssertNotNil(copyIndex, "Should have copy operation")
+        XCTAssertNotNil(deleteIndex, "Should have delete operation")
+        if let ci = copyIndex, let di = deleteIndex {
+            XCTAssertTrue(ci < di, "Copy should execute before delete")
+        }
+    }
 }

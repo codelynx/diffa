@@ -39,9 +39,13 @@ public final class SyncServer {
     /// Callback for logging
     public var onLog: ((String) -> Void)?
 
+    /// Normalized root path for containment checks (symlinks resolved, computed once)
+    private let normalizedRootPath: String
+
     public init(path: URL, port: UInt16) {
         self.rootPath = path
         self.port = port
+        self.normalizedRootPath = path.resolvingSymlinksInPath().standardized.path
     }
 
     /// Start server (blocking)
@@ -305,6 +309,15 @@ public final class SyncServer {
                 let path = String(data: message.payload, encoding: .utf8) ?? ""
                 deleteFile(path: path)
 
+            case .copyFile:
+                let payload = String(data: message.payload, encoding: .utf8) ?? ""
+                let parts = payload.split(separator: "\t", maxSplits: 1)
+                if parts.count == 2 {
+                    copyFile(from: String(parts[0]), to: String(parts[1]))
+                } else {
+                    log("Invalid COPY payload")
+                }
+
             case .done:
                 log("Sync complete")
                 sendMessage(fd, SyncMessage(type: .done))
@@ -317,8 +330,37 @@ public final class SyncServer {
         }
     }
 
+    // MARK: - Path Validation
+
+    /// Resolve a relative path to an absolute URL with containment validation.
+    /// Internal temp paths (.diffa_temp_*) resolve to the system temp directory.
+    /// All other paths resolve to rootPath and are validated for containment.
+    private func resolvePath(_ relativePath: String) -> URL? {
+        if relativePath.hasPrefix(".diffa_temp_") && !relativePath.contains("/") {
+            return FileManager.default.temporaryDirectory.appendingPathComponent(relativePath)
+        }
+        return validatePath(relativePath)
+    }
+
+    /// Validate that a relative path resolves to a location within rootPath.
+    private func validatePath(_ relativePath: String) -> URL? {
+        let url = rootPath.appendingPathComponent(relativePath)
+        let normalized = url.resolvingSymlinksInPath().standardized
+        let normalizedPath = normalized.path
+
+        guard normalizedPath == normalizedRootPath || normalizedPath.hasPrefix(normalizedRootPath + "/") else {
+            log("Path rejected (outside root): \(relativePath)")
+            return nil
+        }
+
+        return normalized
+    }
+
     private func sendFile(_ fd: SocketDescriptor, path: String) {
-        let fileURL = rootPath.appendingPathComponent(path)
+        guard let fileURL = validatePath(path) else {
+            sendError(fd, "Invalid path: \(path)")
+            return
+        }
 
         guard let data = try? Data(contentsOf: fileURL) else {
             sendError(fd, "File not found: \(path)")
@@ -348,7 +390,10 @@ public final class SyncServer {
             return
         }
 
-        let fileURL = rootPath.appendingPathComponent(filePayload.path)
+        guard let fileURL = validatePath(filePayload.path) else {
+            log("Rejected file (invalid path): \(filePayload.path)")
+            return
+        }
 
         try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
@@ -365,14 +410,24 @@ public final class SyncServer {
     }
 
     private func deleteFile(path: String) {
-        let fileURL = rootPath.appendingPathComponent(path)
+        guard let fileURL = resolvePath(path) else {
+            log("Rejected delete (invalid path): \(path)")
+            return
+        }
+
+        // Temp files live in system temp dir — just delete, no parent pruning
+        if path.hasPrefix(".diffa_temp_") && !path.contains("/") {
+            try? FileManager.default.removeItem(at: fileURL)
+            log("Deleted temp: \(path)")
+            return
+        }
 
         do {
             try FileManager.default.removeItem(at: fileURL)
             log("Deleted file: \(path)")
 
             var parentURL = fileURL.deletingLastPathComponent()
-            while parentURL.path != rootPath.path {
+            while parentURL.path != normalizedRootPath {
                 let contents = try? FileManager.default.contentsOfDirectory(at: parentURL, includingPropertiesForKeys: nil)
                 if contents?.isEmpty == true {
                     try? FileManager.default.removeItem(at: parentURL)
@@ -383,6 +438,31 @@ public final class SyncServer {
             }
         } catch {
             log("Failed to delete file \(path): \(error)")
+        }
+    }
+
+    private func copyFile(from sourcePath: String, to destPath: String) {
+        guard let sourceURL = resolvePath(sourcePath) else {
+            log("Rejected copy source (invalid path): \(sourcePath)")
+            return
+        }
+        guard let destURL = resolvePath(destPath) else {
+            log("Rejected copy dest (invalid path): \(destPath)")
+            return
+        }
+
+        do {
+            try FileManager.default.createDirectory(
+                at: destURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                try FileManager.default.removeItem(at: destURL)
+            }
+            try FileManager.default.copyItem(at: sourceURL, to: destURL)
+            log("Copied: \(sourcePath) → \(destPath)")
+        } catch {
+            log("Failed to copy \(sourcePath) → \(destPath): \(error)")
         }
     }
 

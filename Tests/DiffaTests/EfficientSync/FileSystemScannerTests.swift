@@ -206,6 +206,65 @@ final class FileSystemScannerTests: XCTestCase {
         }
     }
 
+    // MARK: - Internal Artifact Exclusion
+
+    func testScanExcludesDiffaTempAtRoot() throws {
+        // .diffa_temp_* files at sync root should be excluded
+        try createFile(at: "real.txt", content: "keep")
+        try createFile(at: ".diffa_temp_abc123", content: "temp artifact")
+
+        var paths: [String] = []
+        try scanner.scan(root: tempDir) { _, metadata in
+            paths.append(metadata.path)
+        }
+
+        XCTAssertEqual(paths, ["real.txt"])
+    }
+
+    func testScanExcludesDiffaStagingDirAtRoot() throws {
+        // .diffa_staging directory at sync root should be excluded entirely
+        try createFile(at: "real.txt", content: "keep")
+        try createFile(at: ".diffa_staging/abc123", content: "staged content")
+        try createFile(at: ".diffa_staging/def456", content: "staged content 2")
+
+        var paths: [String] = []
+        try scanner.scan(root: tempDir) { _, metadata in
+            paths.append(metadata.path)
+        }
+
+        XCTAssertEqual(paths, ["real.txt"])
+    }
+
+    func testScanIncludesDiffaTempInSubdirectories() throws {
+        // .diffa_temp_* in subdirectories are real user files — must NOT be excluded
+        try createFile(at: "real.txt", content: "keep")
+        try createFile(at: "subdir/.diffa_temp_notes.txt", content: "user file")
+
+        var paths: Set<String> = []
+        try scanner.scan(root: tempDir) { _, metadata in
+            paths.insert(metadata.path)
+        }
+
+        XCTAssertEqual(paths.count, 2)
+        XCTAssertTrue(paths.contains("real.txt"))
+        XCTAssertTrue(paths.contains("subdir/.diffa_temp_notes.txt"))
+    }
+
+    func testScanIncludesDiffaStagingInSubdirectories() throws {
+        // .diffa_staging in subdirectories is a real user directory — must NOT be excluded
+        try createFile(at: "real.txt", content: "keep")
+        try createFile(at: "subdir/.diffa_staging/data.txt", content: "user file")
+
+        var paths: Set<String> = []
+        try scanner.scan(root: tempDir) { _, metadata in
+            paths.insert(metadata.path)
+        }
+
+        XCTAssertEqual(paths.count, 2)
+        XCTAssertTrue(paths.contains("real.txt"))
+        XCTAssertTrue(paths.contains("subdir/.diffa_staging/data.txt"))
+    }
+
     func testScanHandlesLargeNumberOfFiles() throws {
         // Create 100 files to test performance
         for i in 1...100 {

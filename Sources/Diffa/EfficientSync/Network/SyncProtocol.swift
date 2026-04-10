@@ -24,6 +24,7 @@ public enum SyncMessageType: String {
     case requestFile = "REQUEST"
     case fileData = "FILE"
     case deleteFile = "DELETE"
+    case copyFile = "COPY"
     case done = "DONE"
 }
 
