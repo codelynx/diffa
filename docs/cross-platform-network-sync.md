@@ -257,9 +257,20 @@ Existing tests in `NetworkSyncTests.swift` and `CompressionTests.swift` use the 
 
 The `startAsync()` / `stop()` pattern used in test setUp/tearDown is a critical correctness requirement. The POSIX socket shutdown design (Section 4, Step 3) must be validated with the existing test suite — any intermittent hang in tearDown indicates a shutdown bug.
 
-### 7.3 CI Strategy
+### 7.3 Cross-Platform LAN Test (Verified)
+
+Mac ↔ Linux push/pull tested over LAN (2026-04-10). Four scenarios verified:
+
+1. **Linux pushes to Mac** — 4 files transferred correctly, binary hash matched
+2. **Linux pulls from Mac** — 6 files downloaded including Mac-added files, hash matched
+3. **Mirror push (Linux → Mac)** — Mac-only files deleted on remote, unchanged files not re-transferred
+4. **Reverse push (Mac → Linux)** — Linux-originated files deleted, Mac file delivered correctly
+
+All file contents, SHA-256 hashes, nested directories, and mirror delete behavior verified on both sides.
+
+### 7.4 CI Strategy
 - Run `swift test` on both macOS and Linux (e.g., Ubuntu 22.04 with Swift 5.9+).
-- Ensure `zlib1g-dev` and `libsqlite3-dev` are installed on Linux CI runners.
+- Ensure `zlib1g-dev` and `libsqlite3-dev` are installed on Linux CI runners (not needed if using bundled C sources).
 
 ## 8. Risk Assessment
 
