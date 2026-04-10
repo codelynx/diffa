@@ -209,6 +209,10 @@ final class ComparisonTests: XCTestCase {
 
         // Verify modified metadata detected
         let modified = try diff.modified
+        #if os(Windows)
+        // Windows doesn't support POSIX permissions, so no modification is detected
+        XCTAssertEqual(modified.count, 0, "Windows: no permission change detected")
+        #else
         XCTAssertEqual(modified.count, 1, "Should have 1 modified item due to permission change")
         XCTAssertEqual(modified[0].path, "file1.txt")
 
@@ -218,6 +222,7 @@ final class ComparisonTests: XCTestCase {
         XCTAssertNotEqual(snapshot1Item.permissions.posix, snapshot2Item.permissions.posix, "Permissions should differ")
 
         XCTAssertTrue(try diff.hasDifferences, "Should have differences")
+        #endif
     }
 
     func testCompareLazyCaching() async throws {

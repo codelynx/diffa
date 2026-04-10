@@ -1,11 +1,13 @@
 import Foundation
 #if canImport(Darwin)
 import Darwin
+#elseif os(Windows)
+import WinSDK
 #else
 import Glibc
 #endif
 
-/// TCP server for EfficientSync daemon using POSIX sockets
+/// TCP server for EfficientSync daemon using cross-platform sockets
 ///
 /// **Usage:**
 /// ```swift
@@ -17,21 +19,21 @@ import Glibc
 public final class SyncServer {
     private let rootPath: URL
     private let port: UInt16
-    private var listenerFd: Int32 = -1
+    private var listenerFd: SocketDescriptor = invalidSocket
     private var isRunning = false
 
-    /// Shutdown pipe: write end used by stop() to wake the accept loop
-    private var shutdownPipe: [Int32] = [-1, -1]
+    /// Shutdown pipe: used by stop() to wake the accept loop
+    private var shutdownPipe: ShutdownPipe?
 
     /// Tracked client file descriptors for clean shutdown
-    private var clientFds: Set<Int32> = []
+    private var clientFds: Set<SocketDescriptor> = []
     private let clientFdsLock = NSLock()
 
     /// Active client handler tracking
     private let clientGroup = DispatchGroup()
 
     /// Per-connection receive buffers
-    private var connectionBuffers: [Int32: Data] = [:]
+    private var connectionBuffers: [SocketDescriptor: Data] = [:]
     private let bufferLock = NSLock()
 
     /// Callback for logging
@@ -51,44 +53,61 @@ public final class SyncServer {
 
     /// Start server (non-blocking, for testing)
     public func startAsync() throws {
+        platformSocketInit()
+
         // Create shutdown pipe
-        guard pipe(&shutdownPipe) == 0 else {
+        guard let pipe = ShutdownPipe.create() else {
             throw SyncProtocolError.connectionFailed(host: "localhost", port: Int(port))
         }
+        shutdownPipe = pipe
 
         // Create listener socket
-        listenerFd = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
-        guard listenerFd >= 0 else {
-            closeShutdownPipe()
+        listenerFd = platformCreateTCPSocket()
+        guard platformIsValidSocket(listenerFd) else {
+            shutdownPipe?.close()
+            shutdownPipe = nil
             throw SyncProtocolError.connectionFailed(host: "localhost", port: Int(port))
         }
 
         // Set SO_REUSEADDR
-        var reuseAddr: Int32 = 1
-        setsockopt(listenerFd, SOL_SOCKET, SO_REUSEADDR, &reuseAddr, socklen_t(MemoryLayout<Int32>.size))
+        platformSetReuseAddr(listenerFd)
 
         // Bind
         var addr = sockaddr_in()
+        #if os(Windows)
+        addr.sin_family = ADDRESS_FAMILY(AF_INET)
+        #else
         addr.sin_family = sa_family_t(AF_INET)
+        #endif
         addr.sin_port = port.bigEndian
+        #if os(Windows)
+        addr.sin_addr.S_un.S_addr = INADDR_ANY.bigEndian
+        #else
         addr.sin_addr.s_addr = INADDR_ANY.bigEndian
+        #endif
 
         let bindResult = withUnsafePointer(to: &addr) { addrPtr in
             addrPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                #if os(Windows)
+                bind(listenerFd, sockaddrPtr, Int32(MemoryLayout<sockaddr_in>.size))
+                #else
                 bind(listenerFd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+                #endif
             }
         }
 
         guard bindResult == 0 else {
-            systemClose(listenerFd)
-            closeShutdownPipe()
+            platformClose(listenerFd)
+            shutdownPipe?.close()
+            shutdownPipe = nil
             throw SyncProtocolError.connectionFailed(host: "localhost", port: Int(port))
         }
 
         // Listen
         guard listen(listenerFd, 5) == 0 else {
-            systemClose(listenerFd)
-            closeShutdownPipe()
+            platformClose(listenerFd)
+            shutdownPipe?.close()
+            shutdownPipe = nil
             throw SyncProtocolError.connectionFailed(host: "localhost", port: Int(port))
         }
 
@@ -106,40 +125,42 @@ public final class SyncServer {
         isRunning = false
 
         // Wake accept loop via shutdown pipe
-        var byte: UInt8 = 1
-        _ = write(shutdownPipe[1], &byte, 1)
+        shutdownPipe?.signal()
 
         // Close all tracked client fds to interrupt handlers
         clientFdsLock.lock()
         let fds = clientFds
         clientFdsLock.unlock()
         for fd in fds {
-            systemClose(fd)
+            platformClose(fd)
         }
 
         // Close listener
-        if listenerFd >= 0 {
-            systemClose(listenerFd)
-            listenerFd = -1
+        if platformIsValidSocket(listenerFd) {
+            platformClose(listenerFd)
+            listenerFd = invalidSocket
         }
 
         // Wait for active handlers to finish
         clientGroup.wait()
 
-        closeShutdownPipe()
+        shutdownPipe?.close()
+        shutdownPipe = nil
     }
 
     // MARK: - Accept Loop
 
     private func acceptLoop() {
+        guard let pipe = shutdownPipe else { return }
+
         while isRunning {
             // Use poll() to wait on both listener and shutdown pipe
             var fds = [
-                pollfd(fd: listenerFd, events: Int16(POLLIN), revents: 0),
-                pollfd(fd: shutdownPipe[0], events: Int16(POLLIN), revents: 0)
+                makePollfd(fd: listenerFd, events: Int16(POLLIN)),
+                makePollfd(fd: pipe.readEnd, events: Int16(POLLIN))
             ]
 
-            let pollResult = poll(&fds, 2, -1)  // Wait indefinitely
+            let pollResult = platformPoll(&fds, 2, -1)  // Wait indefinitely
             guard pollResult > 0 else { break }
 
             // Check shutdown pipe
@@ -150,7 +171,11 @@ public final class SyncServer {
             // Check listener
             if fds[0].revents & Int16(POLLIN) != 0 {
                 var clientAddr = sockaddr_in()
+                #if os(Windows)
+                var clientAddrLen = Int32(MemoryLayout<sockaddr_in>.size)
+                #else
                 var clientAddrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+                #endif
 
                 let clientFd = withUnsafeMutablePointer(to: &clientAddr) { addrPtr in
                     addrPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
@@ -158,7 +183,7 @@ public final class SyncServer {
                     }
                 }
 
-                guard clientFd >= 0 else { continue }
+                guard platformIsValidSocket(clientFd) else { continue }
 
                 // Track client fd
                 clientFdsLock.lock()
@@ -166,9 +191,7 @@ public final class SyncServer {
                 clientFdsLock.unlock()
 
                 // Set receive timeout (30 seconds)
-                var timeout = timeval(tv_sec: 30, tv_usec: 0)
-                setsockopt(clientFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-                setsockopt(clientFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+                platformSetSocketTimeouts(clientFd, seconds: 30)
 
                 log("Client connected")
 
@@ -185,7 +208,7 @@ public final class SyncServer {
         }
     }
 
-    private func cleanupClient(_ fd: Int32) {
+    private func cleanupClient(_ fd: SocketDescriptor) {
         clientFdsLock.lock()
         clientFds.remove(fd)
         clientFdsLock.unlock()
@@ -194,13 +217,13 @@ public final class SyncServer {
         connectionBuffers.removeValue(forKey: fd)
         bufferLock.unlock()
 
-        systemClose(fd)
+        platformClose(fd)
         log("Client disconnected")
     }
 
     // MARK: - Connection Handling
 
-    private func processClient(_ fd: Int32) {
+    private func processClient(_ fd: SocketDescriptor) {
         // Initialize buffer
         bufferLock.lock()
         connectionBuffers[fd] = Data()
@@ -228,7 +251,7 @@ public final class SyncServer {
         handleSync(fd, mode: mode)
     }
 
-    private func handleSync(_ fd: Int32, mode: NetworkSyncMode) {
+    private func handleSync(_ fd: SocketDescriptor, mode: NetworkSyncMode) {
         // Create local snapshot
         log("Creating snapshot...")
         guard let snapshot = try? SQLiteSyncSnapshot.create(at: rootPath) else {
@@ -258,7 +281,7 @@ public final class SyncServer {
     }
 
     private func handleFileTransfers(
-        _ fd: Int32,
+        _ fd: SocketDescriptor,
         mode: NetworkSyncMode,
         localItems: [NetworkFileItem],
         remoteItems: [NetworkFileItem],
@@ -294,7 +317,7 @@ public final class SyncServer {
         }
     }
 
-    private func sendFile(_ fd: Int32, path: String) {
+    private func sendFile(_ fd: SocketDescriptor, path: String) {
         let fileURL = rootPath.appendingPathComponent(path)
 
         guard let data = try? Data(contentsOf: fileURL) else {
@@ -365,30 +388,26 @@ public final class SyncServer {
 
     // MARK: - Network Helpers
 
-    private func sendMessage(_ fd: Int32, _ message: SyncMessage) {
+    private func sendMessage(_ fd: SocketDescriptor, _ message: SyncMessage) {
         let data = message.encode()
         data.withUnsafeBytes { ptr in
             var sent = 0
             let total = data.count
             while sent < total {
                 let base = ptr.baseAddress!.advanced(by: sent)
-                #if canImport(Darwin)
-                let n = Darwin.send(fd, base, total - sent, 0)
-                #else
-                let n = Glibc.send(fd, base, total - sent, Int32(MSG_NOSIGNAL))
-                #endif
+                let n = platformSend(fd, base, total - sent)
                 guard n > 0 else { return }
                 sent += n
             }
         }
     }
 
-    private func sendError(_ fd: Int32, _ message: String) {
+    private func sendError(_ fd: SocketDescriptor, _ message: String) {
         log("Error: \(message)")
         sendMessage(fd, SyncMessage(type: .error, string: message))
     }
 
-    private func receiveMessage(_ fd: Int32) throws -> SyncMessage {
+    private func receiveMessage(_ fd: SocketDescriptor) throws -> SyncMessage {
         bufferLock.lock()
         var buffer = connectionBuffers[fd] ?? Data()
         bufferLock.unlock()
@@ -404,11 +423,7 @@ public final class SyncServer {
         // Read more data
         var readBuffer = [UInt8](repeating: 0, count: 65536)
         while true {
-            #if canImport(Darwin)
-            let n = Darwin.recv(fd, &readBuffer, readBuffer.count, 0)
-            #else
-            let n = Glibc.recv(fd, &readBuffer, readBuffer.count, 0)
-            #endif
+            let n = platformRecv(fd, &readBuffer, readBuffer.count)
 
             guard n > 0 else {
                 throw SyncProtocolError.incompletePayload
@@ -464,64 +479,11 @@ public final class SyncServer {
         log("Serving: \(rootPath.path)")
         log("")
         log("Connect using:")
-        for ip in getLocalIPAddresses() {
+        for ip in platformGetLocalIPs() {
             log("  diffa push <local-dir> \(ip):\(port)")
             log("  diffa pull <local-dir> \(ip):\(port)")
         }
         log("")
-    }
-
-    private func getLocalIPAddresses() -> [String] {
-        var addresses: [String] = []
-
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
-            return ["localhost"]
-        }
-        defer { freeifaddrs(ifaddr) }
-
-        var ptr = firstAddr
-        while true {
-            let interface = ptr.pointee
-            let addrFamily = interface.ifa_addr.pointee.sa_family
-
-            if addrFamily == sa_family_t(AF_INET) {
-                let name = String(cString: interface.ifa_name)
-                // Skip loopback (lo0 on macOS, lo on Linux)
-                if name != "lo0" && name != "lo" {
-                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    let addrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-                    if getnameinfo(interface.ifa_addr, addrLen,
-                                   &hostname, socklen_t(hostname.count),
-                                   nil, 0, NI_NUMERICHOST) == 0 {
-                        let address = String(cString: hostname)
-                        if !address.isEmpty && !addresses.contains(address) {
-                            addresses.append(address)
-                        }
-                    }
-                }
-            }
-
-            guard let next = interface.ifa_next else { break }
-            ptr = next
-        }
-
-        return addresses.isEmpty ? ["localhost"] : addresses
-    }
-
-    // MARK: - Helpers
-
-    private func closeShutdownPipe() {
-        if shutdownPipe[0] >= 0 { systemClose(shutdownPipe[0]); shutdownPipe[0] = -1 }
-        if shutdownPipe[1] >= 0 { systemClose(shutdownPipe[1]); shutdownPipe[1] = -1 }
-    }
-
-    private func systemClose(_ fd: Int32) {
-        #if canImport(Darwin)
-        Darwin.close(fd)
-        #else
-        Glibc.close(fd)
-        #endif
     }
 
     private func log(_ message: String) {

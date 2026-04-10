@@ -998,6 +998,9 @@ final class PatchingTests: XCTestCase {
     }
 
     func testApplyPreservesMetadata() async throws {
+        #if os(Windows)
+        throw XCTSkip("POSIX permissions not supported on Windows")
+        #endif
         // Create source and destination with different permissions
         let sourceDir = tempDir.appendingPathComponent("source")
         let destDir = tempDir.appendingPathComponent("dest")
@@ -1209,6 +1212,9 @@ final class PatchingTests: XCTestCase {
     }
 
     func testCaptureRevertDataForSymlink() async throws {
+        #if os(Windows)
+        throw XCTSkip("Symlinks require admin privileges on Windows")
+        #endif
         // Create source with symlink, destination empty (symlink removed)
         let sourceDir = tempDir.appendingPathComponent("source")
         let destDir = tempDir.appendingPathComponent("dest")
@@ -1252,10 +1258,12 @@ final class PatchingTests: XCTestCase {
 
         // Verify metadata is for the symlink itself (not target)
         XCTAssertNotNil(symlinkRevertData?.metadata)
-        // Symlink size should be small (just the path string), not the target file size
-        let symlinkSize = symlinkRevertData!.metadata.size
-        let targetSize = Int64("target content".utf8.count)
-        XCTAssertNotEqual(symlinkSize, targetSize, "Symlink metadata should be for link itself, not target")
+        if let revertData = symlinkRevertData {
+            // Symlink size should be small (just the path string), not the target file size
+            let symlinkSize = revertData.metadata.size
+            let targetSize = Int64("target content".utf8.count)
+            XCTAssertNotEqual(symlinkSize, targetSize, "Symlink metadata should be for link itself, not target")
+        }
     }
 
     // MARK: - Step 7: Revert Patch Operation Tests
@@ -1465,6 +1473,9 @@ final class PatchingTests: XCTestCase {
     }
 
     func testRevertRestoresMetadata() async throws {
+        #if os(Windows)
+        throw XCTSkip("POSIX permissions not supported on Windows")
+        #endif
         // Create source and destination with different permissions
         let sourceDir = tempDir.appendingPathComponent("source")
         let destDir = tempDir.appendingPathComponent("dest")

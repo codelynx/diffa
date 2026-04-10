@@ -280,6 +280,9 @@ final class IntegrationTests: XCTestCase {
     }
 
     func testSymlinkScenarios() async throws {
+        #if os(Windows)
+        throw XCTSkip("Symlinks require admin privileges on Windows")
+        #endif
         // Create test directory with symlinks
         let testDir = tempDir.appendingPathComponent("symlinkData")
         try fileManager.createDirectory(at: testDir, withIntermediateDirectories: false)
@@ -338,6 +341,9 @@ final class IntegrationTests: XCTestCase {
     }
 
     func testPermissionChanges() async throws {
+        #if os(Windows)
+        throw XCTSkip("POSIX permissions not supported on Windows")
+        #endif
         // Create test directory with file
         let testDir = tempDir.appendingPathComponent("permData")
         try fileManager.createDirectory(at: testDir, withIntermediateDirectories: false)
@@ -383,6 +389,10 @@ final class IntegrationTests: XCTestCase {
 
         // Verify modification detected
         let modified = try diff.modified
+        #if os(Windows)
+        // Windows doesn't support POSIX permissions, so no modification is detected
+        XCTAssertEqual(modified.count, 0, "Windows: no permission change detected")
+        #else
         XCTAssertEqual(modified.count, 1, "Should detect permission change as modification")
         XCTAssertEqual(modified[0].path, "test.txt")
 
@@ -392,6 +402,7 @@ final class IntegrationTests: XCTestCase {
         XCTAssertTrue(try diff.added.isEmpty, "Should have no added items")
         XCTAssertTrue(try diff.removed.isEmpty, "Should have no removed items")
         XCTAssertTrue(try diff.hasDifferences, "Should have differences")
+        #endif
     }
 
     func testVeryLargeDirectory() async throws {

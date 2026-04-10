@@ -78,18 +78,31 @@ public struct FileSystemItem: ItemProtocol {
         let basePath = normalizedBaseURL.path
         let fullPath = normalizedURL.path
 
+        // On Windows, file system paths are case-insensitive; normalize for comparison.
+        // On Unix, paths are case-sensitive and compared as-is.
+        #if os(Windows)
+        let baseForCompare = basePath.lowercased()
+        let fullForCompare = fullPath.lowercased()
+        #else
+        let baseForCompare = basePath
+        let fullForCompare = fullPath
+        #endif
+
+        // Check if basePath is a filesystem root (Unix "/" or Windows drive root like "C:/")
+        let isBaseRoot = basePath == "/" || Self.isDriveRoot(basePath)
+
         // Ensure the file is actually under the base path (with proper path component boundaries)
         let isUnderBase: Bool
-        if basePath == "/" {
-            // Root: everything is under root
-            isUnderBase = fullPath.hasPrefix("/")
-        } else if fullPath == basePath {
+        if isBaseRoot {
+            // Root: everything under this root is valid
+            isUnderBase = fullForCompare.hasPrefix(baseForCompare)
+        } else if fullForCompare == baseForCompare {
             // Exact match
             isUnderBase = true
-        } else if fullPath.hasPrefix(basePath + "/") {
+        } else if fullForCompare.hasPrefix(baseForCompare + "/") {
             // File is under base directory (next character must be "/")
             isUnderBase = true
-        } else if basePath.hasSuffix("/") && fullPath.hasPrefix(basePath) {
+        } else if baseForCompare.hasSuffix("/") && fullForCompare.hasPrefix(baseForCompare) {
             // Base has trailing slash and file starts with it
             isUnderBase = true
         } else {
@@ -105,10 +118,12 @@ public struct FileSystemItem: ItemProtocol {
 
         // Remove base path prefix, handling trailing slash
         let relativePath: String
-        if basePath == "/" {
-            // Root snapshot: remove leading "/" only
-            relativePath = String(fullPath.dropFirst())
-        } else if fullPath == basePath {
+        if isBaseRoot {
+            // Root snapshot: remove the root prefix
+            // For "/" → drop 1; for "C:/" → drop 3
+            let rootLength = basePath.hasSuffix("/") ? basePath.count : basePath.count + 1
+            relativePath = rootLength <= fullPath.count ? String(fullPath.dropFirst(rootLength)) : ""
+        } else if fullForCompare == baseForCompare {
             // File is exactly the base path (shouldn't happen for snapshots, but handle it)
             relativePath = ""
         } else {
@@ -231,6 +246,10 @@ public struct FileSystemItem: ItemProtocol {
 
         // Get POSIX permissions using lstat via FileManager
         // We need to use a lower-level API for this
+        #if os(Windows)
+        // Windows doesn't have lstat or POSIX permissions; use a sensible default
+        attributes[.posixPermissions] = UInt16(0o644)
+        #else
         #if os(Linux)
         var stat = stat()
         #else
@@ -241,6 +260,7 @@ public struct FileSystemItem: ItemProtocol {
         } else {
             attributes[.posixPermissions] = UInt16(0o644) // Default
         }
+        #endif
 
         return attributes
     }
@@ -299,6 +319,22 @@ public struct FileSystemItem: ItemProtocol {
             owner: owner,
             group: group
         )
+    }
+
+    /// Check if a path is a drive root (e.g. "C:/", "D:/")
+    /// Foundation URL.path uses forward slashes on all platforms.
+    private static func isDriveRoot(_ path: String) -> Bool {
+        // Matches patterns like "C:/", "D:/" — a single letter, colon, slash
+        guard path.count == 3 || (path.count == 2 && !path.hasSuffix("/")) else {
+            // Also accept "C:" without trailing slash
+            if path.count == 2 {
+                let chars = Array(path)
+                return chars[0].isLetter && chars[1] == ":"
+            }
+            return false
+        }
+        let chars = Array(path)
+        return chars[0].isLetter && chars[1] == ":" && (chars.count == 2 || chars[2] == "/")
     }
 
     /// Read symlink target path

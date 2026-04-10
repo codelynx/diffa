@@ -148,7 +148,7 @@ final class FileSystemScannerTests: XCTestCase {
         XCTAssertNotNil(capturedMetadata?.mtime)
         XCTAssertTrue(capturedMetadata!.mtime > 0, "Modification time should be set")
 
-        #if !os(Linux)
+        #if os(macOS) || os(iOS)
         // POSIX permissions may not be available on all filesystems
         if let mode = capturedMetadata?.mode {
             // Verify permissions were captured (may vary by filesystem)

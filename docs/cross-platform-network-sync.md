@@ -306,16 +306,17 @@ Note: Steps 5-7 are mostly guard-removal and integration work. The real implemen
 | `Tests/DiffaTests/NetworkSyncTests.swift` | Remove `#if canImport(Network)` and `@available` |
 | `Tests/DiffaTests/CompressionTests.swift` | Remove `#if canImport(Compression)` |
 
-## 11. Windows Considerations
+## 11. Windows Support (Implemented)
 
-This plan targets macOS and Linux only. Windows support is feasible but out of scope. Key differences that would need to be addressed:
+Windows support has been implemented. Key decisions and details:
 
-- **Networking:** POSIX sockets do not exist on Windows. Windows uses Winsock2 (`ws2_32`), which has a similar but not identical API (`closesocket()` instead of `close()`, `SOCKET` type instead of `int`, no `MSG_NOSIGNAL`, `WSAStartup()` required). If Windows becomes a real target, SwiftNIO may be a better networking choice since it already abstracts these differences.
-- **System libraries:** zlib and SQLite are not system libraries on Windows. They would need to be bundled or pulled via vcpkg/NuGet. The `CSQLite` and `CZlib` system module approach would not work as-is.
-- **Compression:** zlib itself is fully portable and produces identical wire format on all platforms. No compatibility concerns.
-- **Swift on Windows:** Officially supported. `import Glibc` / `import Darwin` becomes `import WinSDK` / `import ucrt`. Foundation and libdispatch are available but the ecosystem is less mature.
-
-If Windows is anticipated, the networking decision should be revisited before starting the POSIX implementation.
+- **Networking:** A platform abstraction layer (`PlatformSocket.swift`) wraps Winsock2 vs POSIX differences. Uses `WSAPoll()` instead of `poll()`, `closesocket()` instead of `close()`, `ioctlsocket()` instead of `fcntl()`, and `GetAdaptersAddresses()` instead of `getifaddrs()`. Shutdown signaling uses a loopback socket pair instead of a pipe (Windows `_pipe()` fds don't work with `WSAPoll`). `SO_EXCLUSIVEADDRUSE` is used instead of `SO_REUSEADDR` to prevent port hijacking.
+- **System libraries:** `CSQLite` and `CZlib` were converted from `.systemLibrary` targets to regular `.target` with bundled source (SQLite3 amalgamation, zlib 1.3.1). This eliminates external dependencies on all platforms — `swift build` works out of the box.
+- **Compression:** zlib produces identical wire format on all platforms. No compatibility concerns.
+- **Path handling:** `FileSystemItem` uses case-insensitive path comparison on Windows and recognizes drive roots (e.g. `C:/`) alongside Unix `/`.
+- **POSIX permissions:** Not available on Windows; defaults to 0o644.
+- **Symlinks:** Require admin privileges on Windows; symlink-dependent tests are skipped.
+- **WSAStartup:** Called once per process via lazy initialization; aborts on failure.
 
 ## 12. Follow-Up Work (Out of Scope)
 
@@ -325,4 +326,4 @@ These are not addressed by this plan but should be considered for future work:
 - **Authentication:** Add a shared-secret or token-based authentication mechanism so that only authorized clients can connect.
 - **Access control:** Restrict which directories can be served and which operations (push/pull) are allowed per client.
 - **Bidirectional network sync:** The local sync layer already supports bidirectional sync with conflict resolution (`SyncMode`, `ConflictResolver`), but this is not yet exposed over the network transport. Currently only unidirectional mirror modes (push/pull) are available over the network.
-- **Windows support:** See Section 11.
+- **Windows CLI integration tests:** The CLI test harness looks for `diffa` without `.exe` extension. Needs a platform-aware path lookup.

@@ -1,11 +1,13 @@
 import Foundation
 #if canImport(Darwin)
 import Darwin
+#elseif os(Windows)
+import WinSDK
 #else
 import Glibc
 #endif
 
-/// TCP client for EfficientSync push/pull using POSIX sockets
+/// TCP client for EfficientSync push/pull using cross-platform sockets
 ///
 /// **Usage:**
 /// ```swift
@@ -37,11 +39,12 @@ public final class SyncClient {
 
     private func sync(localPath: URL, host: String, port: UInt16, mode: NetworkSyncMode) throws {
         receiveBuffer = Data()
+        platformSocketInit()
 
         log("Connecting to \(host):\(port)...")
 
         let fd = try connectToHost(host, port: port)
-        defer { systemClose(fd) }
+        defer { platformClose(fd) }
 
         log("Connected!")
 
@@ -99,10 +102,10 @@ public final class SyncClient {
 
     // MARK: - Connection
 
-    private func connectToHost(_ host: String, port: UInt16) throws -> Int32 {
+    private func connectToHost(_ host: String, port: UInt16) throws -> SocketDescriptor {
         var hints = addrinfo()
         hints.ai_family = AF_INET
-        hints.ai_socktype = Int32(SOCK_STREAM.rawValue)
+        hints.ai_socktype = platformStreamType
 
         var result: UnsafeMutablePointer<addrinfo>?
         let portString = String(port)
@@ -113,67 +116,52 @@ public final class SyncClient {
         defer { freeaddrinfo(result) }
 
         let fd = socket(addrInfo.pointee.ai_family, addrInfo.pointee.ai_socktype, addrInfo.pointee.ai_protocol)
-        guard fd >= 0 else {
+        guard platformIsValidSocket(fd) else {
             throw SyncProtocolError.connectionFailed(host: host, port: Int(port))
         }
 
         // Non-blocking connect with 10-second timeout
-        #if canImport(Darwin)
-        var flags = fcntl(fd, F_GETFL, 0)
-        _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+        platformSetNonBlocking(fd, true)
+
+        #if os(Windows)
+        let connectResult = connect(fd, addrInfo.pointee.ai_addr, Int32(addrInfo.pointee.ai_addrlen))
         #else
-        var flags = Glibc.fcntl(fd, F_GETFL, 0)
-        _ = Glibc.fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+        let connectResult = connect(fd, addrInfo.pointee.ai_addr, addrInfo.pointee.ai_addrlen)
         #endif
 
-        let connectResult = connect(fd, addrInfo.pointee.ai_addr, addrInfo.pointee.ai_addrlen)
-
         if connectResult != 0 {
-            let err = errno
-            guard err == EINPROGRESS else {
-                systemClose(fd)
+            let err = platformSocketError()
+            guard platformIsErrorInProgress(err) else {
+                platformClose(fd)
                 throw SyncProtocolError.connectionFailed(host: host, port: Int(port))
             }
 
             // Wait for connection with poll()
-            var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
-            let pollResult = poll(&pfd, 1, 10_000)  // 10 second timeout
+            var pfds = [makePollfd(fd: fd, events: Int16(POLLOUT))]
+            let pollResult = platformPoll(&pfds, 1, 10_000)  // 10 second timeout
 
             guard pollResult > 0 else {
-                systemClose(fd)
+                platformClose(fd)
                 throw SyncProtocolError.timeout
             }
 
             // Check for connection error
-            var connectError: Int32 = 0
-            var errorLen = socklen_t(MemoryLayout<Int32>.size)
-            getsockopt(fd, SOL_SOCKET, SO_ERROR, &connectError, &errorLen)
+            let connectError = platformGetSocketError(fd)
 
             guard connectError == 0 else {
-                systemClose(fd)
+                platformClose(fd)
                 throw SyncProtocolError.connectionFailed(host: host, port: Int(port))
             }
         }
 
         // Set back to blocking mode
-        #if canImport(Darwin)
-        flags = fcntl(fd, F_GETFL, 0)
-        _ = fcntl(fd, F_SETFL, flags & ~O_NONBLOCK)
-        #else
-        flags = Glibc.fcntl(fd, F_GETFL, 0)
-        _ = Glibc.fcntl(fd, F_SETFL, flags & ~O_NONBLOCK)
-        #endif
+        platformSetNonBlocking(fd, false)
 
         // Set timeouts
-        var timeout = timeval(tv_sec: 30, tv_usec: 0)
-        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        platformSetSocketTimeouts(fd, seconds: 30)
 
-        // Prevent SIGPIPE on macOS
-        #if canImport(Darwin)
-        var noSigPipe: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
-        #endif
+        // Prevent SIGPIPE (macOS only; Linux handled per-send; Windows N/A)
+        platformSetNoSigPipe(fd)
 
         return fd
     }
@@ -237,7 +225,7 @@ public final class SyncClient {
     }
 
     private func executeTransfers(
-        _ fd: Int32,
+        _ fd: SocketDescriptor,
         localPath: URL,
         operations: [TransferOperation],
         mode: NetworkSyncMode
@@ -322,18 +310,14 @@ public final class SyncClient {
 
     // MARK: - Network Helpers
 
-    private func sendMessageSync(_ fd: Int32, _ message: SyncMessage) throws {
+    private func sendMessageSync(_ fd: SocketDescriptor, _ message: SyncMessage) throws {
         let data = message.encode()
         try data.withUnsafeBytes { ptr in
             var sent = 0
             let total = data.count
             while sent < total {
                 let base = ptr.baseAddress!.advanced(by: sent)
-                #if canImport(Darwin)
-                let n = Darwin.send(fd, base, total - sent, 0)
-                #else
-                let n = Glibc.send(fd, base, total - sent, Int32(MSG_NOSIGNAL))
-                #endif
+                let n = platformSend(fd, base, total - sent)
                 guard n > 0 else {
                     throw SyncProtocolError.incompletePayload
                 }
@@ -345,24 +329,21 @@ public final class SyncClient {
     /// Receive buffer for handling partial reads
     private var receiveBuffer = Data()
 
-    private func receiveMessageSync(_ fd: Int32) throws -> SyncMessage {
+    private func receiveMessageSync(_ fd: SocketDescriptor) throws -> SyncMessage {
         if let message = tryParseMessageFromBuffer() {
             return message
         }
 
         var readBuffer = [UInt8](repeating: 0, count: 65536)
         while true {
-            #if canImport(Darwin)
-            let n = Darwin.recv(fd, &readBuffer, readBuffer.count, 0)
-            #else
-            let n = Glibc.recv(fd, &readBuffer, readBuffer.count, 0)
-            #endif
+            let n = platformRecv(fd, &readBuffer, readBuffer.count)
 
             if n == 0 {
                 throw SyncProtocolError.incompletePayload
             }
             if n < 0 {
-                if errno == EAGAIN || errno == EWOULDBLOCK {
+                let err = platformSocketError()
+                if platformIsErrorWouldBlock(err) {
                     throw SyncProtocolError.timeout
                 }
                 throw SyncProtocolError.incompletePayload
@@ -406,16 +387,6 @@ public final class SyncClient {
         receiveBuffer = Data(receiveBuffer[payloadEnd...])
 
         return SyncMessage(type: type, payload: payload)
-    }
-
-    // MARK: - Helpers
-
-    private func systemClose(_ fd: Int32) {
-        #if canImport(Darwin)
-        Darwin.close(fd)
-        #else
-        Glibc.close(fd)
-        #endif
     }
 
     private func log(_ message: String) {

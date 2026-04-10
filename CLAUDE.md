@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Diffa** is a Swift library and command-line tool for file system comparison, patching, and synchronization on Apple platforms and Linux. It provides snapshot-based directory comparison, patch creation/application, and folder synchronization with conflict resolution.
+**Diffa** is a Swift library and command-line tool for file system comparison, patching, and synchronization on Apple platforms, Linux, and Windows. It provides snapshot-based directory comparison, patch creation/application, and folder synchronization with conflict resolution.
 
 **Dual Interface:**
-- **Library:** Swift Package for embedding in macOS/iOS apps
-- **CLI Tool:** `diffa` command for macOS and Linux (Phase 5)
+- **Library:** Swift Package for embedding in macOS/iOS/Linux/Windows apps
+- **CLI Tool:** `diffa` command for macOS, Linux, and Windows (Phase 5)
 
-**Current Status:** Phases 0-7 complete. All core functionality implemented and cross-platform (macOS + Linux). Network sync (serve/push/pull) with automatic compression operational on both platforms using POSIX sockets and system zlib.
+**Current Status:** Phases 0-7 complete. All core functionality implemented and cross-platform (macOS + Linux + Windows). Network sync (serve/push/pull) with automatic compression operational on all three platforms using cross-platform sockets (POSIX on macOS/Linux, Winsock2 on Windows) and bundled zlib.
 
 **Key Design Philosophy:**
 - Simple first, no frills
@@ -52,7 +52,7 @@ swift build 2>&1 | grep -i warning
 ### Current Implementation (Phase 0: SQLite Wrapper)
 
 **Custom SQLite Wrapper** (`Sources/Diffa/Database/`):
-- Zero external dependencies, cross-platform (macOS, iOS, Linux)
+- Zero external dependencies, cross-platform (macOS, iOS, Linux, Windows)
 - 5 core files (~525 lines total):
   - `SQLiteDatabase.swift` - Main database connection class
   - `SQLiteStatement.swift` - Prepared statement wrapper
@@ -88,7 +88,7 @@ Sources/Diffa/
 │   ├── Core/           # FileItem, ContentTracker, SyncMode
 │   ├── Snapshots/      # FileSystemScanner, FileHasher, SQLiteSyncSnapshot
 │   ├── Comparison/     # SnapshotComparator, MoveDetector, EfficientSyncExecutor
-│   └── Network/        # SyncProtocol, SyncServer, SyncClient
+│   └── Network/        # SyncProtocol, SyncServer, SyncClient, PlatformSocket
 └── Utilities/          # Hash utils, file ops, errors
 
 Sources/DiffaCLI/
@@ -159,16 +159,17 @@ Sources/DiffaCLI/
 - 43+ new tests
 
 ### Phase 7: Network Sync ✅ Complete
-- TCP server/client using cross-platform POSIX sockets (macOS + Linux)
+- TCP server/client using cross-platform sockets (macOS + Linux + Windows)
 - `serve`, `push`, `pull` commands
 - Custom message protocol with proper buffering
-- Automatic zlib compression for files ≥4KB (via system zlib)
+- Automatic zlib compression for files ≥4KB (via bundled zlib)
 - True mirror behavior (push/pull delete files not in source)
 - Server displays local IP addresses
-- Server shutdown: self-pipe trick + poll() for clean startAsync()/stop()
+- Platform abstraction layer (PlatformSocket.swift) handles OS differences
+- Server shutdown: self-pipe trick on Unix, loopback socket pair on Windows
 - Client: non-blocking connect with 10s timeout, 30s read/write timeouts
-- SIGPIPE handling: SO_NOSIGPIPE (macOS), MSG_NOSIGNAL (Linux)
-- 14 integration tests (localhost push/pull)
+- SIGPIPE handling: SO_NOSIGPIPE (macOS), MSG_NOSIGNAL (Linux), N/A (Windows)
+- 14 integration tests (localhost push/pull, pass on all platforms)
 
 ## Schema Versioning
 
@@ -300,24 +301,38 @@ CREATE TABLE schema_version (
 - **Hidden files:** Include by default (filterable with --no-hidden)
 - **Metadata:** Minimal - mod time + size + hash
 
+### Windows-Specific
+- **POSIX permissions:** Not available; defaults to 0o644. Tests that assert specific permissions must be skipped on Windows.
+- **Symlinks:** Require admin privileges on Windows. All symlink tests use `XCTSkip`.
+- **Path comparison:** Case-insensitive on Windows. `FileSystemItem` uses lowercased comparison for containment checks.
+- **Drive roots:** `C:/` is recognized as a root alongside `/`. See `isDriveRoot()` in `FileSystemItem.swift`.
+- **MAX_PATH:** Windows has a 260-character path limit by default. Deep nesting tests are skipped.
+- **Socket timeouts:** Winsock `SO_RCVTIMEO` returns `WSAETIMEDOUT`, not `EAGAIN`/`EWOULDBLOCK`. Handled in `PlatformSocket.swift`.
+- **SO_REUSEADDR:** Has different semantics on Windows (allows port hijacking). We use `SO_EXCLUSIVEADDRUSE` instead.
+- **WSAStartup:** Called once per process via lazy initialization; fails fast on error.
+
 ## Dependencies
 
 **Swift Packages:**
 - `swift-argument-parser` - CLI argument parsing
 - `swift-crypto` - Cross-platform SHA-256 hashing
 
+**Bundled C Libraries:**
+- `CSQLite` - SQLite3 amalgamation (used on Linux and Windows; macOS/iOS use the system framework)
+- `CZlib` - zlib 1.3.1 source (used on all platforms; provides cross-platform compression)
+
 **System Libraries:**
-- `libsqlite3` (macOS/iOS: system, Linux: `apt-get install libsqlite3-dev`)
-- `zlib` (macOS: system, Linux: `apt-get install zlib1g-dev`)
+- `libsqlite3` (macOS/iOS: system framework, linked automatically)
+- `ws2_32` + `iphlpapi` (Windows: Winsock2 and IP Helper, linked automatically)
 
 **Swift Package Manager:**
-- Platforms: macOS 13+, iOS 16+, Linux
+- Platforms: macOS 13+, iOS 16+, Linux, Windows
 - Swift version: 5.9+
 
 ## Current Version
 
-**Version:** 0.12.0
-**Tests:** 386 passing on macOS (library + integration + EfficientSync + NetworkSync). On Linux, the full suite requires `--skip FileHasherTests` due to a pre-existing `FileHandle` directory-read trap; with that skipped, one known pre-existing failure remains in `PatchingIntegrationTests.testPatchWithLargeFiles`.
+**Version:** 0.13.0
+**Tests:** 386 passing on macOS (library + integration + EfficientSync + NetworkSync). On Linux, the full suite requires `--skip FileHasherTests` due to a pre-existing `FileHandle` directory-read trap; with that skipped, one known pre-existing failure remains in `PatchingIntegrationTests.testPatchWithLargeFiles`. On Windows, 363 tests executed with 0 unexpected failures; 17 tests skipped (symlinks require admin, POSIX permissions, MAX_PATH, drive-root paths); 1 pre-existing logic failure in `ContentTrackerTests`. CLIIntegrationTests need `.exe` path detection fix (separate issue).
 
 ## Next Steps
 

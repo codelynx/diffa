@@ -1,7 +1,7 @@
 import Foundation
 #if canImport(SQLite3)
 import SQLite3
-#elseif os(Linux)
+#else
 import CSQLite
 #endif
 

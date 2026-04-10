@@ -228,6 +228,9 @@ final class ErrorHandlingTests: XCTestCase {
     }
 
     func testBrokenSymlink() async throws {
+        #if os(Windows)
+        throw XCTSkip("Symlinks require admin privileges on Windows")
+        #endif
         // Create a directory with a broken symlink
         let testDir = tempDir.appendingPathComponent("testData")
         try fileManager.createDirectory(at: testDir, withIntermediateDirectories: false)
@@ -274,6 +277,9 @@ final class ErrorHandlingTests: XCTestCase {
     }
 
     func testDeepNesting() async throws {
+        #if os(Windows)
+        throw XCTSkip("Deep nesting exceeds Windows MAX_PATH (260 chars)")
+        #endif
         // Create a deeply nested directory structure
         let testDir = tempDir.appendingPathComponent("testData")
         try fileManager.createDirectory(at: testDir, withIntermediateDirectories: false)

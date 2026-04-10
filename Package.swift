@@ -26,24 +26,32 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-crypto", from: "3.0.0")
     ],
     targets: [
-        .systemLibrary(
+        .target(
             name: "CSQLite",
-            path: "Sources/CSQLite"
+            path: "Sources/CSQLite",
+            exclude: [],
+            publicHeadersPath: "include",
+            cSettings: [
+                .define("SQLITE_THREADSAFE", to: "1"),
+                .define("SQLITE_ENABLE_FTS5"),
+                .define("HAVE_USLEEP", .when(platforms: [.macOS, .iOS, .linux]))
+            ]
         ),
-        .systemLibrary(
+        .target(
             name: "CZlib",
             path: "Sources/CZlib",
-            pkgConfig: "zlib",
-            providers: [
-                .apt(["zlib1g-dev"]),
-                .brew(["zlib"])
+            exclude: [],
+            publicHeadersPath: "include",
+            cSettings: [
+                .define("HAVE_UNISTD_H", .when(platforms: [.macOS, .iOS, .linux])),
+                .define("HAVE_STDARG_H")
             ]
         ),
         .target(
             name: "Diffa",
             dependencies: [
                 .product(name: "Crypto", package: "swift-crypto"),
-                .target(name: "CSQLite", condition: .when(platforms: [.linux])),
+                .target(name: "CSQLite", condition: .when(platforms: [.linux, .windows])),
                 "CZlib"
             ],
             path: "Sources/Diffa",
@@ -57,7 +65,9 @@ let package = Package(
                 "EfficientSync/Comparison/README.md"
             ],
             linkerSettings: [
-                .linkedLibrary("sqlite3", .when(platforms: [.macOS, .iOS]))
+                .linkedLibrary("sqlite3", .when(platforms: [.macOS, .iOS])),
+                .linkedLibrary("ws2_32", .when(platforms: [.windows])),
+                .linkedLibrary("iphlpapi", .when(platforms: [.windows]))
             ]
         ),
         .executableTarget(

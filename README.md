@@ -3,8 +3,8 @@
 A Swift library and command-line tool for comparing file systems and file system-like structures.
 
 **Dual Interface:**
-- **Swift Library:** Embed in macOS/iOS applications
-- **CLI Tool:** `diffa` command for macOS and Linux
+- **Swift Library:** Embed in macOS/iOS/Linux/Windows applications
+- **CLI Tool:** `diffa` command for macOS, Linux, and Windows
 
 ## Objectives
 

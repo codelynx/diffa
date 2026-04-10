@@ -42,7 +42,9 @@ final class FileSystemItemTests: XCTestCase {
         XCTAssertFalse(item.isFolder)
         XCTAssertNotNil(item.sha256)
         XCTAssertEqual(item.size, Int64(content.utf8.count))
+        #if os(macOS) || os(iOS) || os(Linux)
         XCTAssertEqual(item.metadata.permissions.posix, 0o644)
+        #endif
         XCTAssertNil(item.metadata.owner) // Not captured by default
         XCTAssertNil(item.metadata.group)
     }
@@ -98,6 +100,9 @@ final class FileSystemItemTests: XCTestCase {
     // MARK: - Symlink Tests
 
     func testSymlinkFollowing() async throws {
+        #if os(Windows)
+        throw XCTSkip("Symlinks require admin privileges on Windows")
+        #endif
         // Create a target file
         let targetURL = tempDir.appendingPathComponent("target.txt")
         let content = "Target content"
@@ -121,6 +126,9 @@ final class FileSystemItemTests: XCTestCase {
     }
 
     func testSymlinkNotFollowing() async throws {
+        #if os(Windows)
+        throw XCTSkip("Symlinks require admin privileges on Windows")
+        #endif
         // Create a target file with known content
         let targetURL = tempDir.appendingPathComponent("target.txt")
         let targetContent = "This is the target file with substantial content"
@@ -175,6 +183,9 @@ final class FileSystemItemTests: XCTestCase {
     // MARK: - Ownership Tests
 
     func testOwnershipCapture() async throws {
+        #if os(Windows)
+        throw XCTSkip("Unix ownership (owner/group) not available on Windows")
+        #endif
         // Create a test file
         let fileURL = tempDir.appendingPathComponent("owned.txt")
         try "content".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -211,6 +222,9 @@ final class FileSystemItemTests: XCTestCase {
     }
 
     func testRelativePathWithRootBase() async throws {
+        #if os(Windows)
+        throw XCTSkip("Root-relative paths (/) don't apply on Windows (drive letters)")
+        #endif
         // This tests the critical fix for root snapshots
         // Create a file anywhere in the filesystem
         let fileURL = tempDir.appendingPathComponent("test.txt")
@@ -313,8 +327,10 @@ final class FileSystemItemTests: XCTestCase {
         let item = try await FileSystemItem(at: fileURL, relativeTo: tempDir)
 
         // Verify metadata
+        #if os(macOS) || os(iOS) || os(Linux)
         XCTAssertEqual(item.metadata.permissions.posix, 0o755)
         XCTAssertEqual(item.metadata.permissions.symbolic, "rwxr-xr-x")
+        #endif
         XCTAssertEqual(item.metadata.size, Int64("content".utf8.count))
 
         // Modification date should be recent (within last minute)
