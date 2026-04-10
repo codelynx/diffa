@@ -47,6 +47,63 @@ swift build
 swift build 2>&1 | grep -i warning
 ```
 
+### Windows-Specific Build Notes
+
+**Prerequisites:** Only the Swift toolchain (5.9+). No vcpkg, scoop, or system libraries needed — SQLite and zlib are bundled as SPM source targets.
+
+**Shell:** Claude Code on Windows uses bash (Git Bash/MSYS2). Use forward slashes in paths for `swift build`/`swift test`. The CLI binary accepts both `C:/path` and `C:\path`, but backslashes get eaten by bash — use forward slashes or quote carefully.
+
+**CLI binary:** Built as `.build/debug/diffa.exe` (note `.exe` extension).
+
+**Run Windows tests (skip CLI integration):**
+```bash
+swift test --skip CLIIntegrationTests
+```
+CLIIntegrationTests fail because the test harness looks for `diffa` without `.exe`. This is a known issue, not a build problem.
+
+**Firewall:** When running `diffa serve` on Windows, Windows Firewall may prompt or block inbound connections. Allow the port manually if needed:
+```powershell
+netsh advfirewall firewall add rule name="diffa" dir=in action=allow protocol=TCP localport=8080
+```
+
+### Cross-Platform Build Tips
+
+**Platform conditional compilation pattern** used throughout:
+```swift
+#if canImport(Darwin)
+import Darwin
+#elseif os(Windows)
+import WinSDK
+#else
+import Glibc
+#endif
+```
+
+**Test skip pattern** for platform-specific features:
+```swift
+#if os(Windows)
+throw XCTSkip("Symlinks require admin privileges on Windows")
+#endif
+```
+
+**Positive platform guards only** — never use `#if !os(xxx)` as it breaks silently on new platforms:
+```swift
+// Good:
+#if os(macOS) || os(iOS) || os(Linux)
+// Bad:
+#if !os(Windows)
+```
+
+**Bundled C library targets** (`CSQLite`, `CZlib`) use `publicHeadersPath: "include"` with a shim header that includes the real header via relative path (`#include "../sqlite3.h"`). This is required because SPM expects public headers in a separate directory.
+
+**Windows socket gotchas** (documented in `PlatformSocket.swift`):
+- `SOCKET` is `UInt64`, not `Int32` — use `SocketDescriptor` typealias
+- `SO_RCVTIMEO` takes `DWORD` milliseconds, not `timeval`
+- `SO_REUSEADDR` allows port hijacking on Windows — use `SO_EXCLUSIVEADDRUSE`
+- `recv()` timeout returns `WSAETIMEDOUT`, not `EAGAIN`
+- `_pipe()` fds don't work with `WSAPoll()` — use loopback socket pair for shutdown signaling
+- `SOCK_STREAM` is a plain `Int32` on Windows and macOS, but an enum on Linux (needs `.rawValue`)
+
 ## Architecture Overview
 
 ### Current Implementation (Phase 0: SQLite Wrapper)
