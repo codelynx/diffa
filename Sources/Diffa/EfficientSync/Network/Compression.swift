@@ -1,11 +1,9 @@
 import Foundation
-
-#if canImport(Compression)
-import Compression
+import CZlib
 
 /// Compression utilities for network sync
 ///
-/// Uses Apple's Compression framework with ZLIB algorithm (gzip compatible)
+/// Uses zlib raw deflate for cross-platform compatibility (macOS and Linux)
 public enum SyncCompression {
 
     /// Minimum file size to compress (4KB)
@@ -47,24 +45,34 @@ public enum SyncCompression {
         return true
     }
 
-    /// Compress data using ZLIB (gzip compatible)
+    /// Compress data using zlib raw deflate
     public static func compress(_ data: Data) -> Data? {
         guard !data.isEmpty else { return data }
 
-        let destinationBufferSize = data.count  // Worst case: same size
+        let destinationBufferSize = Int(compressBound(uLong(data.count)))
         var destinationBuffer = Data(count: destinationBufferSize)
 
-        let compressedSize = destinationBuffer.withUnsafeMutableBytes { destPtr in
-            data.withUnsafeBytes { srcPtr in
-                compression_encode_buffer(
-                    destPtr.bindMemory(to: UInt8.self).baseAddress!,
-                    destinationBufferSize,
-                    srcPtr.bindMemory(to: UInt8.self).baseAddress!,
-                    data.count,
-                    nil,
-                    COMPRESSION_ZLIB
-                )
-            }
+        var stream = z_stream()
+        let initResult = data.withUnsafeBytes { srcPtr -> Int32 in
+            stream.next_in = UnsafeMutablePointer<UInt8>(mutating: srcPtr.bindMemory(to: UInt8.self).baseAddress!)
+            stream.avail_in = uInt(data.count)
+            // windowBits = -15: raw deflate (no header), matching Apple's COMPRESSION_ZLIB
+            return deflateInit2_(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
+                                 -15, 8, Z_DEFAULT_STRATEGY,
+                                 ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size))
+        }
+
+        guard initResult == Z_OK else { return nil }
+
+        let compressedSize = destinationBuffer.withUnsafeMutableBytes { destPtr -> Int in
+            stream.next_out = destPtr.bindMemory(to: UInt8.self).baseAddress!
+            stream.avail_out = uInt(destinationBufferSize)
+
+            let result = deflate(&stream, Z_FINISH)
+            deflateEnd(&stream)
+
+            guard result == Z_STREAM_END else { return 0 }
+            return Int(stream.total_out)
         }
 
         guard compressedSize > 0 else { return nil }
@@ -78,23 +86,31 @@ public enum SyncCompression {
         return destinationBuffer
     }
 
-    /// Decompress ZLIB compressed data
+    /// Decompress zlib raw deflate data
     public static func decompress(_ data: Data, originalSize: Int) -> Data? {
         guard !data.isEmpty else { return data }
 
         var destinationBuffer = Data(count: originalSize)
 
-        let decompressedSize = destinationBuffer.withUnsafeMutableBytes { destPtr in
-            data.withUnsafeBytes { srcPtr in
-                compression_decode_buffer(
-                    destPtr.bindMemory(to: UInt8.self).baseAddress!,
-                    originalSize,
-                    srcPtr.bindMemory(to: UInt8.self).baseAddress!,
-                    data.count,
-                    nil,
-                    COMPRESSION_ZLIB
-                )
-            }
+        var stream = z_stream()
+        let initResult = data.withUnsafeBytes { srcPtr -> Int32 in
+            stream.next_in = UnsafeMutablePointer<UInt8>(mutating: srcPtr.bindMemory(to: UInt8.self).baseAddress!)
+            stream.avail_in = uInt(data.count)
+            // windowBits = -15: raw deflate (no header)
+            return inflateInit2_(&stream, -15, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size))
+        }
+
+        guard initResult == Z_OK else { return nil }
+
+        let decompressedSize = destinationBuffer.withUnsafeMutableBytes { destPtr -> Int in
+            stream.next_out = destPtr.bindMemory(to: UInt8.self).baseAddress!
+            stream.avail_out = uInt(originalSize)
+
+            let result = inflate(&stream, Z_FINISH)
+            inflateEnd(&stream)
+
+            guard result == Z_STREAM_END else { return 0 }
+            return Int(stream.total_out)
         }
 
         guard decompressedSize == originalSize else { return nil }
@@ -102,5 +118,3 @@ public enum SyncCompression {
         return destinationBuffer
     }
 }
-
-#endif // canImport(Compression)

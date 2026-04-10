@@ -1,10 +1,6 @@
 import XCTest
 @testable import Diffa
 
-#if canImport(Network)
-import Network
-
-@available(macOS 10.14, *)
 final class NetworkSyncTests: XCTestCase {
 
     var localDir: URL!
@@ -342,4 +338,3 @@ final class NetworkSyncTests: XCTestCase {
         }
     }
 }
-#endif

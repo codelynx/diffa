@@ -1,9 +1,11 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
-#if canImport(Network)
-import Network
-
-/// TCP server for EfficientSync daemon
+/// TCP server for EfficientSync daemon using POSIX sockets
 ///
 /// **Usage:**
 /// ```swift
@@ -12,15 +14,24 @@ import Network
 /// // Server runs until stopped
 /// server.stop()
 /// ```
-@available(macOS 10.14, *)
 public final class SyncServer {
     private let rootPath: URL
     private let port: UInt16
-    private var listener: NWListener?
+    private var listenerFd: Int32 = -1
     private var isRunning = false
 
-    /// Per-connection receive buffers (keyed by connection object identifier)
-    private var connectionBuffers: [ObjectIdentifier: Data] = [:]
+    /// Shutdown pipe: write end used by stop() to wake the accept loop
+    private var shutdownPipe: [Int32] = [-1, -1]
+
+    /// Tracked client file descriptors for clean shutdown
+    private var clientFds: Set<Int32> = []
+    private let clientFdsLock = NSLock()
+
+    /// Active client handler tracking
+    private let clientGroup = DispatchGroup()
+
+    /// Per-connection receive buffers
+    private var connectionBuffers: [Int32: Data] = [:]
     private let bufferLock = NSLock()
 
     /// Callback for logging
@@ -34,142 +45,194 @@ public final class SyncServer {
     /// Start server (blocking)
     public func start() throws {
         try startAsync()
-        // Keep running
         log("Press Ctrl+C to stop")
         dispatchMain()
     }
 
     /// Start server (non-blocking, for testing)
     public func startAsync() throws {
-        let parameters = NWParameters.tcp
-        listener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
+        // Create shutdown pipe
+        guard pipe(&shutdownPipe) == 0 else {
+            throw SyncProtocolError.connectionFailed(host: "localhost", port: Int(port))
+        }
 
-        let semaphore = DispatchSemaphore(value: 0)
-        let errorLock = NSLock()
-        var startError: Error?
+        // Create listener socket
+        listenerFd = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
+        guard listenerFd >= 0 else {
+            closeShutdownPipe()
+            throw SyncProtocolError.connectionFailed(host: "localhost", port: Int(port))
+        }
 
-        listener?.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .ready:
-                self?.printServerInfo()
-                semaphore.signal()
-            case .failed(let error):
-                self?.log("Server failed: \(error)")
-                errorLock.lock()
-                startError = error
-                errorLock.unlock()
-                semaphore.signal()
-            case .cancelled:
-                self?.log("Server stopped")
-            default:
-                break
+        // Set SO_REUSEADDR
+        var reuseAddr: Int32 = 1
+        setsockopt(listenerFd, SOL_SOCKET, SO_REUSEADDR, &reuseAddr, socklen_t(MemoryLayout<Int32>.size))
+
+        // Bind
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        addr.sin_addr.s_addr = INADDR_ANY.bigEndian
+
+        let bindResult = withUnsafePointer(to: &addr) { addrPtr in
+            addrPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                bind(listenerFd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
 
-        listener?.newConnectionHandler = { [weak self] connection in
-            self?.handleConnection(connection)
+        guard bindResult == 0 else {
+            systemClose(listenerFd)
+            closeShutdownPipe()
+            throw SyncProtocolError.connectionFailed(host: "localhost", port: Int(port))
         }
 
-        listener?.start(queue: .global())
-
-        // Wait for server to be ready
-        let result = semaphore.wait(timeout: .now() + 5)
-
-        if result == .timedOut {
-            listener?.cancel()
-            throw SyncProtocolError.timeout
-        }
-
-        errorLock.lock()
-        let error = startError
-        errorLock.unlock()
-
-        if let error = error {
-            throw error
+        // Listen
+        guard listen(listenerFd, 5) == 0 else {
+            systemClose(listenerFd)
+            closeShutdownPipe()
+            throw SyncProtocolError.connectionFailed(host: "localhost", port: Int(port))
         }
 
         isRunning = true
+        printServerInfo()
+
+        // Accept loop on background thread
+        DispatchQueue.global().async { [weak self] in
+            self?.acceptLoop()
+        }
     }
 
     /// Stop server
     public func stop() {
-        listener?.cancel()
         isRunning = false
+
+        // Wake accept loop via shutdown pipe
+        var byte: UInt8 = 1
+        _ = write(shutdownPipe[1], &byte, 1)
+
+        // Close all tracked client fds to interrupt handlers
+        clientFdsLock.lock()
+        let fds = clientFds
+        clientFdsLock.unlock()
+        for fd in fds {
+            systemClose(fd)
+        }
+
+        // Close listener
+        if listenerFd >= 0 {
+            systemClose(listenerFd)
+            listenerFd = -1
+        }
+
+        // Wait for active handlers to finish
+        clientGroup.wait()
+
+        closeShutdownPipe()
+    }
+
+    // MARK: - Accept Loop
+
+    private func acceptLoop() {
+        while isRunning {
+            // Use poll() to wait on both listener and shutdown pipe
+            var fds = [
+                pollfd(fd: listenerFd, events: Int16(POLLIN), revents: 0),
+                pollfd(fd: shutdownPipe[0], events: Int16(POLLIN), revents: 0)
+            ]
+
+            let pollResult = poll(&fds, 2, -1)  // Wait indefinitely
+            guard pollResult > 0 else { break }
+
+            // Check shutdown pipe
+            if fds[1].revents & Int16(POLLIN) != 0 {
+                break
+            }
+
+            // Check listener
+            if fds[0].revents & Int16(POLLIN) != 0 {
+                var clientAddr = sockaddr_in()
+                var clientAddrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+
+                let clientFd = withUnsafeMutablePointer(to: &clientAddr) { addrPtr in
+                    addrPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                        accept(listenerFd, sockaddrPtr, &clientAddrLen)
+                    }
+                }
+
+                guard clientFd >= 0 else { continue }
+
+                // Track client fd
+                clientFdsLock.lock()
+                clientFds.insert(clientFd)
+                clientFdsLock.unlock()
+
+                // Set receive timeout (30 seconds)
+                var timeout = timeval(tv_sec: 30, tv_usec: 0)
+                setsockopt(clientFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+                setsockopt(clientFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+
+                log("Client connected")
+
+                // Handle on background thread
+                clientGroup.enter()
+                DispatchQueue.global().async { [weak self] in
+                    defer {
+                        self?.cleanupClient(clientFd)
+                        self?.clientGroup.leave()
+                    }
+                    self?.processClient(clientFd)
+                }
+            }
+        }
+    }
+
+    private func cleanupClient(_ fd: Int32) {
+        clientFdsLock.lock()
+        clientFds.remove(fd)
+        clientFdsLock.unlock()
+
+        bufferLock.lock()
+        connectionBuffers.removeValue(forKey: fd)
+        bufferLock.unlock()
+
+        systemClose(fd)
+        log("Client disconnected")
     }
 
     // MARK: - Connection Handling
 
-    private func handleConnection(_ connection: NWConnection) {
-        let clientEndpoint = connection.endpoint
-        let connectionId = ObjectIdentifier(connection)
-        log("Client connected: \(clientEndpoint)")
-
-        // Initialize buffer for this connection
+    private func processClient(_ fd: Int32) {
+        // Initialize buffer
         bufferLock.lock()
-        connectionBuffers[connectionId] = Data()
+        connectionBuffers[fd] = Data()
         bufferLock.unlock()
 
-        connection.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .ready:
-                self?.processClient(connection)
-            case .failed(let error):
-                self?.log("Connection failed: \(error)")
-                self?.cleanupConnection(connectionId)
-            case .cancelled:
-                self?.log("Client disconnected: \(clientEndpoint)")
-                self?.cleanupConnection(connectionId)
-            default:
-                break
-            }
-        }
-
-        connection.start(queue: .global())
-    }
-
-    private func cleanupConnection(_ connectionId: ObjectIdentifier) {
-        bufferLock.lock()
-        connectionBuffers.removeValue(forKey: connectionId)
-        bufferLock.unlock()
-    }
-
-    private func processClient(_ connection: NWConnection) {
         // Read HELLO message
-        receiveMessage(connection) { [weak self] result in
-            guard let self = self else { return }
-
-            switch result {
-            case .success(let message):
-                guard message.type == .hello else {
-                    self.sendError(connection, "Expected HELLO")
-                    return
-                }
-
-                let modeString = String(data: message.payload, encoding: .utf8) ?? ""
-                guard let mode = NetworkSyncMode(rawValue: modeString) else {
-                    self.sendError(connection, "Invalid mode: \(modeString)")
-                    return
-                }
-
-                self.log("Mode: \(mode.rawValue)")
-
-                // Send OK
-                self.sendMessage(connection, SyncMessage(type: .ok)) {
-                    self.handleSync(connection, mode: mode)
-                }
-
-            case .failure(let error):
-                self.log("Error reading HELLO: \(error)")
-                connection.cancel()
-            }
+        guard let helloMessage = try? receiveMessage(fd),
+              helloMessage.type == .hello else {
+            sendError(fd, "Expected HELLO")
+            return
         }
+
+        let modeString = String(data: helloMessage.payload, encoding: .utf8) ?? ""
+        guard let mode = NetworkSyncMode(rawValue: modeString) else {
+            sendError(fd, "Invalid mode: \(modeString)")
+            return
+        }
+
+        log("Mode: \(mode.rawValue)")
+
+        // Send OK
+        sendMessage(fd, SyncMessage(type: .ok))
+
+        // Handle sync
+        handleSync(fd, mode: mode)
     }
 
-    private func handleSync(_ connection: NWConnection, mode: NetworkSyncMode) {
+    private func handleSync(_ fd: Int32, mode: NetworkSyncMode) {
         // Create local snapshot
         log("Creating snapshot...")
         guard let snapshot = try? SQLiteSyncSnapshot.create(at: rootPath) else {
-            sendError(connection, "Failed to create snapshot")
+            sendError(fd, "Failed to create snapshot")
             return
         }
 
@@ -177,93 +240,68 @@ public final class SyncServer {
         log("Local files: \(localItems.count)")
 
         // Receive client metadata
-        receiveMessage(connection) { [weak self] result in
-            guard let self = self else { return }
-
-            switch result {
-            case .success(let message):
-                guard message.type == .metadata else {
-                    self.sendError(connection, "Expected METADATA")
-                    return
-                }
-
-                let remoteItems = NetworkFileItem.decodeCSV(message.payload)
-                self.log("Remote files: \(remoteItems.count)")
-
-                // Send local metadata
-                let localCSV = NetworkFileItem.encodeCSV(localItems)
-                self.sendMessage(connection, SyncMessage(type: .metadata, payload: localCSV)) {
-                    // Handle file transfers based on mode
-                    self.handleFileTransfers(connection, mode: mode, localItems: localItems, remoteItems: remoteItems, snapshot: snapshot)
-                }
-
-            case .failure(let error):
-                self.log("Error reading METADATA: \(error)")
-                connection.cancel()
-            }
+        guard let metadataMessage = try? receiveMessage(fd),
+              metadataMessage.type == .metadata else {
+            sendError(fd, "Expected METADATA")
+            return
         }
+
+        let remoteItems = NetworkFileItem.decodeCSV(metadataMessage.payload)
+        log("Remote files: \(remoteItems.count)")
+
+        // Send local metadata
+        let localCSV = NetworkFileItem.encodeCSV(localItems)
+        sendMessage(fd, SyncMessage(type: .metadata, payload: localCSV))
+
+        // Handle file transfers
+        handleFileTransfers(fd, mode: mode, localItems: localItems, remoteItems: remoteItems, snapshot: snapshot)
     }
 
     private func handleFileTransfers(
-        _ connection: NWConnection,
+        _ fd: Int32,
         mode: NetworkSyncMode,
         localItems: [NetworkFileItem],
         remoteItems: [NetworkFileItem],
         snapshot: SQLiteSyncSnapshot
     ) {
-        // Wait for file requests or DONE
-        receiveMessage(connection) { [weak self] result in
-            guard let self = self else { return }
+        while isRunning {
+            guard let message = try? receiveMessage(fd) else {
+                log("Error reading message")
+                return
+            }
 
-            switch result {
-            case .success(let message):
-                switch message.type {
-                case .requestFile:
-                    // Client requesting a file from us
-                    let path = String(data: message.payload, encoding: .utf8) ?? ""
-                    self.sendFile(connection, path: path) {
-                        // Continue waiting for more requests
-                        self.handleFileTransfers(connection, mode: mode, localItems: localItems, remoteItems: remoteItems, snapshot: snapshot)
-                    }
+            switch message.type {
+            case .requestFile:
+                let path = String(data: message.payload, encoding: .utf8) ?? ""
+                sendFile(fd, path: path)
 
-                case .fileData:
-                    // Client sending us a file (push mode)
-                    self.receiveFile(connection, data: message.payload) {
-                        self.handleFileTransfers(connection, mode: mode, localItems: localItems, remoteItems: remoteItems, snapshot: snapshot)
-                    }
+            case .fileData:
+                receiveFile(data: message.payload)
 
-                case .deleteFile:
-                    // Client requesting us to delete a file (push mode)
-                    let path = String(data: message.payload, encoding: .utf8) ?? ""
-                    self.deleteFile(path: path)
-                    self.handleFileTransfers(connection, mode: mode, localItems: localItems, remoteItems: remoteItems, snapshot: snapshot)
+            case .deleteFile:
+                let path = String(data: message.payload, encoding: .utf8) ?? ""
+                deleteFile(path: path)
 
-                case .done:
-                    self.log("Sync complete")
-                    self.sendMessage(connection, SyncMessage(type: .done)) {
-                        connection.cancel()
-                    }
+            case .done:
+                log("Sync complete")
+                sendMessage(fd, SyncMessage(type: .done))
+                return
 
-                default:
-                    self.sendError(connection, "Unexpected message: \(message.type.rawValue)")
-                }
-
-            case .failure(let error):
-                self.log("Error: \(error)")
-                connection.cancel()
+            default:
+                sendError(fd, "Unexpected message: \(message.type.rawValue)")
+                return
             }
         }
     }
 
-    private func sendFile(_ connection: NWConnection, path: String, completion: @escaping () -> Void) {
+    private func sendFile(_ fd: Int32, path: String) {
         let fileURL = rootPath.appendingPathComponent(path)
 
         guard let data = try? Data(contentsOf: fileURL) else {
-            sendError(connection, "File not found: \(path)")
+            sendError(fd, "File not found: \(path)")
             return
         }
 
-        // Create payload with automatic compression
         let filePayload = FilePayload.create(path: path, data: data)
 
         if filePayload.isCompressed {
@@ -273,30 +311,24 @@ public final class SyncServer {
             log("Sending file: \(path) (\(data.count) bytes)")
         }
 
-        sendMessage(connection, SyncMessage(type: .fileData, payload: filePayload.encode()), completion: completion)
+        sendMessage(fd, SyncMessage(type: .fileData, payload: filePayload.encode()))
     }
 
-    private func receiveFile(_ connection: NWConnection, data: Data, completion: @escaping () -> Void) {
-        // Parse payload (supports both old and new format with compression)
+    private func receiveFile(data: Data) {
         guard let filePayload = FilePayload.decode(data) else {
             log("Invalid file data")
-            completion()
             return
         }
 
-        // Decompress if needed
         guard let fileData = filePayload.decompressedData() else {
             log("Failed to decompress file: \(filePayload.path)")
-            completion()
             return
         }
 
         let fileURL = rootPath.appendingPathComponent(filePayload.path)
 
-        // Create parent directories
         try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
-        // Write file
         do {
             try fileData.write(to: fileURL)
             if filePayload.isCompressed {
@@ -307,8 +339,6 @@ public final class SyncServer {
         } catch {
             log("Failed to write file: \(error)")
         }
-
-        completion()
     }
 
     private func deleteFile(path: String) {
@@ -318,7 +348,6 @@ public final class SyncServer {
             try FileManager.default.removeItem(at: fileURL)
             log("Deleted file: \(path)")
 
-            // Clean up empty parent directories
             var parentURL = fileURL.deletingLastPathComponent()
             while parentURL.path != rootPath.path {
                 let contents = try? FileManager.default.contentsOfDirectory(at: parentURL, includingPropertiesForKeys: nil)
@@ -336,43 +365,67 @@ public final class SyncServer {
 
     // MARK: - Network Helpers
 
-    private func sendMessage(_ connection: NWConnection, _ message: SyncMessage, completion: @escaping () -> Void = {}) {
-        connection.send(content: message.encode(), completion: .contentProcessed { _ in
-            completion()
-        })
-    }
-
-    private func sendError(_ connection: NWConnection, _ message: String) {
-        log("Error: \(message)")
-        sendMessage(connection, SyncMessage(type: .error, string: message)) {
-            connection.cancel()
+    private func sendMessage(_ fd: Int32, _ message: SyncMessage) {
+        let data = message.encode()
+        data.withUnsafeBytes { ptr in
+            var sent = 0
+            let total = data.count
+            while sent < total {
+                let base = ptr.baseAddress!.advanced(by: sent)
+                #if canImport(Darwin)
+                let n = Darwin.send(fd, base, total - sent, 0)
+                #else
+                let n = Glibc.send(fd, base, total - sent, Int32(MSG_NOSIGNAL))
+                #endif
+                guard n > 0 else { return }
+                sent += n
+            }
         }
     }
 
-    private func receiveMessage(_ connection: NWConnection, completion: @escaping (Result<SyncMessage, Error>) -> Void) {
-        let connectionId = ObjectIdentifier(connection)
+    private func sendError(_ fd: Int32, _ message: String) {
+        log("Error: \(message)")
+        sendMessage(fd, SyncMessage(type: .error, string: message))
+    }
 
-        // Get current buffer
+    private func receiveMessage(_ fd: Int32) throws -> SyncMessage {
         bufferLock.lock()
-        var buffer = connectionBuffers[connectionId] ?? Data()
+        var buffer = connectionBuffers[fd] ?? Data()
         bufferLock.unlock()
 
-        // Try to parse a complete message from buffer
+        // Try to parse from existing buffer
         if let message = tryParseMessage(from: &buffer) {
-            // Save remaining buffer
             bufferLock.lock()
-            connectionBuffers[connectionId] = buffer
+            connectionBuffers[fd] = buffer
             bufferLock.unlock()
-            completion(.success(message))
-            return
+            return message
         }
 
-        // Need more data
-        receiveMoreData(connection, buffer: buffer, completion: completion)
+        // Read more data
+        var readBuffer = [UInt8](repeating: 0, count: 65536)
+        while true {
+            #if canImport(Darwin)
+            let n = Darwin.recv(fd, &readBuffer, readBuffer.count, 0)
+            #else
+            let n = Glibc.recv(fd, &readBuffer, readBuffer.count, 0)
+            #endif
+
+            guard n > 0 else {
+                throw SyncProtocolError.incompletePayload
+            }
+
+            buffer.append(contentsOf: readBuffer[..<n])
+
+            if let message = tryParseMessage(from: &buffer) {
+                bufferLock.lock()
+                connectionBuffers[fd] = buffer
+                bufferLock.unlock()
+                return message
+            }
+        }
     }
 
     private func tryParseMessage(from buffer: inout Data) -> SyncMessage? {
-        // Find header end (newline)
         guard let headerEnd = buffer.firstIndex(of: 0x0A) else {
             return nil
         }
@@ -393,53 +446,18 @@ public final class SyncServer {
         let availablePayload = buffer.count - (payloadStart - buffer.startIndex)
 
         guard availablePayload >= length else {
-            return nil  // Not enough payload data yet
+            return nil
         }
 
-        // Extract payload
         let payloadEnd = buffer.index(payloadStart, offsetBy: length)
         let payload = Data(buffer[payloadStart..<payloadEnd])
 
-        // Remove consumed data from buffer
         buffer = Data(buffer[payloadEnd...])
 
         return SyncMessage(type: type, payload: payload)
     }
 
-    private func receiveMoreData(_ connection: NWConnection, buffer: Data, completion: @escaping (Result<SyncMessage, Error>) -> Void) {
-        let connectionId = ObjectIdentifier(connection)
-
-        // Read more data (up to 64KB at a time for efficiency)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, _, error in
-            guard let self = self else { return }
-
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
-
-            guard let data = data, !data.isEmpty else {
-                completion(.failure(SyncProtocolError.incompletePayload))
-                return
-            }
-
-            // Append to buffer
-            var newBuffer = buffer
-            newBuffer.append(data)
-
-            // Try to parse again
-            if let message = self.tryParseMessage(from: &newBuffer) {
-                // Save remaining buffer
-                self.bufferLock.lock()
-                self.connectionBuffers[connectionId] = newBuffer
-                self.bufferLock.unlock()
-                completion(.success(message))
-            } else {
-                // Still need more data
-                self.receiveMoreData(connection, buffer: newBuffer, completion: completion)
-            }
-        }
-    }
+    // MARK: - Server Info
 
     private func printServerInfo() {
         log("Server listening on port \(port)")
@@ -467,12 +485,13 @@ public final class SyncServer {
             let interface = ptr.pointee
             let addrFamily = interface.ifa_addr.pointee.sa_family
 
-            if addrFamily == UInt8(AF_INET) {  // IPv4
+            if addrFamily == sa_family_t(AF_INET) {
                 let name = String(cString: interface.ifa_name)
-                // Skip loopback
-                if name != "lo0" {
+                // Skip loopback (lo0 on macOS, lo on Linux)
+                if name != "lo0" && name != "lo" {
                     var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    if getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                    let addrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+                    if getnameinfo(interface.ifa_addr, addrLen,
                                    &hostname, socklen_t(hostname.count),
                                    nil, 0, NI_NUMERICHOST) == 0 {
                         let address = String(cString: hostname)
@@ -490,11 +509,24 @@ public final class SyncServer {
         return addresses.isEmpty ? ["localhost"] : addresses
     }
 
+    // MARK: - Helpers
+
+    private func closeShutdownPipe() {
+        if shutdownPipe[0] >= 0 { systemClose(shutdownPipe[0]); shutdownPipe[0] = -1 }
+        if shutdownPipe[1] >= 0 { systemClose(shutdownPipe[1]); shutdownPipe[1] = -1 }
+    }
+
+    private func systemClose(_ fd: Int32) {
+        #if canImport(Darwin)
+        Darwin.close(fd)
+        #else
+        Glibc.close(fd)
+        #endif
+    }
+
     private func log(_ message: String) {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let logLine = "[\(timestamp)] \(message)"
         onLog?(logLine)
     }
 }
-
-#endif // canImport(Network)

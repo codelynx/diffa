@@ -1,9 +1,7 @@
-#if canImport(Network)
 import Foundation
 import ArgumentParser
 import Diffa
 
-@available(macOS 13.0, *)
 struct ServeCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "serve",
@@ -35,4 +33,3 @@ struct ServeCommand: ParsableCommand {
         try server.start()
     }
 }
-#endif // canImport(Network)

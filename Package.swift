@@ -30,11 +30,21 @@ let package = Package(
             name: "CSQLite",
             path: "Sources/CSQLite"
         ),
+        .systemLibrary(
+            name: "CZlib",
+            path: "Sources/CZlib",
+            pkgConfig: "zlib",
+            providers: [
+                .apt(["zlib1g-dev"]),
+                .brew(["zlib"])
+            ]
+        ),
         .target(
             name: "Diffa",
             dependencies: [
                 .product(name: "Crypto", package: "swift-crypto"),
-                .target(name: "CSQLite", condition: .when(platforms: [.linux]))
+                .target(name: "CSQLite", condition: .when(platforms: [.linux])),
+                "CZlib"
             ],
             path: "Sources/Diffa",
             exclude: [

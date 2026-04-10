@@ -1,18 +1,19 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
-#if canImport(Network)
-import Network
-
-/// TCP client for EfficientSync push/pull
+/// TCP client for EfficientSync push/pull using POSIX sockets
 ///
 /// **Usage:**
 /// ```swift
 /// let client = SyncClient()
-/// try await client.push(localPath: URL(...), to: "host", port: 8080)
+/// try client.push(localPath: URL(...), to: "host", port: 8080)
 /// // or
-/// try await client.pull(localPath: URL(...), from: "host", port: 8080)
+/// try client.pull(localPath: URL(...), from: "host", port: 8080)
 /// ```
-@available(macOS 10.14, *)
 public final class SyncClient {
     /// Callback for logging
     public var onLog: ((String) -> Void)?
@@ -35,59 +36,20 @@ public final class SyncClient {
     // MARK: - Core Sync
 
     private func sync(localPath: URL, host: String, port: UInt16, mode: NetworkSyncMode) throws {
-        // Reset receive buffer for new sync
         receiveBuffer = Data()
 
         log("Connecting to \(host):\(port)...")
 
-        // Create connection
-        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port)!)
-        let connection = NWConnection(to: endpoint, using: .tcp)
-
-        let semaphore = DispatchSemaphore(value: 0)
-        var connectionError: Error?
-
-        connection.stateUpdateHandler = { [weak self] state in
-            self?.log("Connection state: \(state)")
-            switch state {
-            case .ready:
-                semaphore.signal()
-            case .failed(let error):
-                connectionError = error
-                semaphore.signal()
-            case .waiting(let error):
-                self?.log("Waiting: \(error)")
-            case .cancelled:
-                semaphore.signal()
-            default:
-                break
-            }
-        }
-
-        log("Starting connection...")
-        connection.start(queue: .global())
-
-        log("Waiting for connection...")
-        let timeout = DispatchTime.now() + .seconds(10)
-        if semaphore.wait(timeout: timeout) == .timedOut {
-            connection.cancel()
-            throw SyncProtocolError.timeout
-        }
-
-        if let error = connectionError {
-            log("Connection error: \(error)")
-            throw SyncProtocolError.connectionFailed(host: host, port: Int(port))
-        }
+        let fd = try connectToHost(host, port: port)
+        defer { systemClose(fd) }
 
         log("Connected!")
 
-        defer { connection.cancel() }
-
         // Send HELLO
-        sendMessageSync(connection, SyncMessage(type: .hello, string: mode.rawValue))
+        try sendMessageSync(fd, SyncMessage(type: .hello, string: mode.rawValue))
 
         // Receive OK
-        let okMessage = try receiveMessageSync(connection)
+        let okMessage = try receiveMessageSync(fd)
         guard okMessage.type == .ok else {
             if okMessage.type == .error {
                 throw SyncProtocolError.serverError(message: String(data: okMessage.payload, encoding: .utf8) ?? "Unknown error")
@@ -105,10 +67,10 @@ public final class SyncClient {
 
         // Send local metadata
         let localCSV = NetworkFileItem.encodeCSV(localItems)
-        sendMessageSync(connection, SyncMessage(type: .metadata, payload: localCSV))
+        try sendMessageSync(fd, SyncMessage(type: .metadata, payload: localCSV))
 
         // Receive remote metadata
-        let metadataMessage = try receiveMessageSync(connection)
+        let metadataMessage = try receiveMessageSync(fd)
         guard metadataMessage.type == .metadata else {
             throw SyncProtocolError.unexpectedMessage(expected: .metadata, got: metadataMessage.type)
         }
@@ -121,13 +83,13 @@ public final class SyncClient {
         log("Operations: \(operations.count)")
 
         // Execute file transfers
-        try executeTransfers(connection, localPath: localPath, operations: operations, mode: mode)
+        try executeTransfers(fd, localPath: localPath, operations: operations, mode: mode)
 
         // Send DONE
-        sendMessageSync(connection, SyncMessage(type: .done))
+        try sendMessageSync(fd, SyncMessage(type: .done))
 
         // Wait for server DONE
-        let doneMessage = try receiveMessageSync(connection)
+        let doneMessage = try receiveMessageSync(fd)
         if doneMessage.type != .done {
             log("Warning: Expected DONE, got \(doneMessage.type.rawValue)")
         }
@@ -135,13 +97,94 @@ public final class SyncClient {
         log("Sync complete!")
     }
 
+    // MARK: - Connection
+
+    private func connectToHost(_ host: String, port: UInt16) throws -> Int32 {
+        var hints = addrinfo()
+        hints.ai_family = AF_INET
+        hints.ai_socktype = Int32(SOCK_STREAM.rawValue)
+
+        var result: UnsafeMutablePointer<addrinfo>?
+        let portString = String(port)
+        let status = getaddrinfo(host, portString, &hints, &result)
+        guard status == 0, let addrInfo = result else {
+            throw SyncProtocolError.connectionFailed(host: host, port: Int(port))
+        }
+        defer { freeaddrinfo(result) }
+
+        let fd = socket(addrInfo.pointee.ai_family, addrInfo.pointee.ai_socktype, addrInfo.pointee.ai_protocol)
+        guard fd >= 0 else {
+            throw SyncProtocolError.connectionFailed(host: host, port: Int(port))
+        }
+
+        // Non-blocking connect with 10-second timeout
+        #if canImport(Darwin)
+        var flags = fcntl(fd, F_GETFL, 0)
+        _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+        #else
+        var flags = Glibc.fcntl(fd, F_GETFL, 0)
+        _ = Glibc.fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+        #endif
+
+        let connectResult = connect(fd, addrInfo.pointee.ai_addr, addrInfo.pointee.ai_addrlen)
+
+        if connectResult != 0 {
+            let err = errno
+            guard err == EINPROGRESS else {
+                systemClose(fd)
+                throw SyncProtocolError.connectionFailed(host: host, port: Int(port))
+            }
+
+            // Wait for connection with poll()
+            var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+            let pollResult = poll(&pfd, 1, 10_000)  // 10 second timeout
+
+            guard pollResult > 0 else {
+                systemClose(fd)
+                throw SyncProtocolError.timeout
+            }
+
+            // Check for connection error
+            var connectError: Int32 = 0
+            var errorLen = socklen_t(MemoryLayout<Int32>.size)
+            getsockopt(fd, SOL_SOCKET, SO_ERROR, &connectError, &errorLen)
+
+            guard connectError == 0 else {
+                systemClose(fd)
+                throw SyncProtocolError.connectionFailed(host: host, port: Int(port))
+            }
+        }
+
+        // Set back to blocking mode
+        #if canImport(Darwin)
+        flags = fcntl(fd, F_GETFL, 0)
+        _ = fcntl(fd, F_SETFL, flags & ~O_NONBLOCK)
+        #else
+        flags = Glibc.fcntl(fd, F_GETFL, 0)
+        _ = Glibc.fcntl(fd, F_SETFL, flags & ~O_NONBLOCK)
+        #endif
+
+        // Set timeouts
+        var timeout = timeval(tv_sec: 30, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+
+        // Prevent SIGPIPE on macOS
+        #if canImport(Darwin)
+        var noSigPipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        #endif
+
+        return fd
+    }
+
     // MARK: - Operations
 
     private struct TransferOperation {
         enum Action {
-            case download(path: String)  // Get from server
-            case upload(path: String)    // Send to server
-            case delete(path: String)    // Delete local
+            case download(path: String)
+            case upload(path: String)
+            case delete(path: String)
         }
         let action: Action
     }
@@ -158,8 +201,6 @@ public final class SyncClient {
 
         switch mode {
         case .push:
-            // Push: remote should mirror local
-            // Upload files that are new or different on local
             for (path, localItem) in localByPath {
                 if let remoteItem = remoteByPath[path] {
                     if localItem.hash != remoteItem.hash {
@@ -169,7 +210,6 @@ public final class SyncClient {
                     operations.append(TransferOperation(action: .upload(path: path)))
                 }
             }
-            // Delete remote files not on local
             for path in remoteByPath.keys {
                 if localByPath[path] == nil {
                     operations.append(TransferOperation(action: .delete(path: path)))
@@ -177,8 +217,6 @@ public final class SyncClient {
             }
 
         case .pull:
-            // Pull: local should mirror remote
-            // Download files that are new or different on remote
             for (path, remoteItem) in remoteByPath {
                 if let localItem = localByPath[path] {
                     if remoteItem.hash != localItem.hash {
@@ -188,7 +226,6 @@ public final class SyncClient {
                     operations.append(TransferOperation(action: .download(path: path)))
                 }
             }
-            // Delete local files not on remote
             for path in localByPath.keys {
                 if remoteByPath[path] == nil {
                     operations.append(TransferOperation(action: .delete(path: path)))
@@ -200,7 +237,7 @@ public final class SyncClient {
     }
 
     private func executeTransfers(
-        _ connection: NWConnection,
+        _ fd: Int32,
         localPath: URL,
         operations: [TransferOperation],
         mode: NetworkSyncMode
@@ -216,11 +253,9 @@ public final class SyncClient {
                 onProgress?(path, current, total)
                 log("Downloading: \(path)")
 
-                // Request file from server
-                sendMessageSync(connection, SyncMessage(type: .requestFile, string: path))
+                try sendMessageSync(fd, SyncMessage(type: .requestFile, string: path))
 
-                // Receive file data
-                let fileMessage = try receiveMessageSync(connection)
+                let fileMessage = try receiveMessageSync(fd)
                 guard fileMessage.type == .fileData else {
                     if fileMessage.type == .error {
                         log("Server error: \(String(data: fileMessage.payload, encoding: .utf8) ?? "")")
@@ -229,17 +264,14 @@ public final class SyncClient {
                     throw SyncProtocolError.unexpectedMessage(expected: .fileData, got: fileMessage.type)
                 }
 
-                // Parse and write file
                 try writeReceivedFile(fileMessage.payload, to: localPath)
 
             case .upload(let path):
                 onProgress?(path, current, total)
 
-                // Read local file
                 let fileURL = localPath.appendingPathComponent(path)
                 let fileData = try Data(contentsOf: fileURL)
 
-                // Create payload with automatic compression
                 let filePayload = FilePayload.create(path: path, data: fileData)
 
                 if filePayload.isCompressed {
@@ -249,18 +281,15 @@ public final class SyncClient {
                     log("Uploading: \(path) (\(fileData.count) bytes)")
                 }
 
-                // Send file
-                sendMessageSync(connection, SyncMessage(type: .fileData, payload: filePayload.encode()))
+                try sendMessageSync(fd, SyncMessage(type: .fileData, payload: filePayload.encode()))
 
             case .delete(let path):
                 onProgress?(path, current, total)
 
                 if mode == .push {
-                    // Push mode: request server to delete remote file
                     log("Deleting (remote): \(path)")
-                    sendMessageSync(connection, SyncMessage(type: .deleteFile, string: path))
+                    try sendMessageSync(fd, SyncMessage(type: .deleteFile, string: path))
                 } else {
-                    // Pull mode: delete local file
                     log("Deleting (local): \(path)")
                     let fileURL = localPath.appendingPathComponent(path)
                     try? FileManager.default.removeItem(at: fileURL)
@@ -270,22 +299,18 @@ public final class SyncClient {
     }
 
     private func writeReceivedFile(_ data: Data, to localPath: URL) throws {
-        // Parse payload (supports both old and new format with compression)
         guard let filePayload = FilePayload.decode(data) else {
             throw SyncProtocolError.invalidHeader
         }
 
-        // Decompress if needed
         guard let fileData = filePayload.decompressedData() else {
             throw SyncProtocolError.incompletePayload
         }
 
         let fileURL = localPath.appendingPathComponent(filePayload.path)
 
-        // Create parent directories
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
-        // Write file
         try fileData.write(to: fileURL)
 
         if filePayload.isCompressed {
@@ -297,66 +322,61 @@ public final class SyncClient {
 
     // MARK: - Network Helpers
 
-    private func sendMessageSync(_ connection: NWConnection, _ message: SyncMessage) {
-        let semaphore = DispatchSemaphore(value: 0)
-
-        connection.send(content: message.encode(), completion: .contentProcessed { _ in
-            semaphore.signal()
-        })
-
-        semaphore.wait()
+    private func sendMessageSync(_ fd: Int32, _ message: SyncMessage) throws {
+        let data = message.encode()
+        try data.withUnsafeBytes { ptr in
+            var sent = 0
+            let total = data.count
+            while sent < total {
+                let base = ptr.baseAddress!.advanced(by: sent)
+                #if canImport(Darwin)
+                let n = Darwin.send(fd, base, total - sent, 0)
+                #else
+                let n = Glibc.send(fd, base, total - sent, Int32(MSG_NOSIGNAL))
+                #endif
+                guard n > 0 else {
+                    throw SyncProtocolError.incompletePayload
+                }
+                sent += n
+            }
+        }
     }
 
     /// Receive buffer for handling partial reads
     private var receiveBuffer = Data()
 
-    private func receiveMessageSync(_ connection: NWConnection) throws -> SyncMessage {
-        // Try to parse from existing buffer first
+    private func receiveMessageSync(_ fd: Int32) throws -> SyncMessage {
         if let message = tryParseMessageFromBuffer() {
             return message
         }
 
-        // Need to read more data
+        var readBuffer = [UInt8](repeating: 0, count: 65536)
         while true {
-            let semaphore = DispatchSemaphore(value: 0)
-            var readResult: Result<Data, Error>?
+            #if canImport(Darwin)
+            let n = Darwin.recv(fd, &readBuffer, readBuffer.count, 0)
+            #else
+            let n = Glibc.recv(fd, &readBuffer, readBuffer.count, 0)
+            #endif
 
-            // Read more data (up to 64KB at a time)
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, _, error in
-                if let error = error {
-                    readResult = .failure(error)
-                } else if let data = data, !data.isEmpty {
-                    readResult = .success(data)
-                } else {
-                    readResult = .failure(SyncProtocolError.incompletePayload)
+            if n == 0 {
+                throw SyncProtocolError.incompletePayload
+            }
+            if n < 0 {
+                if errno == EAGAIN || errno == EWOULDBLOCK {
+                    throw SyncProtocolError.timeout
                 }
-                semaphore.signal()
+                throw SyncProtocolError.incompletePayload
             }
 
-            let timeout = DispatchTime.now() + .seconds(30)
-            if semaphore.wait(timeout: timeout) == .timedOut {
-                throw SyncProtocolError.timeout
-            }
+            receiveBuffer.append(contentsOf: readBuffer[..<n])
 
-            switch readResult {
-            case .success(let data):
-                receiveBuffer.append(data)
-            case .failure(let error):
-                throw error
-            case .none:
-                throw SyncProtocolError.timeout
-            }
-
-            // Try to parse again
             if let message = tryParseMessageFromBuffer() {
                 return message
             }
-            // Loop to read more
         }
     }
 
     private func tryParseMessageFromBuffer() -> SyncMessage? {
-        // Find header end (newline)
         guard let headerEnd = receiveBuffer.firstIndex(of: 0x0A) else {
             return nil
         }
@@ -377,22 +397,28 @@ public final class SyncClient {
         let availablePayload = receiveBuffer.count - (payloadStart - receiveBuffer.startIndex)
 
         guard availablePayload >= length else {
-            return nil  // Not enough payload data yet
+            return nil
         }
 
-        // Extract payload
         let payloadEnd = receiveBuffer.index(payloadStart, offsetBy: length)
         let payload = Data(receiveBuffer[payloadStart..<payloadEnd])
 
-        // Remove consumed data from buffer
         receiveBuffer = Data(receiveBuffer[payloadEnd...])
 
         return SyncMessage(type: type, payload: payload)
+    }
+
+    // MARK: - Helpers
+
+    private func systemClose(_ fd: Int32) {
+        #if canImport(Darwin)
+        Darwin.close(fd)
+        #else
+        Glibc.close(fd)
+        #endif
     }
 
     private func log(_ message: String) {
         onLog?(message)
     }
 }
-
-#endif // canImport(Network)

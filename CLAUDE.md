@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Library:** Swift Package for embedding in macOS/iOS apps
 - **CLI Tool:** `diffa` command for macOS and Linux (Phase 5)
 
-**Current Status:** Phases 0-7 complete. All core functionality implemented with 386 passing tests. Network sync (serve/push/pull) with automatic compression operational.
+**Current Status:** Phases 0-7 complete. All core functionality implemented and cross-platform (macOS + Linux). Network sync (serve/push/pull) with automatic compression operational on both platforms using POSIX sockets and system zlib.
 
 **Key Design Philosophy:**
 - Simple first, no frills
@@ -159,12 +159,15 @@ Sources/DiffaCLI/
 - 43+ new tests
 
 ### Phase 7: Network Sync ✅ Complete
-- TCP server/client using Apple's Network framework
+- TCP server/client using cross-platform POSIX sockets (macOS + Linux)
 - `serve`, `push`, `pull` commands
 - Custom message protocol with proper buffering
-- Automatic ZLIB compression for files ≥4KB
+- Automatic zlib compression for files ≥4KB (via system zlib)
 - True mirror behavior (push/pull delete files not in source)
 - Server displays local IP addresses
+- Server shutdown: self-pipe trick + poll() for clean startAsync()/stop()
+- Client: non-blocking connect with 10s timeout, 30s read/write timeouts
+- SIGPIPE handling: SO_NOSIGPIPE (macOS), MSG_NOSIGNAL (Linux)
 - 14 integration tests (localhost push/pull)
 
 ## Schema Versioning
@@ -223,6 +226,7 @@ CREATE TABLE schema_version (
 - `docs/sqlite-wrapper-fixes.md` - SQLite wrapper implementation details
 - `docs/cli-design.md` - Command-line tool specification (Phase 5)
 - `docs/competitive-analysis.md` - Comparison to rsync, Git, Unison, etc.
+- `docs/cross-platform-network-sync.md` - Cross-platform network sync design and implementation
 
 **Operation Reviews (Detailed Pseudocode):**
 - `docs/operation-review-snapshot.md` - Snapshot creation
@@ -303,16 +307,17 @@ CREATE TABLE schema_version (
 - `swift-crypto` - Cross-platform SHA-256 hashing
 
 **System Libraries:**
-- `libsqlite3` (macOS/iOS: system, Linux: apt-get install libsqlite3-dev)
+- `libsqlite3` (macOS/iOS: system, Linux: `apt-get install libsqlite3-dev`)
+- `zlib` (macOS: system, Linux: `apt-get install zlib1g-dev`)
 
 **Swift Package Manager:**
-- Platforms: macOS 13+, iOS 16+
+- Platforms: macOS 13+, iOS 16+, Linux
 - Swift version: 5.9+
 
 ## Current Version
 
 **Version:** 0.12.0
-**Tests:** 386 passing (library + integration + EfficientSync + NetworkSync)
+**Tests:** 386 passing on macOS (library + integration + EfficientSync + NetworkSync). On Linux, the full suite requires `--skip FileHasherTests` due to a pre-existing `FileHandle` directory-read trap; with that skipped, one known pre-existing failure remains in `PatchingIntegrationTests.testPatchWithLargeFiles`.
 
 ## Next Steps
 

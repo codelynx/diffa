@@ -1,9 +1,7 @@
-#if canImport(Network)
 import Foundation
 import ArgumentParser
 import Diffa
 
-@available(macOS 13.0, *)
 struct PullCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "pull",
@@ -51,4 +49,3 @@ struct PullCommand: ParsableCommand {
         return (String(parts[0]), port)
     }
 }
-#endif // canImport(Network)
