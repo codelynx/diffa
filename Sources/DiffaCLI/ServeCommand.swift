@@ -27,9 +27,12 @@ struct ServeCommand: ParsableCommand {
         print("  Path: \(url.path)")
         print("  Port: \(port)")
         print("")
+        fflush(stdout)
 
         let server = SyncServer(path: url, port: port)
-        server.onLog = { print($0) }
+        // Flush per line so logs are visible when stdout is redirected
+        // (a long-running daemon never fills the block buffer).
+        server.onLog = { print($0); fflush(stdout) }
         try server.start()
     }
 }
