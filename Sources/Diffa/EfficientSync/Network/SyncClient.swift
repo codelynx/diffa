@@ -91,10 +91,24 @@ public final class SyncClient {
         // Send DONE
         try sendMessageSync(fd, SyncMessage(type: .done))
 
-        // Wait for server DONE
-        let doneMessage = try receiveMessageSync(fd)
-        if doneMessage.type != .done {
-            log("Warning: Expected DONE, got \(doneMessage.type.rawValue)")
+        // Wait for server DONE, draining any ERROR messages the server
+        // queued for individual operations it rejected or failed to apply.
+        var serverErrors: [String] = []
+        while true {
+            let reply = try receiveMessageSync(fd)
+            if reply.type == .done { break }
+            if reply.type == .error {
+                let text = String(data: reply.payload, encoding: .utf8) ?? "Unknown error"
+                log("Server error: \(text)")
+                serverErrors.append(text)
+            } else {
+                log("Warning: Expected DONE, got \(reply.type.rawValue)")
+            }
+        }
+
+        if let firstError = serverErrors.first {
+            let suffix = serverErrors.count > 1 ? " (+\(serverErrors.count - 1) more)" : ""
+            throw SyncProtocolError.serverError(message: firstError + suffix)
         }
 
         log("Sync complete!")

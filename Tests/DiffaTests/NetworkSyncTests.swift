@@ -543,4 +543,102 @@ final class NetworkSyncTests: XCTestCase {
             XCTAssertTrue(ci < di, "Copy should execute before delete")
         }
     }
+
+    // MARK: - Path Validation Tests
+
+    func testValidatePathRejectsTraversalAndAbsolute() {
+        let srv = SyncServer(path: remoteDir, port: testPort)
+
+        XCTAssertNil(srv.validatePath("../escape.txt"))
+        XCTAssertNil(srv.validatePath("a/../../escape.txt"))
+        XCTAssertNil(srv.validatePath("/etc/passwd"))
+        XCTAssertNil(srv.validatePath(""))
+
+        XCTAssertNotNil(srv.validatePath("ok.txt"))
+        XCTAssertNotNil(srv.validatePath("sub/dir/new.txt"), "New file in new subdir must validate")
+    }
+
+    func testValidatePathRejectsSymlinkEscape() throws {
+        let outside = FileManager.default.temporaryDirectory
+            .appendingPathComponent("NetworkSyncTests-outside-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: outside) }
+
+        try FileManager.default.createSymbolicLink(
+            at: remoteDir.appendingPathComponent("link"),
+            withDestinationURL: outside
+        )
+
+        let srv = SyncServer(path: remoteDir, port: testPort)
+        XCTAssertNil(srv.validatePath("link/evil.txt"), "Symlink pointing outside root must be rejected")
+    }
+
+    #if os(macOS)
+    func testPushNewFileToPrivateFormRoot() throws {
+        // Foundation strips /private (tmp, var, etc) only for paths that
+        // exist, so a server root given in /private form used to normalize
+        // differently than its not-yet-created upload targets — silently
+        // rejecting every new file.
+        let privateRemote = URL(fileURLWithPath: "/private" + remoteDir.path)
+        guard FileManager.default.fileExists(atPath: privateRemote.path) else {
+            throw XCTSkip("Temp dir has no /private form on this system")
+        }
+
+        try createFile(at: localDir, name: "new.txt", content: "created")
+
+        server = SyncServer(path: privateRemote, port: testPort)
+        server.onLog = nil
+        try server.startAsync()
+
+        let client = SyncClient()
+        client.onLog = nil
+        try client.push(localPath: localDir, to: "localhost", port: testPort)
+
+        XCTAssertEqual(readFile(at: remoteDir, name: "new.txt"), "created")
+    }
+
+    func testPushNewFileToTmpFormRoot() throws {
+        // Regression guard for the /private fix: a root in stripped /tmp
+        // form must keep accepting new files.
+        let tmpRemote = URL(fileURLWithPath: "/tmp/NetworkSyncTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpRemote, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpRemote) }
+
+        try createFile(at: localDir, name: "new.txt", content: "created")
+
+        server = SyncServer(path: tmpRemote, port: testPort)
+        server.onLog = nil
+        try server.startAsync()
+
+        let client = SyncClient()
+        client.onLog = nil
+        try client.push(localPath: localDir, to: "localhost", port: testPort)
+
+        XCTAssertEqual(readFile(at: tmpRemote, name: "new.txt"), "created")
+    }
+    #endif
+
+    // MARK: - Error Propagation Tests
+
+    #if !os(Windows)
+    func testPushThrowsWhenServerCannotWrite() throws {
+        // A server-side write failure must surface as a thrown error on
+        // the client, not a silent "Sync complete!".
+        try createFile(at: localDir, name: "new.txt", content: "data")
+
+        try startServer()
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: remoteDir.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: remoteDir.path) }
+
+        let client = SyncClient()
+        client.onLog = nil
+        XCTAssertThrowsError(try client.push(localPath: localDir, to: "localhost", port: testPort)) { error in
+            guard case SyncProtocolError.serverError = error else {
+                return XCTFail("Expected SyncProtocolError.serverError, got \(error)")
+            }
+        }
+        XCTAssertFalse(fileExists(at: remoteDir, name: "new.txt"))
+    }
+    #endif
 }

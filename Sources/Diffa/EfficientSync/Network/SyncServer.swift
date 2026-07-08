@@ -303,19 +303,19 @@ public final class SyncServer {
                 sendFile(fd, path: path)
 
             case .fileData:
-                receiveFile(data: message.payload)
+                receiveFile(fd, data: message.payload)
 
             case .deleteFile:
                 let path = String(data: message.payload, encoding: .utf8) ?? ""
-                deleteFile(path: path)
+                deleteFile(fd, path: path)
 
             case .copyFile:
                 let payload = String(data: message.payload, encoding: .utf8) ?? ""
                 let parts = payload.split(separator: "\t", maxSplits: 1)
                 if parts.count == 2 {
-                    copyFile(from: String(parts[0]), to: String(parts[1]))
+                    copyFile(fd, from: String(parts[0]), to: String(parts[1]))
                 } else {
-                    log("Invalid COPY payload")
+                    sendError(fd, "Invalid COPY payload")
                 }
 
             case .done:
@@ -343,17 +343,38 @@ public final class SyncServer {
     }
 
     /// Validate that a relative path resolves to a location within rootPath.
-    private func validatePath(_ relativePath: String) -> URL? {
-        let url = rootPath.appendingPathComponent(relativePath)
-        let normalized = url.resolvingSymlinksInPath().standardized
-        let normalizedPath = normalized.path
+    ///
+    /// The candidate is built against the already-normalized root so both
+    /// sides of the containment check share the same basis. Resolving
+    /// symlinks on the full candidate is wrong for paths that don't exist
+    /// yet: Foundation strips /private (tmp, var, etc) only for existing
+    /// paths, so a new file under a /private-form root would normalize
+    /// differently than the root and be falsely rejected.
+    ///
+    /// Internal (not private) so tests can exercise it directly.
+    func validatePath(_ relativePath: String) -> URL? {
+        let components = relativePath.split(separator: "/", omittingEmptySubsequences: true)
+        guard !relativePath.hasPrefix("/"), !components.isEmpty, !components.contains("..") else {
+            log("Path rejected (invalid): \(relativePath)")
+            return nil
+        }
 
-        guard normalizedPath == normalizedRootPath || normalizedPath.hasPrefix(normalizedRootPath + "/") else {
+        let url = URL(fileURLWithPath: normalizedRootPath).appendingPathComponent(relativePath).standardized
+
+        // Symlink-escape guard: resolve the deepest existing ancestor
+        // (or the path itself, if it exists) and require containment.
+        var probe = url
+        while probe.path != normalizedRootPath,
+              (try? FileManager.default.attributesOfItem(atPath: probe.path)) == nil {
+            probe = probe.deletingLastPathComponent()
+        }
+        let resolved = probe.resolvingSymlinksInPath().standardized.path
+        guard resolved == normalizedRootPath || resolved.hasPrefix(normalizedRootPath + "/") else {
             log("Path rejected (outside root): \(relativePath)")
             return nil
         }
 
-        return normalized
+        return url
     }
 
     private func sendFile(_ fd: SocketDescriptor, path: String) {
@@ -379,19 +400,19 @@ public final class SyncServer {
         sendMessage(fd, SyncMessage(type: .fileData, payload: filePayload.encode()))
     }
 
-    private func receiveFile(data: Data) {
+    private func receiveFile(_ fd: SocketDescriptor, data: Data) {
         guard let filePayload = FilePayload.decode(data) else {
-            log("Invalid file data")
+            sendError(fd, "Invalid file data")
             return
         }
 
         guard let fileData = filePayload.decompressedData() else {
-            log("Failed to decompress file: \(filePayload.path)")
+            sendError(fd, "Failed to decompress file: \(filePayload.path)")
             return
         }
 
         guard let fileURL = validatePath(filePayload.path) else {
-            log("Rejected file (invalid path): \(filePayload.path)")
+            sendError(fd, "Rejected file (invalid path): \(filePayload.path)")
             return
         }
 
@@ -405,13 +426,13 @@ public final class SyncServer {
                 log("Received file: \(filePayload.path) (\(fileData.count) bytes)")
             }
         } catch {
-            log("Failed to write file: \(error)")
+            sendError(fd, "Failed to write file \(filePayload.path): \(error)")
         }
     }
 
-    private func deleteFile(path: String) {
+    private func deleteFile(_ fd: SocketDescriptor, path: String) {
         guard let fileURL = resolvePath(path) else {
-            log("Rejected delete (invalid path): \(path)")
+            sendError(fd, "Rejected delete (invalid path): \(path)")
             return
         }
 
@@ -437,17 +458,17 @@ public final class SyncServer {
                 }
             }
         } catch {
-            log("Failed to delete file \(path): \(error)")
+            sendError(fd, "Failed to delete file \(path): \(error)")
         }
     }
 
-    private func copyFile(from sourcePath: String, to destPath: String) {
+    private func copyFile(_ fd: SocketDescriptor, from sourcePath: String, to destPath: String) {
         guard let sourceURL = resolvePath(sourcePath) else {
-            log("Rejected copy source (invalid path): \(sourcePath)")
+            sendError(fd, "Rejected copy source (invalid path): \(sourcePath)")
             return
         }
         guard let destURL = resolvePath(destPath) else {
-            log("Rejected copy dest (invalid path): \(destPath)")
+            sendError(fd, "Rejected copy dest (invalid path): \(destPath)")
             return
         }
 
@@ -462,7 +483,7 @@ public final class SyncServer {
             try FileManager.default.copyItem(at: sourceURL, to: destURL)
             log("Copied: \(sourcePath) → \(destPath)")
         } catch {
-            log("Failed to copy \(sourcePath) → \(destPath): \(error)")
+            sendError(fd, "Failed to copy \(sourcePath) → \(destPath): \(error)")
         }
     }
 
