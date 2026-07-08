@@ -136,3 +136,101 @@ necessity.
 | 2 | Incremental push (add + modify) | 2 files only | ✅ |
 | 3 | Mirror-delete | 0 | ✅ |
 | 4 | Rename → copy optimization | **0** (server-side local copy) | ✅ |
+
+---
+
+# Role-Flip Run — Mac mini serves, MacBook Pro drives
+
+A second run with the **roles reversed**: the Mac mini is the server, the
+MacBook Pro is the client. The point is to exercise the **client-side**
+copy-optimization path (destination hash-index build + `COPY` emission) on
+the *other* machine — the first run only proved it with the Mac mini as
+client. Both machines are now proven as the client side.
+
+Two fixes landed between the runs (see the network-sync history) and were
+exercised live here:
+
+- **`5354031`** — `diffa serve` now flushes stdout per log line, so the
+  server-side log **streamed live** this run (the buffering gotcha noted
+  above is resolved). Every step below was quoted from the live server log.
+- **`4b252e6`** — path-validation fix. The Mac mini served from a
+  **`/private/tmp`-form root**, so scenario 2's new-file push
+  **revalidated the fix end-to-end over the LAN**: pre-fix, the new file
+  would have been silently rejected.
+
+## Environment
+
+| Role | Machine | Address |
+|------|---------|---------|
+| Server | Mac mini 2024 | `192.168.2.109:8756` (served root in `/private/tmp`-form) |
+| Client | MacBook Pro 16″ | `192.168.2.116` |
+
+Both on `develop` @ `4b252e6`, debug builds. Server firewall disabled.
+
+## Served reference (4 files)
+
+| path | size | sha256 |
+|------|------|--------|
+| `notes.txt` | 63 B | `28dbbe42…fcd7c6` |
+| `docs/guide.md` | 52 B | `0f8dc5cd…47f0e6` |
+| `assets/payload.bin` | 99840 B | `a0badab2…83e04` |
+| `media/photo.dat` | 20480 B | `d5d75946…0bf8de` |
+
+`payload.bin` is a repeating pattern (highly compressible); `photo.dat` is
+seeded-random (**incompressible** — exercises the no-compress wire path, a
+variation from the first run).
+
+## Scenarios (client = MacBook Pro)
+
+### 1. Pull into an empty directory — PASS
+
+All 4 files pulled; every SHA-256 matched the reference. Wire behavior:
+`payload.bin` sent `99840 → 349 bytes` (compressed), `photo.dat` sent at
+**full 20480 B** (no-compress path confirmed).
+
+### 2. Incremental push (add + modify) — PASS ⭐ (revalidates `4b252e6`)
+
+Client added `added-from-mac.txt` (30 B) and modified `notes.txt` (→ 90 B),
+then pushed. 2 operations; 3 unchanged files skipped. Server log showed
+**`Received file: added-from-mac.txt`** (not `Path rejected`) — the
+new-file push to the `/private/tmp`-form root succeeded, confirming the
+validation fix over the wire. End-state hashes verified on the server.
+
+### 3. Mirror-delete — PASS
+
+Client `rm media/photo.dat`, push → 1 remote-delete op, 0 content bytes.
+Server pruned the file and the now-empty `media/` directory.
+
+### 4. Rename → copy optimization (MacBook client-driven) — PASS ⭐
+
+Client `mv assets/payload.bin assets/payload-moved.bin`, push:
+
+```
+Operations: 2
+Copying (remote): assets/payload.bin → assets/payload-moved.bin
+Deleting (remote): assets/payload.bin
+```
+
+**No `Uploading:` line** — zero content bytes on the wire for the 99840 B
+file. The server log independently showed `Copied: … → …` with **no
+`Received file:`** for the payload. End-state: `payload-moved.bin` @
+`a0badab2…83e04`, `payload.bin` gone, other 3 files unchanged.
+
+This is a stronger proof than the first run: with the flush fix in place,
+**both ends** provide direct evidence — the client's zero-transfer output
+*and* the server's live `Copied`/no-receive log — and the client-side
+optimization logic ran on the MacBook this time.
+
+## Summary
+
+| # | Scenario | Content bytes on wire | Result |
+|---|----------|-----------------------|--------|
+| 1 | Pull into empty dir | 4 files (payload compressed, photo.dat full) | ✅ |
+| 2 | Incremental push — new file on `/private` root | 2 files (revalidates `4b252e6`) | ✅ |
+| 3 | Mirror-delete | 0 | ✅ |
+| 4 | Rename → copy optimization (client-driven) | **0** (two-sided proof) | ✅ |
+
+**Result:** network sync is symmetric — both machines verified as client
+and as server, copy optimization proven client-driven from each — and the
+flush (`5354031`) and path-validation (`4b252e6`) fixes held up under live
+LAN fire.
