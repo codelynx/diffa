@@ -131,6 +131,33 @@ final class SnapshotEngineTests: XCTestCase {
         XCTAssertEqual(items[0].path, "regular.txt")
     }
 
+    func testScanWithExcludedNamesSkipsSubtree() async throws {
+        // A source file we want, plus build/VCS dirs (with contents) we don't.
+        let keepURL = tempDir.appendingPathComponent("main.swift")
+        try "keep".write(to: keepURL, atomically: true, encoding: .utf8)
+
+        let buildDir = tempDir.appendingPathComponent(".build")
+        try fileManager.createDirectory(at: buildDir, withIntermediateDirectories: true)
+        try "obj".write(to: buildDir.appendingPathComponent("artifact.o"), atomically: true, encoding: .utf8)
+        let nestedBuild = buildDir.appendingPathComponent("debug")
+        try fileManager.createDirectory(at: nestedBuild, withIntermediateDirectories: true)
+        try "bin".write(to: nestedBuild.appendingPathComponent("app"), atomically: true, encoding: .utf8)
+
+        let gitDir = tempDir.appendingPathComponent(".git")
+        try fileManager.createDirectory(at: gitDir, withIntermediateDirectories: true)
+        try "ref".write(to: gitDir.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
+
+        // Note: includeHidden defaults to true, so `.build`/`.git` would
+        // normally be scanned — exclude must skip them by name.
+        let options = ScanOptions(exclude: [".build", ".git"])
+        let items = try await engine.scanDirectory(at: tempDir, options: options)
+
+        // Only the source file survives; the excluded dirs and their whole
+        // subtrees are gone.
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items[0].path, "main.swift")
+    }
+
     func testScanWithHiddenDirectoriesExcluded() async throws {
         // Create regular and hidden directories with files
         let regularDir = tempDir.appendingPathComponent("regular")

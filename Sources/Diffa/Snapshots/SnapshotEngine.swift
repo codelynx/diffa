@@ -655,6 +655,12 @@ public class SnapshotEngine {
     private func shouldInclude(_ url: URL, options: ScanOptions) -> Bool {
         let fileName = url.lastPathComponent
 
+        // Excluded by name (e.g. .build, .git). For a directory this skips
+        // the whole subtree, since it's never entered.
+        if options.exclude.contains(fileName) {
+            return false
+        }
+
         // Check if hidden file
         if !options.includeHidden && fileName.hasPrefix(".") {
             return false

@@ -35,6 +35,13 @@ public struct ScanOptions {
     /// Default: ProcessInfo.activeProcessorCount
     public var maxConcurrentHashing: Int
 
+    /// Names to exclude from the scan (matched against each entry's last
+    /// path component). Excluding a directory name skips its entire
+    /// subtree — it is never entered. Common use: build/VCS artifacts such
+    /// as `.build`, `.git`, `node_modules`.
+    /// Default: empty (scan everything).
+    public var exclude: Set<String>
+
     /// Create with default options
     public init(
         followSymlinks: Bool = true,
@@ -43,7 +50,8 @@ public struct ScanOptions {
         useHashCache: Bool = false,
         hashCacheDirectory: URL? = nil,
         useParallelHashing: Bool = false,
-        maxConcurrentHashing: Int = ProcessInfo.processInfo.activeProcessorCount
+        maxConcurrentHashing: Int = ProcessInfo.processInfo.activeProcessorCount,
+        exclude: Set<String> = []
     ) {
         self.followSymlinks = followSymlinks
         self.includeHidden = includeHidden
@@ -52,6 +60,7 @@ public struct ScanOptions {
         self.hashCacheDirectory = hashCacheDirectory
         self.useParallelHashing = useParallelHashing
         self.maxConcurrentHashing = max(1, maxConcurrentHashing)
+        self.exclude = exclude
     }
 }
 
