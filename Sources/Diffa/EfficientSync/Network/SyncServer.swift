@@ -240,9 +240,14 @@ public final class SyncServer {
             return
         }
 
-        let modeString = String(data: helloMessage.payload, encoding: .utf8) ?? ""
-        guard let mode = NetworkSyncMode(rawValue: modeString) else {
-            sendError(fd, "Invalid mode: \(modeString)")
+        let mode: NetworkSyncMode
+        do {
+            mode = try NetworkProtocol.decodeHello(helloMessage.payload)
+        } catch let error as SyncProtocolError {
+            sendError(fd, error.description)
+            return
+        } catch {
+            sendError(fd, "Invalid HELLO")
             return
         }
 
@@ -273,12 +278,18 @@ public final class SyncServer {
             return
         }
 
-        let remoteItems = NetworkFileItem.decodeCSV(metadataMessage.payload)
+        let remoteItems: [NetworkFileItem]
+        do {
+            remoteItems = try NetworkFileItem.decode(metadataMessage.payload)
+        } catch {
+            sendError(fd, "Invalid metadata framing")
+            return
+        }
         log("Remote files: \(remoteItems.count)")
 
         // Send local metadata
-        let localCSV = NetworkFileItem.encodeCSV(localItems)
-        sendMessage(fd, SyncMessage(type: .metadata, payload: localCSV))
+        let localMetadata = NetworkFileItem.encode(localItems)
+        sendMessage(fd, SyncMessage(type: .metadata, payload: localMetadata))
 
         // Handle file transfers
         handleFileTransfers(fd, mode: mode, localItems: localItems, remoteItems: remoteItems, snapshot: snapshot)

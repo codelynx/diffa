@@ -49,7 +49,7 @@ public final class SyncClient {
         log("Connected!")
 
         // Send HELLO
-        try sendMessageSync(fd, SyncMessage(type: .hello, string: mode.rawValue))
+        try sendMessageSync(fd, SyncMessage(type: .hello, payload: NetworkProtocol.encodeHello(mode: mode)))
 
         // Receive OK
         let okMessage = try receiveMessageSync(fd)
@@ -69,8 +69,8 @@ public final class SyncClient {
         log("Local files: \(localItems.count)")
 
         // Send local metadata
-        let localCSV = NetworkFileItem.encodeCSV(localItems)
-        try sendMessageSync(fd, SyncMessage(type: .metadata, payload: localCSV))
+        let localMetadata = NetworkFileItem.encode(localItems)
+        try sendMessageSync(fd, SyncMessage(type: .metadata, payload: localMetadata))
 
         // Receive remote metadata
         let metadataMessage = try receiveMessageSync(fd)
@@ -78,7 +78,7 @@ public final class SyncClient {
             throw SyncProtocolError.unexpectedMessage(expected: .metadata, got: metadataMessage.type)
         }
 
-        let remoteItems = NetworkFileItem.decodeCSV(metadataMessage.payload)
+        let remoteItems = try NetworkFileItem.decode(metadataMessage.payload)
         log("Remote files: \(remoteItems.count)")
 
         // Compute operations
