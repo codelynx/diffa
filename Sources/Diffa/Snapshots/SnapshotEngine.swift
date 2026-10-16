@@ -162,6 +162,15 @@ public class SnapshotEngine {
         options: ScanOptions,
         progress: ((SnapshotProgress) -> Void)? = nil
     ) async throws -> Snapshot {
+        // A missing root must fail loudly. The recursive scan skips
+        // unreadable directories, so without this check a typo'd path
+        // silently produces an empty snapshot.
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            throw DiffaError.fileNotFound(path: directory.path)
+        }
+
         // Create a new snapshot database
         let snapshot = try Snapshot.create(at: snapshotURL, rootPath: directory.path)
 
@@ -215,6 +224,45 @@ public class SnapshotEngine {
         // Re-open the snapshot to get updated metadata
         // The Snapshot struct returned by create() has stale metadata (all zeros)
         // so we must reload it from the database to get the actual counts
+        return try Snapshot.open(at: snapshotURL)
+    }
+
+    /// Create a snapshot from a directory and save it to `snapshotURL`
+    /// without ever putting an existing file there at risk.
+    ///
+    /// The scan writes to a staging file on the same volume and is swapped
+    /// into place only after it completes (see `AtomicFileReplace`). If the
+    /// scan or the swap fails, a pre-existing file at `snapshotURL` is left
+    /// exactly as it was and the staging file is removed.
+    ///
+    /// Prefer this over `createSnapshot(from:saveTo:options:progress:)`
+    /// when `snapshotURL` may already hold a snapshot the user cares about.
+    /// - Parameters:
+    ///   - directory: Root directory to snapshot
+    ///   - snapshotURL: Final location of the snapshot database
+    ///   - options: Scan options (hidden files, symlinks, ownership)
+    ///   - progress: Optional progress callback
+    /// - Returns: The created Snapshot, opened at `snapshotURL`
+    public func createSnapshot(
+        from directory: URL,
+        atomicallySavingTo snapshotURL: URL,
+        options: ScanOptions,
+        progress: ((SnapshotProgress) -> Void)? = nil
+    ) async throws -> Snapshot {
+        let stagingURL = try AtomicFileReplace.stagingURL(for: snapshotURL)
+        defer { AtomicFileReplace.discardStaging(stagingURL) }
+
+        let staged = try await createSnapshot(
+            from: directory,
+            saveTo: stagingURL,
+            options: options,
+            progress: progress
+        )
+        // Close before the swap: Windows can't rename an open file, and the
+        // caller gets a fresh connection at the final location below.
+        try staged.database.close()
+
+        try AtomicFileReplace.replaceItem(at: snapshotURL, withItemAt: stagingURL)
         return try Snapshot.open(at: snapshotURL)
     }
 
