@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `SnapshotEngine.createSnapshot(from:atomicallySavingTo:options:progress:)`:
+  scans into a staging file beside the destination and atomically replaces
+  it, so a failed scan leaves any existing snapshot intact
+  (`rename` on Linux, `MoveFileExW` on Windows, `replaceItemAt` on Darwin).
+- `AtomicFileReplace` utility and `FileReplaceError`.
+
+### Fixed
+- `createSnapshot(saveTo:)` throws `DiffaError.fileNotFound` when the root
+  is missing or not a directory, instead of writing an empty snapshot.
+
 ## [0.12.0] - 2025-12-17
 
 ### Added
